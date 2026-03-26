@@ -26,7 +26,6 @@ class RssReaderApplication : Application() {
 
     val repository: FeedRepository by lazy {
         FeedRepository(
-            database = database,
             feedDao = database.feedDao(),
             articleDao = database.articleDao(),
             fetcher = FeedFetcher(),
@@ -42,3 +41,6 @@ class RssReaderApplication : Application() {
         RefreshScheduler(applicationContext)
     }
 }
+
+
+========================================================================================================================

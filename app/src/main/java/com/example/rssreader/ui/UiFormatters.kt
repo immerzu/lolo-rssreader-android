@@ -26,3 +26,6 @@ fun formatFeedUpdatedAt(timestamp: Long?): String {
     val formatter = SimpleDateFormat("dd.MM.yy HH:mm", Locale.getDefault())
     return formatter.format(Date(timestamp))
 }
+
+
+========================================================================================================================

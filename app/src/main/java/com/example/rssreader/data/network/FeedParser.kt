@@ -426,10 +426,7 @@ class FeedParser {
                 val base = baseUrl?.let(::URI) ?: return candidate
                 base.resolve(uri).toString()
             }
-        }.getOrElse {
-            Log.w(TAG, "URL konnte nicht aufgeloest werden: base=$baseUrl, value=$candidate", it)
-            candidate
-        }
+        }.getOrElse { candidate }
     }
 
     private fun extractImageUrls(rawHtml: String): List<String> {
@@ -563,3 +560,6 @@ class FeedParser {
         return false
     }
 }
+
+
+========================================================================================================================

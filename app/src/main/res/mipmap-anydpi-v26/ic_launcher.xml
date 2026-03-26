@@ -3,3 +3,6 @@
     <foreground android:drawable="@drawable/ic_launcher_fg_pack" />
     <monochrome android:drawable="@drawable/ic_launcher_monochrome" />
 </adaptive-icon>
+
+
+========================================================================================================================

@@ -21,3 +21,6 @@ Per Android Studio ueber `Build > Build APK(s)` oder lokal ueber `gradlew.bat as
 
 ## Hinweis zur Gradle-Konfiguration
 Der Wrapper ist fuer diese Maschine bereits vorbereitet und nutzt die lokal abgelegte Gradle-8.7-Distribution.
+
+
+========================================================================================================================

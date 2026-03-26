@@ -263,15 +263,13 @@ fun ArticleReaderScreen(
                                     },
                                     onDragEnd = {
                                         when {
-                                            totalHorizontalDrag >= ARTICLE_SWIPE_THRESHOLD_PX &&
-                                                newerArticleId != null -> {
+                                            totalHorizontalDrag >= 80f && newerArticleId != null -> {
                                                 scope.launch {
                                                     swipeDirection = SwipeDirection.ToNewer
                                                     currentArticleId = newerArticleId!!
                                                 }
                                             }
-                                            totalHorizontalDrag <= -ARTICLE_SWIPE_THRESHOLD_PX &&
-                                                olderArticleId != null -> {
+                                            totalHorizontalDrag <= -80f && olderArticleId != null -> {
                                                 scope.launch {
                                                     swipeDirection = SwipeDirection.ToOlder
                                                     currentArticleId = olderArticleId!!
@@ -306,22 +304,20 @@ fun ArticleReaderScreen(
                                                 view: WebView?,
                                                 request: WebResourceRequest?
                                             ): Boolean {
-                                                return handleExternalNavigation(
-                                                    context = viewContext,
-                                                    targetUri = request?.url,
-                                                    isMainFrame = request?.isForMainFrame == true
-                                                )
-                                            }
-
-                                            override fun shouldOverrideUrlLoading(
-                                                view: WebView?,
-                                                url: String?
-                                            ): Boolean {
-                                                return handleExternalNavigation(
-                                                    context = viewContext,
-                                                    targetUri = url?.let(Uri::parse),
-                                                    isMainFrame = true
-                                                )
+                                                val targetUri = request?.url
+                                                if (targetUri?.scheme == IMAGE_TAP_SCHEME) {
+                                                    val articleTarget = targetUri.getQueryParameter("url").orEmpty()
+                                                    openArticleInBrowser(viewContext, articleTarget)
+                                                    return true
+                                                }
+                                                val target = targetUri?.toString().orEmpty()
+                                                if (request?.isForMainFrame == true && target.isNotBlank()) {
+                                                    viewContext.startActivity(
+                                                        Intent(Intent.ACTION_VIEW, Uri.parse(target))
+                                                    )
+                                                    return true
+                                                }
+                                                return false
                                             }
                                         }
                                     }
@@ -681,23 +677,6 @@ private data class ReaderHtmlContent(
     val html: String
 )
 
-private fun handleExternalNavigation(
-    context: android.content.Context,
-    targetUri: Uri?,
-    isMainFrame: Boolean
-): Boolean {
-    if (targetUri?.scheme == IMAGE_TAP_SCHEME) {
-        openArticleInBrowser(context, targetUri.getQueryParameter("url"))
-        return true
-    }
-    val target = targetUri?.toString().orEmpty()
-    if (isMainFrame && target.isNotBlank()) {
-        openArticleInBrowser(context, target)
-        return true
-    }
-    return false
-}
-
 private fun openArticleInBrowser(context: android.content.Context, articleLink: String?) {
     val targetUri = articleLink
         ?.trim()
@@ -706,17 +685,13 @@ private fun openArticleInBrowser(context: android.content.Context, articleLink: 
         ?.takeIf { uri -> !uri.scheme.isNullOrBlank() }
         ?: return
 
-    val intent = Intent(Intent.ACTION_VIEW, targetUri).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
     runCatching {
-        if (intent.resolveActivity(context.packageManager) != null) {
-            context.startActivity(intent)
-        }
+        context.startActivity(Intent(Intent.ACTION_VIEW, targetUri))
     }
 }
 
 private const val IMAGE_TAP_SCHEME = "rssreader-article"
 private const val ARTICLE_SWITCH_ANIMATION_MS = 220
-private const val ARTICLE_SWIPE_THRESHOLD_PX = 80f
 private const val SWIPE_HINT_DURATION_MS = 2400
 
 private enum class SwipeDirection {
@@ -724,3 +699,6 @@ private enum class SwipeDirection {
     ToNewer,
     ToOlder
 }
+
+
+========================================================================================================================

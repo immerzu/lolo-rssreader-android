@@ -50,3 +50,6 @@ data class ArticleEntity(
     val isRead: Boolean = false,
     val isFavorite: Boolean = false
 )
+
+
+========================================================================================================================

@@ -53,3 +53,6 @@ Screenshot-Vorschlaege:
 3. Leseransicht eines Artikels
 4. Einstellungen mit Import / Export / Theme
 5. Dunkelmodus
+
+
+========================================================================================================================

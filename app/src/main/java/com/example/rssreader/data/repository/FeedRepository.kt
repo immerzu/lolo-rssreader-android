@@ -14,8 +14,6 @@ import com.example.rssreader.data.opml.OpmlFeedEntry
 import java.io.InputStream
 import java.io.OutputStream
 import java.nio.charset.StandardCharsets
-import androidx.room.withTransaction
-import com.example.rssreader.data.db.AppDatabase
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.withContext
@@ -33,7 +31,6 @@ data class OpmlImportResult(
 )
 
 class FeedRepository(
-    private val database: AppDatabase,
     private val feedDao: FeedDao,
     private val articleDao: ArticleDao,
     private val fetcher: FeedFetcher,
@@ -225,33 +222,29 @@ class FeedRepository(
 
     suspend fun moveFeedUp(feedId: Long) {
         runOnIo {
-            database.withTransaction {
-                val feeds = feedDao.getAll()
-                val currentIndex = feeds.indexOfFirst { it.id == feedId }
-                if (currentIndex <= 0) {
-                    return@withTransaction
-                }
-                val currentFeed = feeds[currentIndex]
-                val previousFeed = feeds[currentIndex - 1]
-                feedDao.updateDisplayOrder(currentFeed.id, previousFeed.displayOrder)
-                feedDao.updateDisplayOrder(previousFeed.id, currentFeed.displayOrder)
+            val feeds = feedDao.getAll()
+            val currentIndex = feeds.indexOfFirst { it.id == feedId }
+            if (currentIndex <= 0) {
+                return@runOnIo
             }
+            val currentFeed = feeds[currentIndex]
+            val previousFeed = feeds[currentIndex - 1]
+            feedDao.updateDisplayOrder(currentFeed.id, previousFeed.displayOrder)
+            feedDao.updateDisplayOrder(previousFeed.id, currentFeed.displayOrder)
         }
     }
 
     suspend fun moveFeedDown(feedId: Long) {
         runOnIo {
-            database.withTransaction {
-                val feeds = feedDao.getAll()
-                val currentIndex = feeds.indexOfFirst { it.id == feedId }
-                if (currentIndex == -1 || currentIndex >= feeds.lastIndex) {
-                    return@withTransaction
-                }
-                val currentFeed = feeds[currentIndex]
-                val nextFeed = feeds[currentIndex + 1]
-                feedDao.updateDisplayOrder(currentFeed.id, nextFeed.displayOrder)
-                feedDao.updateDisplayOrder(nextFeed.id, currentFeed.displayOrder)
+            val feeds = feedDao.getAll()
+            val currentIndex = feeds.indexOfFirst { it.id == feedId }
+            if (currentIndex == -1 || currentIndex >= feeds.lastIndex) {
+                return@runOnIo
             }
+            val currentFeed = feeds[currentIndex]
+            val nextFeed = feeds[currentIndex + 1]
+            feedDao.updateDisplayOrder(currentFeed.id, nextFeed.displayOrder)
+            feedDao.updateDisplayOrder(nextFeed.id, currentFeed.displayOrder)
         }
     }
 
@@ -324,49 +317,47 @@ class FeedRepository(
         feedId: Long,
         parsed: com.example.rssreader.data.network.ParsedFeed
     ): Int {
-        return database.withTransaction {
-            val articles = createArticles(feedId = feedId, parsed = parsed)
-            if (articles.isEmpty()) {
-                return@withTransaction 0
-            }
-            val insertedIds = articleDao.insertAll(articles)
-            val conflictingArticles = articles.filterIndexed { index, _ ->
-                insertedIds.getOrNull(index) == -1L
-            }
-            if (conflictingArticles.isNotEmpty()) {
-                val existingArticlesByUniqueKey = articleDao
-                    .getByFeedAndUniqueKeys(
-                        feedId = feedId,
-                        uniqueKeys = conflictingArticles.map { it.uniqueKey }
-                    )
-                    .associateBy { it.uniqueKey }
-
-                conflictingArticles.forEach { article ->
-                    val existingArticle = existingArticlesByUniqueKey[article.uniqueKey]
-                    if (existingArticle != null &&
-                        existingArticle.title == article.title &&
-                        existingArticle.link == article.link &&
-                        existingArticle.publishedAt == article.publishedAt &&
-                        existingArticle.plainText == article.plainText &&
-                        existingArticle.contentHtml == article.contentHtml &&
-                        existingArticle.imageUrls == article.imageUrls
-                    ) {
-                        return@forEach
-                    }
-                    articleDao.updateByUniqueKey(
-                        feedId = article.feedId,
-                        uniqueKey = article.uniqueKey,
-                        title = article.title,
-                        link = article.link,
-                        publishedAt = article.publishedAt,
-                        plainText = article.plainText,
-                        contentHtml = article.contentHtml,
-                        imageUrls = article.imageUrls
-                    )
-                }
-            }
-            insertedIds.count { it != -1L }
+        val articles = createArticles(feedId = feedId, parsed = parsed)
+        if (articles.isEmpty()) {
+            return 0
         }
+        val insertedIds = articleDao.insertAll(articles)
+        val conflictingArticles = articles.filterIndexed { index, _ ->
+            insertedIds.getOrNull(index) == -1L
+        }
+        if (conflictingArticles.isNotEmpty()) {
+            val existingArticlesByUniqueKey = articleDao
+                .getByFeedAndUniqueKeys(
+                    feedId = feedId,
+                    uniqueKeys = conflictingArticles.map { it.uniqueKey }
+                )
+                .associateBy { it.uniqueKey }
+
+            conflictingArticles.forEach { article ->
+                val existingArticle = existingArticlesByUniqueKey[article.uniqueKey]
+                if (existingArticle != null &&
+                    existingArticle.title == article.title &&
+                    existingArticle.link == article.link &&
+                    existingArticle.publishedAt == article.publishedAt &&
+                    existingArticle.plainText == article.plainText &&
+                    existingArticle.contentHtml == article.contentHtml &&
+                    existingArticle.imageUrls == article.imageUrls
+                ) {
+                    return@forEach
+                }
+                articleDao.updateByUniqueKey(
+                    feedId = article.feedId,
+                    uniqueKey = article.uniqueKey,
+                    title = article.title,
+                    link = article.link,
+                    publishedAt = article.publishedAt,
+                    plainText = article.plainText,
+                    contentHtml = article.contentHtml,
+                    imageUrls = article.imageUrls
+                )
+            }
+        }
+        return insertedIds.count { it != -1L }
     }
 
     private fun createArticles(
@@ -391,3 +382,6 @@ class FeedRepository(
         block()
     }
 }
+
+
+========================================================================================================================

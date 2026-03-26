@@ -20,3 +20,6 @@ data class AppPreferences(
     val entrySortOrder: EntrySortOrder = EntrySortOrder.NEWEST_FIRST,
     val articleBodyTextSizeOffset: Int = 0
 )
+
+
+========================================================================================================================

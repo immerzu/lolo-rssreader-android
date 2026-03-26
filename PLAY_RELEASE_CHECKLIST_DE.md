@@ -79,3 +79,6 @@ Interner Merksatz:
 - APK = gut fuer direkte Tests
 - AAB = fuer Google Play Upload
 - derselbe Signierschluessel muss fuer spaetere Updates erhalten bleiben
+
+
+========================================================================================================================
