@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Datenschutz fuer RSS Reader</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0a0a0a;
+      --panel: #14161a;
+      --text: #f3f5f7;
+      --muted: #b0b7c3;
+      --line: #2a2f38;
+      --accent: #86b7ff;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: "Segoe UI", Tahoma, sans-serif;
+      background: linear-gradient(180deg, #050505 0%, #0e1116 100%);
+      color: var(--text);
+      line-height: 1.6;
+    }
+
+    main {
+      max-width: 860px;
+      margin: 0 auto;
+      padding: 32px 20px 64px;
+    }
+
+    .card {
+      background: rgba(20, 22, 26, 0.92);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 24px;
+      box-shadow: 0 18px 50px rgba(0, 0, 0, 0.35);
+    }
+
+    h1, h2, h3 {
+      line-height: 1.25;
+      margin: 0 0 12px;
+    }
+
+    h1 {
+      font-size: 2rem;
+    }
+
+    h2 {
+      margin-top: 28px;
+      font-size: 1.3rem;
+      color: var(--accent);
+    }
+
+    h3 {
+      margin-top: 20px;
+      font-size: 1.05rem;
+    }
+
+    p, li {
+      color: var(--text);
+      margin: 0 0 12px;
+    }
+
+    .muted {
+      color: var(--muted);
+    }
+
+    ul {
+      margin: 0 0 16px 20px;
+      padding: 0;
+    }
+
+    code {
+      font-family: Consolas, monospace;
+      background: #10141a;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 2px 6px;
+      color: #d8e6ff;
+    }
+
+    .note {
+      margin-top: 24px;
+      padding: 14px 16px;
+      border-left: 3px solid var(--accent);
+      background: rgba(134, 183, 255, 0.08);
+      border-radius: 10px;
+    }
+
+    a {
+      color: var(--accent);
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <section class="card">
+      <h1>Datenschutz fuer RSS Reader</h1>
+      <p class="muted">Stand: 25.03.2026</p>
+      <p>
+        RSS Reader ist eine Android-App zum Lesen von RSS- und Atom-Feeds.
+      </p>
+
+      <h2>Verantwortlich</h2>
+      <p><strong>Lolo</strong></p>
+      <p>
+        Kontakt: <code>jobmodern@gmx.de</code>
+      </p>
+
+      <h2>Welche Daten verarbeitet die App?</h2>
+      <p>
+        Die App verarbeitet nur Daten, die fuer die Feed-Funktion technisch noetig sind.
+      </p>
+      <ul>
+        <li>vom Nutzer hinzugefuegte Feed-URLs</li>
+        <li>importierte OPML-Dateien</li>
+        <li>lokal gespeicherte Feed- und Artikelinhalte</li>
+        <li>lokal gespeicherte App-Einstellungen</li>
+      </ul>
+
+      <h2>Werden personenbezogene Daten an den Entwickler gesendet?</h2>
+      <p>
+        Nein. Nach dem aktuellen Stand sendet RSS Reader keine Nutzerdaten an einen eigenen Server des Entwicklers.
+      </p>
+
+      <h2>Kommunikation mit Drittanbietern</h2>
+      <p>
+        Die App ruft RSS- und Atom-Feeds direkt von den vom Nutzer eingetragenen Feed-Adressen ab. Dabei findet eine direkte Verbindung zwischen dem Geraet des Nutzers und dem jeweiligen Feed-Anbieter bzw. der Website statt.
+      </p>
+      <p>
+        Je nach Anbieter koennen dabei technisch notwendige Verbindungsdaten an den jeweiligen Feed-Server uebermittelt werden, zum Beispiel:
+      </p>
+      <ul>
+        <li>IP-Adresse</li>
+        <li>Zeitpunkt des Abrufs</li>
+        <li>technische Anfrageinformationen</li>
+      </ul>
+      <p>
+        Auf diese Verarbeitung durch den jeweiligen Feed-Anbieter hat der Entwickler der App keinen direkten Einfluss.
+      </p>
+
+      <h2>Benachrichtigungen</h2>
+      <p>
+        Wenn der Nutzer Benachrichtigungen aktiviert, kann die App lokale Benachrichtigungen ueber neue Artikel anzeigen.
+      </p>
+
+      <h2>Lokale Speicherung</h2>
+      <p>Die App speichert Daten lokal auf dem Geraet, insbesondere:</p>
+      <ul>
+        <li>Feed-Liste</li>
+        <li>Artikelinhalte</li>
+        <li>Favoritenstatus</li>
+        <li>Gelesen-/Ungelesen-Status</li>
+        <li>Einstellungen</li>
+      </ul>
+
+      <h2>Analyse, Tracking, Werbung</h2>
+      <p>Nach dem aktuellen Stand verwendet die App:</p>
+      <ul>
+        <li>keine Werbung</li>
+        <li>kein Analytics-SDK</li>
+        <li>kein Crash-Reporting-SDK</li>
+        <li>kein Nutzerkonto</li>
+        <li>keine Anmeldung</li>
+      </ul>
+
+      <h2>Datenweitergabe</h2>
+      <p>
+        Es erfolgt keine Weitergabe von Nutzerdaten durch den Entwickler an Dritte.
+      </p>
+
+      <h2>Rechte der Nutzer</h2>
+      <p>
+        Nutzer koennen lokal gespeicherte Feeds und Inhalte in der App loeschen oder die App deinstallieren.
+      </p>
+
+      <h2>Aenderungen</h2>
+      <p>
+        Diese Datenschutzhinweise koennen bei spaeteren App-Updates angepasst werden.
+      </p>
+
+      <div class="note">
+        Vor der Veroeffentlichung bitte die Kontakt-E-Mail oben einsetzen und danach diese Datei auf GitHub Pages veroeffentlichen.
+      </div>
+    </section>
+  </main>
+</body>
+</html>
