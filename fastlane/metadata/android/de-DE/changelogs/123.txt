@@ -1,0 +1,5 @@
+Neu in 1.70.01:
+
+* Optionale Artikeluebersetzung fuer Vorschau und Leseransicht
+* Verbesserte Browser-Oeffnung aus der Artikelansicht
+* Stabiler F-Droid-Metadatensatz mit App-Icon und Screenshots

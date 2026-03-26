@@ -1,0 +1,5 @@
+New in 1.70.01:
+
+* Optional article translation for previews and reader view
+* Improved browser opening from the article screen
+* Stable F-Droid metadata with app icon and screenshots

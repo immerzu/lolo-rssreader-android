@@ -1,0 +1,1 @@
+Compact RSS reader with OPML, favorites, offline reading, and dark mode.
