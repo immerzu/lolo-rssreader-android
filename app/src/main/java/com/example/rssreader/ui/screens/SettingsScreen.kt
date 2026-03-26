@@ -40,6 +40,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import com.example.rssreader.data.errors.RssReaderException
+import com.example.rssreader.data.errors.toUserMessage
 import com.example.rssreader.data.repository.FeedRepository
 import com.example.rssreader.data.settings.AppPreferences
 import com.example.rssreader.data.settings.EntrySortOrder
@@ -134,7 +136,7 @@ fun SettingsScreen(
                     }
                     .onFailure {
                         if (it !is CancellationException) {
-                            message = it.message ?: "OPML konnte nicht importiert werden."
+                            message = it.toUserMessage("OPML konnte nicht importiert werden.")
                         }
                     }
                 busy = false
@@ -154,7 +156,7 @@ fun SettingsScreen(
                     }
                     .onFailure {
                         if (it !is CancellationException) {
-                            message = it.message ?: "OPML konnte nicht exportiert werden."
+                            message = it.toUserMessage("OPML konnte nicht exportiert werden.")
                         }
                     }
                 busy = false
@@ -455,17 +457,30 @@ private suspend fun importOpml(
     context: Context,
     repository: FeedRepository,
     uri: Uri
-) = context.contentResolver.openInputStream(uri)?.use { inputStream ->
-    repository.importOpml(inputStream)
-} ?: error("Die gewaehlte Datei konnte nicht gelesen werden.")
+) = runCatching {
+    context.contentResolver.openInputStream(uri)?.use { inputStream ->
+        repository.importOpml(inputStream)
+    } ?: throw RssReaderException.FileReadFailed()
+}.getOrElse { throwable ->
+    if (throwable is RssReaderException) {
+        throw throwable
+    }
+    throw RssReaderException.FileReadFailed(throwable)
+}
 
 private suspend fun exportOpml(
     context: Context,
     repository: FeedRepository,
     uri: Uri
-) = context.contentResolver.openOutputStream(uri)?.use { outputStream ->
-    repository.exportOpml(outputStream)
-} ?: error("Die Zieldatei konnte nicht geschrieben werden.")
+) = runCatching {
+    context.contentResolver.openOutputStream(uri)?.use { outputStream ->
+        repository.exportOpml(outputStream)
+    } ?: throw RssReaderException.FileWriteFailed()
+}.getOrElse { throwable ->
+    if (throwable is RssReaderException) {
+        throw throwable
+    }
+    throw RssReaderException.FileWriteFailed(throwable)
+}
 
 
-========================================================================================================================

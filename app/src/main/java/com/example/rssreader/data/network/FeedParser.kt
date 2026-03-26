@@ -3,7 +3,9 @@ package com.example.rssreader.data.network
 import android.util.Log
 import android.util.Xml
 import androidx.core.text.HtmlCompat
+import com.example.rssreader.data.errors.RssReaderException
 import org.xmlpull.v1.XmlPullParser
+import org.xmlpull.v1.XmlPullParserException
 import java.io.StringReader
 import java.net.URI
 import java.time.Instant
@@ -20,7 +22,25 @@ class FeedParser {
     companion object {
         private const val TAG = "FeedParser"
         private val imageSrcRegex = Regex("<img[^>]+src=[\"']([^\"']+)[\"']", RegexOption.IGNORE_CASE)
+        private val scriptTagRegex = Regex(
+            "<script\\b[^>]*>.*?</script>",
+            setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL)
+        )
+        private val styleTagRegex = Regex(
+            "<style\\b[^>]*>.*?</style>",
+            setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL)
+        )
+        private val noscriptTagRegex = Regex(
+            "<noscript\\b[^>]*>.*?</noscript>",
+            setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL)
+        )
+        private val htmlCommentRegex = Regex(
+            "<!--.*?-->",
+            setOf(RegexOption.DOT_MATCHES_ALL)
+        )
         private val nbspRegex = Regex("&nbsp;")
+        private val invisibleFormattingRegex = Regex("[\\u200B-\\u200F\\u2060\\uFEFF\\u00AD\\uFFFC]")
+        private val controlCharacterRegex = Regex("[\\u0000-\\u0008\\u000B\\u000C\\u000E-\\u001F\\u007F]")
         private val whitespaceRegex = Regex("\\s+")
         private val weiterlesenRegex = Regex(
             "\\s*Weiterlesen\\s*[\\u2192\\u00BB\\u203A>]*\\s*$",
@@ -37,20 +57,26 @@ class FeedParser {
     )
 
     fun parse(xml: String, sourceUrl: String? = null): ParsedFeed {
-        val parser = Xml.newPullParser()
-        parser.setFeature(XmlPullParser.FEATURE_PROCESS_NAMESPACES, true)
-        parser.setInput(StringReader(xml))
+        return try {
+            val parser = Xml.newPullParser()
+            parser.setFeature(XmlPullParser.FEATURE_PROCESS_NAMESPACES, true)
+            parser.setInput(StringReader(xml))
 
-        while (parser.eventType != XmlPullParser.START_TAG &&
-            parser.eventType != XmlPullParser.END_DOCUMENT
-        ) {
-            parser.next()
-        }
+            while (parser.eventType != XmlPullParser.START_TAG &&
+                parser.eventType != XmlPullParser.END_DOCUMENT
+            ) {
+                parser.next()
+            }
 
-        return when (parser.normalizedName()) {
-            "rss" -> parseRss(parser, sourceUrl)
-            "feed" -> parseAtom(parser, sourceUrl)
-            else -> throw IllegalArgumentException("Kein gueltiger RSS- oder Atom-Feed")
+            when (parser.normalizedName()) {
+                "rss" -> parseRss(parser, sourceUrl)
+                "feed" -> parseAtom(parser, sourceUrl)
+                else -> throw RssReaderException.InvalidXml()
+            }
+        } catch (exception: RssReaderException) {
+            throw exception
+        } catch (exception: Exception) {
+            throw RssReaderException.InvalidXml(exception)
         }
     }
 
@@ -138,11 +164,11 @@ class FeedParser {
 
                     isDirectChild && parser.matchesTag("description") &&
                         parser.isNamespaceEmpty() -> {
-                        descriptionHtml = parser.nextText()
+                        descriptionHtml = parser.readElementContent()
                     }
 
                     isDirectChild && parser.matchesTag("content:encoded", "encoded") -> {
-                        contentEncodedHtml = parser.nextText()
+                        contentEncodedHtml = parser.readElementContent()
                     }
 
                     isDirectChild && parser.matchesTag("dc:creator", "creator") -> {
@@ -186,8 +212,9 @@ class FeedParser {
         }
         val chosenContent = contentEncodedHtml?.takeIf { it.isNotBlank() }
             ?: descriptionHtml.orEmpty()
+        val previewContent = chosenContent.stripPlainTextNoise()
         val plainText = sanitizePlainText(
-            htmlToPlainText(chosenContent),
+            htmlToPlainText(previewContent),
             contentSource = contentSource
         )
         val htmlImages = extractImageUrls(chosenContent)
@@ -219,13 +246,14 @@ class FeedParser {
     }
 
     private fun parseAtom(parser: XmlPullParser, sourceUrl: String?): ParsedFeed {
+        val feedDepth = parser.depth
         var feedTitle = "Unbekannter Feed"
         var siteUrl: String? = null
         var iconUrl: String? = null
         val items = mutableListOf<ParsedArticle>()
 
         while (!(parser.eventType == XmlPullParser.END_TAG && parser.normalizedName() == "feed")) {
-            if (parser.eventType == XmlPullParser.START_TAG) {
+            if (parser.eventType == XmlPullParser.START_TAG && parser.depth == feedDepth + 1) {
                 when (parser.normalizedName()) {
                     "title" -> if (feedTitle == "Unbekannter Feed") {
                         feedTitle = parser.nextText().trim().ifBlank { "Unbekannter Feed" }
@@ -286,7 +314,8 @@ class FeedParser {
         val entryDepth = parser.depth
         var id = ""
         var title: String? = null
-        var link = ""
+        var preferredLink: String? = null
+        var fallbackLink: String? = null
         var author: String? = null
         var summaryHtml: String? = null
         var contentHtml: String? = null
@@ -301,8 +330,8 @@ class FeedParser {
                 when (parser.normalizedName()) {
                     "id" -> id = parser.nextText().trim()
                     "title" -> title = parser.nextText().trim().ifBlank { null }
-                    "summary" -> summaryHtml = parser.nextText()
-                    "content" -> contentHtml = parser.nextText()
+                    "summary" -> summaryHtml = parser.readElementContent()
+                    "content" -> contentHtml = parser.readElementContent()
                     "published", "updated" -> {
                         rawPublishedAt = parser.nextText()
                         publishedAt = parseDate(rawPublishedAt.orEmpty())
@@ -310,9 +339,20 @@ class FeedParser {
 
                     "author" -> author = parseAtomAuthor(parser)
                     "link" -> {
-                        val href = parser.getAttributeValue(null, "href")
-                        if (!href.isNullOrBlank()) {
-                            link = href
+                        val href = parser.getAttributeValue(null, "href")?.trim().orEmpty()
+                        val rel = parser.getAttributeValue(null, "rel")?.trim().orEmpty()
+                        if (href.isNotBlank()) {
+                            when {
+                                rel.isBlank() || rel.equals("alternate", ignoreCase = true) -> {
+                                    if (preferredLink.isNullOrBlank()) {
+                                        preferredLink = href
+                                    }
+                                }
+
+                                !rel.isNonArticleLinkRel() && fallbackLink.isNullOrBlank() -> {
+                                    fallbackLink = href
+                                }
+                            }
                         }
                     }
                 }
@@ -325,9 +365,11 @@ class FeedParser {
             !summaryHtml.isNullOrBlank() -> ParsedContentSource.SUMMARY
             else -> ParsedContentSource.NONE
         }
+        val link = preferredLink ?: fallbackLink.orEmpty()
         val chosenContent = contentHtml?.takeIf { it.isNotBlank() } ?: summaryHtml.orEmpty()
+        val previewContent = chosenContent.stripPlainTextNoise()
         val plainText = sanitizePlainText(
-            htmlToPlainText(chosenContent),
+            htmlToPlainText(previewContent),
             contentSource = contentSource
         )
         val images = extractImageUrls(chosenContent)
@@ -426,7 +468,10 @@ class FeedParser {
                 val base = baseUrl?.let(::URI) ?: return candidate
                 base.resolve(uri).toString()
             }
-        }.getOrElse { candidate }
+        }.getOrElse { throwable ->
+            Log.w(TAG, "URL konnte nicht aufgeloest werden: base=$baseUrl, value=$candidate", throwable)
+            candidate
+        }
     }
 
     private fun extractImageUrls(rawHtml: String): List<String> {
@@ -452,8 +497,23 @@ class FeedParser {
         }
         return normalized
             .replace(nbspRegex, " ")
+            .replace(invisibleFormattingRegex, "")
+            .replace(controlCharacterRegex, " ")
             .replace(whitespaceRegex, " ")
             .trim()
+    }
+
+    private fun String.stripPlainTextNoise(): String {
+        return htmlCommentRegex.replace(
+            noscriptTagRegex.replace(
+                styleTagRegex.replace(
+                    scriptTagRegex.replace(this, " "),
+                    " "
+                ),
+                " "
+            ),
+            " "
+        )
     }
 
     private fun sanitizePlainText(text: String, contentSource: ParsedContentSource): String {
@@ -559,7 +619,64 @@ class FeedParser {
         }
         return false
     }
+
+    private fun XmlPullParser.readElementContent(): String {
+        val startDepth = depth
+        val startName = name
+        val content = StringBuilder()
+
+        while (true) {
+            when (nextToken()) {
+                XmlPullParser.START_TAG -> {
+                    content.append('<').append(name)
+                    for (index in 0 until attributeCount) {
+                        content
+                            .append(' ')
+                            .append(getAttributeName(index))
+                            .append("=\"")
+                            .append(escapeHtmlAttribute(getAttributeValue(index)))
+                            .append('"')
+                    }
+                    content.append('>')
+                }
+
+                XmlPullParser.END_TAG -> {
+                    if (depth == startDepth && name == startName) {
+                        return content.toString()
+                    }
+                    content.append("</").append(name).append('>')
+                }
+
+                XmlPullParser.TEXT,
+                XmlPullParser.CDSECT,
+                XmlPullParser.IGNORABLE_WHITESPACE,
+                XmlPullParser.ENTITY_REF -> content.append(text.orEmpty())
+
+                XmlPullParser.COMMENT,
+                XmlPullParser.PROCESSING_INSTRUCTION,
+                XmlPullParser.DOCDECL -> Unit
+
+                XmlPullParser.END_DOCUMENT -> return content.toString()
+
+                else -> Unit
+            }
+        }
+    }
+
+    private fun escapeHtmlAttribute(value: String?): String {
+        return value.orEmpty()
+            .replace("&", "&amp;")
+            .replace("\"", "&quot;")
+            .replace("<", "&lt;")
+            .replace(">", "&gt;")
+    }
+
+    private fun String.isNonArticleLinkRel(): Boolean {
+        return equals("self", ignoreCase = true) ||
+            equals("edit", ignoreCase = true) ||
+            equals("enclosure", ignoreCase = true) ||
+            equals("replies", ignoreCase = true)
+    }
 }
 
 
-========================================================================================================================

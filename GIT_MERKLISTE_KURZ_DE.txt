@@ -1,0 +1,18 @@
+1. In den Projektordner gehen:
+cd "D:\Codex\RSS_Reader_Android\rss_reader_full_project"
+
+2. Vor Aenderungen sichern:
+git add .
+git commit -m "Vor Aenderung"
+
+3. Guten Stand markieren:
+git tag v1.50.xx-yyy
+
+4. Vorhandene Sicherungen ansehen:
+git tag --list
+
+5. Bei Fehlern zu einer Version zurueck:
+git checkout v1.50.xx-yyy -- .
+
+6. Danach Stand pruefen:
+git status

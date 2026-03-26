@@ -18,6 +18,11 @@ data class ArticleSearchResult(
     val isFavorite: Boolean
 )
 
+data class ArticleNavigationEntry(
+    val id: Long,
+    val publishedAt: Long?
+)
+
 @Dao
 interface ArticleDao {
     @Query(
@@ -28,6 +33,16 @@ interface ArticleDao {
         """
     )
     fun observeByFeed(feedId: Long): Flow<List<ArticleEntity>>
+
+    @Query(
+        """
+        SELECT id, publishedAt
+        FROM articles
+        WHERE feedId = :feedId
+        ORDER BY COALESCE(publishedAt, 0) DESC, id DESC
+        """
+    )
+    fun observeNavigationByFeed(feedId: Long): Flow<List<ArticleNavigationEntry>>
 
     @Query("SELECT * FROM articles WHERE id = :articleId LIMIT 1")
     suspend fun getById(articleId: Long): ArticleEntity?
@@ -121,4 +136,3 @@ interface ArticleDao {
 }
 
 
-========================================================================================================================

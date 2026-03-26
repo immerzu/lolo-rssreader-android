@@ -1,7 +1,6 @@
 package com.example.rssreader.ui.screens
 
 import android.util.Patterns
-import java.net.UnknownHostException
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -30,6 +29,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.example.rssreader.data.errors.toUserMessage
 import com.example.rssreader.data.repository.FeedRepository
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
@@ -98,7 +98,7 @@ fun FeedConfigScreen(
                                     onDone()
                                 }.onFailure {
                                     if (it !is CancellationException) {
-                                        errorMessage = it.toUserMessage()
+                                        errorMessage = it.toUserMessage("Feed konnte nicht gespeichert werden.")
                                     }
                                 }.also {
                                     loading = false
@@ -168,17 +168,31 @@ fun FeedConfigScreen(
                 TextButton(
                     onClick = {
                         scope.launch {
-                            repository.deleteFeed(feedId)
-                            showDeleteDialog = false
-                            onDone()
+                            loading = true
+                            runCatching {
+                                repository.deleteFeed(feedId)
+                            }.onSuccess {
+                                showDeleteDialog = false
+                                onDone()
+                            }.onFailure {
+                                if (it !is CancellationException) {
+                                    errorMessage = it.toUserMessage("Feed konnte nicht geloescht werden.")
+                                }
+                            }.also {
+                                loading = false
+                            }
                         }
-                    }
+                    },
+                    enabled = !loading
                 ) {
                     Text("Loeschen")
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showDeleteDialog = false }) {
+                TextButton(
+                    onClick = { showDeleteDialog = false },
+                    enabled = !loading
+                ) {
                     Text("Abbrechen")
                 }
             }
@@ -199,12 +213,4 @@ fun FeedConfigScreen(
     }
 }
 
-private fun Throwable.toUserMessage(): String {
-    return when (this) {
-        is UnknownHostException -> "Die Feed-Adresse konnte nicht aufgeloest werden."
-        else -> message ?: "Feed konnte nicht gespeichert werden."
-    }
-}
 
-
-========================================================================================================================

@@ -12,7 +12,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.ExperimentalMaterialApi
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -38,7 +38,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -53,6 +52,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.rssreader.data.db.ArticleEntity
+import com.example.rssreader.data.errors.toUserMessage
 import com.example.rssreader.data.repository.FeedRepository
 import com.example.rssreader.data.settings.EntrySortOrder
 import com.example.rssreader.ui.formatRelativeTime
@@ -102,7 +102,7 @@ fun ArticleListScreen(
                 .onSuccess { }
                 .onFailure {
                     if (it !is CancellationException) {
-                        errorMessage = it.message ?: "Feed konnte nicht aktualisiert werden."
+                        errorMessage = it.toUserMessage("Feed konnte nicht aktualisiert werden.")
                     }
                 }
             isRefreshing = false
@@ -139,7 +139,7 @@ fun ArticleListScreen(
                                 runCatching { repository.markAllRead(feedId) }
                                     .onFailure {
                                         if (it !is CancellationException) {
-                                            errorMessage = it.message ?: "Artikel konnten nicht markiert werden."
+                                            errorMessage = it.toUserMessage("Artikel konnten nicht markiert werden.")
                                         }
                                     }
                             }
@@ -167,7 +167,7 @@ fun ArticleListScreen(
                     .fillMaxSize()
                     .pullRefresh(pullRefreshState)
             ) {
-                item {
+                item(key = "article-list-unread-header") {
                     Text(
                         text = "$unreadCount ungelesen",
                         style = MaterialTheme.typography.bodySmall,
@@ -175,7 +175,12 @@ fun ArticleListScreen(
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
                     )
                 }
-                items(sortedArticles, key = { it.id }) { item ->
+                itemsIndexed(
+                    items = sortedArticles,
+                    // Defensive keying: einzelne Feed-Quellen koennen unruhige Listenzustaende
+                    // ausloesen. Mit Index+ID bleibt der Key innerhalb der aktuellen Liste sicher eindeutig.
+                    key = { index, item -> "article-${item.id}-$index" }
+                ) { _, item ->
                     val titleColor = if (item.isRead) {
                         MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.62f)
                     } else {
@@ -243,7 +248,7 @@ fun ArticleListScreen(
                                                 repository.setFavorite(item.id, !item.isFavorite)
                                             }.onFailure {
                                                 if (it !is CancellationException) {
-                                                    errorMessage = it.message ?: "Favorit konnte nicht geaendert werden."
+                                                    errorMessage = it.toUserMessage("Favorit konnte nicht geaendert werden.")
                                                 }
                                             }
                                         }
@@ -327,7 +332,7 @@ fun ArticleListScreen(
                                 runCatching { repository.markRead(articleId) }
                                     .onFailure {
                                         if (it !is CancellationException) {
-                                            errorMessage = it.message ?: "Beitrag konnte nicht als gelesen markiert werden."
+                                            errorMessage = it.toUserMessage("Beitrag konnte nicht als gelesen markiert werden.")
                                         }
                                     }
                             }
@@ -344,11 +349,11 @@ fun ArticleListScreen(
                                 selectedArticleId = null
                                 scope.launch {
                                     runCatching { repository.markUnread(articleId) }
-                                        .onFailure {
-                                            if (it !is CancellationException) {
-                                                errorMessage = it.message ?: "Beitrag konnte nicht als ungelesen markiert werden."
-                                            }
+                                    .onFailure {
+                                        if (it !is CancellationException) {
+                                            errorMessage = it.toUserMessage("Beitrag konnte nicht als ungelesen markiert werden.")
                                         }
+                                    }
                                 }
                             },
                             enabled = selectedArticle.isRead
@@ -368,4 +373,3 @@ fun ArticleListScreen(
 }
 
 
-========================================================================================================================

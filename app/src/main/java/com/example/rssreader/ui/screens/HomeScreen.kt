@@ -23,6 +23,8 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -31,16 +33,18 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.sp
+import com.example.rssreader.data.errors.RssReaderException
+import com.example.rssreader.data.errors.toUserMessage
 import com.example.rssreader.data.repository.FeedRepository
 import com.example.rssreader.data.settings.AppPreferences
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 private enum class HomeAction {
@@ -77,9 +81,15 @@ fun HomeScreen(
     var pendingHomeAction by rememberSaveable { mutableStateOf<HomeAction?>(null) }
     var pendingFeedAction by rememberSaveable { mutableStateOf<FeedConfirmAction?>(null) }
     var pendingFeedActionId by rememberSaveable { mutableStateOf<Long?>(null) }
+    var isMoveMode by rememberSaveable { mutableStateOf(false) }
     var busy by rememberSaveable { mutableStateOf(false) }
-    var showPullRefreshIndicator by rememberSaveable { mutableStateOf(false) }
-    val showInfoMessage: (String) -> Unit = {}
+    val snackbarHostState = remember { SnackbarHostState() }
+    val showInfoMessage: (String) -> Unit = { message ->
+        scope.launch {
+            snackbarHostState.currentSnackbarData?.dismiss()
+            snackbarHostState.showSnackbar(message)
+        }
+    }
     val refreshAllFeeds: () -> Unit = {
         scope.launch {
             if (isRefreshing) {
@@ -100,7 +110,7 @@ fun HomeScreen(
                 }
                 .onFailure {
                     if (it !is CancellationException) {
-                        errorMessage = it.message ?: "Aktualisierung fehlgeschlagen."
+                        errorMessage = it.toUserMessage("Aktualisierung fehlgeschlagen.")
                     }
                 }
             isRefreshing = false
@@ -111,23 +121,18 @@ fun HomeScreen(
             if (isRefreshing) {
                 return@launch
             }
-            showPullRefreshIndicator = true
-            launch {
-                delay(220)
-                showPullRefreshIndicator = false
-            }
             isRefreshing = true
             runCatching { repository.refreshAll() }
                 .onFailure {
                     if (it !is CancellationException) {
-                        errorMessage = it.message ?: "Aktualisierung fehlgeschlagen."
+                        errorMessage = it.toUserMessage("Aktualisierung fehlgeschlagen.")
                     }
                 }
             isRefreshing = false
         }
     }
     val pullRefreshState = rememberPullRefreshState(
-        refreshing = showPullRefreshIndicator,
+        refreshing = isRefreshing,
         onRefresh = pullToRefreshAllFeeds
     )
 
@@ -147,11 +152,11 @@ fun HomeScreen(
                             }
                         )
                     }
-                    .onFailure {
-                        if (it !is CancellationException) {
-                            errorMessage = it.message ?: "OPML konnte nicht importiert werden."
-                        }
+                .onFailure {
+                    if (it !is CancellationException) {
+                        errorMessage = it.toUserMessage("OPML konnte nicht importiert werden.")
                     }
+                }
                 busy = false
             }
         }
@@ -167,11 +172,11 @@ fun HomeScreen(
                     .onSuccess { exportedFeeds ->
                         showInfoMessage("OPML exportiert, enthaltene Feeds: $exportedFeeds")
                     }
-                    .onFailure {
-                        if (it !is CancellationException) {
-                            errorMessage = it.message ?: "OPML konnte nicht exportiert werden."
-                        }
+                .onFailure {
+                    if (it !is CancellationException) {
+                        errorMessage = it.toUserMessage("OPML konnte nicht exportiert werden.")
                     }
+                }
                 busy = false
             }
         }
@@ -184,24 +189,42 @@ fun HomeScreen(
             runCatching { repository.refreshAll() }
                 .onFailure {
                     if (it !is CancellationException) {
-                        errorMessage = it.message ?: "Aktualisierung fehlgeschlagen."
+                        errorMessage = it.toUserMessage("Aktualisierung fehlgeschlagen.")
                     }
                 }
             isRefreshing = false
         }
     }
 
+    LaunchedEffect(isMoveMode) {
+        if (isMoveMode) {
+            selectedFeedMenuId = null
+        }
+    }
+
     Scaffold(
+        snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
         topBar = {
             TopAppBar(
-                title = { Text("RSS Reader") },
+                title = {
+                    Text(
+                        if (isMoveMode) {
+                            "RSS Reader - Verschiebemodus"
+                        } else {
+                            "RSS Reader"
+                        }
+                    )
+                },
                 actions = {
-                    IconButton(onClick = onAddFeed) {
+                    IconButton(
+                        onClick = onAddFeed,
+                        enabled = !isMoveMode
+                    ) {
                         Icon(Icons.Default.Add, contentDescription = "Feed anlegen")
                     }
                     IconButton(
                         onClick = refreshAllFeeds,
-                        enabled = !isRefreshing && !busy
+                        enabled = !isRefreshing && !busy && !isMoveMode
                     ) {
                         Icon(Icons.Default.Refresh, contentDescription = "Alle Feeds aktualisieren")
                     }
@@ -230,7 +253,24 @@ fun HomeScreen(
                             }
                         )
                         DropdownMenuItem(
+                            text = {
+                                Text(
+                                    if (isMoveMode) {
+                                        "Verschiebemodus beenden"
+                                    } else {
+                                        "Verschiebemodus aktivieren"
+                                    },
+                                    fontSize = 18.sp
+                                )
+                            },
+                            onClick = {
+                                topMenuExpanded = false
+                                isMoveMode = !isMoveMode
+                            }
+                        )
+                        DropdownMenuItem(
                             text = { Text("Alle gelesen", fontSize = 18.sp) },
+                            enabled = !isMoveMode,
                             onClick = {
                                 topMenuExpanded = false
                                 scope.launch {
@@ -240,7 +280,7 @@ fun HomeScreen(
                                         }
                                         .onFailure {
                                             if (it !is CancellationException) {
-                                                errorMessage = it.message ?: "Eintraege konnten nicht markiert werden."
+                                                errorMessage = it.toUserMessage("Eintraege konnten nicht markiert werden.")
                                             }
                                     }
                                 }
@@ -248,6 +288,7 @@ fun HomeScreen(
                         )
                         DropdownMenuItem(
                             text = { Text("Alle ungelesen", fontSize = 18.sp) },
+                            enabled = !isMoveMode,
                             onClick = {
                                 topMenuExpanded = false
                                 scope.launch {
@@ -257,7 +298,7 @@ fun HomeScreen(
                                         }
                                         .onFailure {
                                             if (it !is CancellationException) {
-                                                errorMessage = it.message ?: "Eintraege konnten nicht zurueckgesetzt werden."
+                                                errorMessage = it.toUserMessage("Eintraege konnten nicht zurueckgesetzt werden.")
                                             }
                                         }
                                 }
@@ -265,6 +306,7 @@ fun HomeScreen(
                         )
                         DropdownMenuItem(
                             text = { Text("Importiere OPML", fontSize = 18.sp) },
+                            enabled = !isMoveMode,
                             onClick = {
                                 topMenuExpanded = false
                                 importLauncher.launch(arrayOf("text/xml", "application/xml", "*/*"))
@@ -272,6 +314,7 @@ fun HomeScreen(
                         )
                         DropdownMenuItem(
                             text = { Text("Exportiere OPML", fontSize = 18.sp) },
+                            enabled = !isMoveMode,
                             onClick = {
                                 topMenuExpanded = false
                                 exportLauncher.launch("rss-reader-feeds.xml")
@@ -279,6 +322,7 @@ fun HomeScreen(
                         )
                         DropdownMenuItem(
                             text = { Text("Alle gelesenen Eintraege loeschen", fontSize = 18.sp) },
+                            enabled = !isMoveMode,
                             onClick = {
                                 topMenuExpanded = false
                                 pendingHomeAction = HomeAction.DELETE_READ
@@ -286,6 +330,7 @@ fun HomeScreen(
                         )
                         DropdownMenuItem(
                             text = { Text("Alle Eintraege loeschen", fontSize = 18.sp) },
+                            enabled = !isMoveMode,
                             onClick = {
                                 topMenuExpanded = false
                                 pendingHomeAction = HomeAction.DELETE_ALL
@@ -305,9 +350,30 @@ fun HomeScreen(
             FeedListScreen(
                 feeds = feeds,
                 isRefreshing = isRefreshing,
+                isMoveMode = isMoveMode,
                 onOpenFeed = onOpenFeed,
                 onOpenFeedMenu = { feedId ->
                     selectedFeedMenuId = feedId
+                },
+                onMoveFeedUp = { feedId ->
+                    scope.launch {
+                        runCatching { repository.moveFeedUp(feedId) }
+                            .onFailure {
+                                if (it !is CancellationException) {
+                                    errorMessage = it.toUserMessage("Feed konnte nicht verschoben werden.")
+                                }
+                            }
+                    }
+                },
+                onMoveFeedDown = { feedId ->
+                    scope.launch {
+                        runCatching { repository.moveFeedDown(feedId) }
+                            .onFailure {
+                                if (it !is CancellationException) {
+                                    errorMessage = it.toUserMessage("Feed konnte nicht verschoben werden.")
+                                }
+                            }
+                    }
                 },
                 modifier = Modifier.fillMaxSize()
             )
@@ -336,7 +402,7 @@ fun HomeScreen(
                                     }
                                     .onFailure {
                                         if (it !is CancellationException) {
-                                            errorMessage = it.message ?: "Feed konnte nicht aktualisiert werden."
+                                            errorMessage = it.toUserMessage("Feed konnte nicht aktualisiert werden.")
                                         }
                                     }
                             }
@@ -354,7 +420,7 @@ fun HomeScreen(
                                     }
                                     .onFailure {
                                         if (it !is CancellationException) {
-                                            errorMessage = it.message ?: "Feed konnte nicht als gelesen markiert werden."
+                                            errorMessage = it.toUserMessage("Feed konnte nicht als gelesen markiert werden.")
                                         }
                                     }
                             }
@@ -372,7 +438,7 @@ fun HomeScreen(
                                     }
                                     .onFailure {
                                         if (it !is CancellationException) {
-                                            errorMessage = it.message ?: "Feed konnte nicht als ungelesen markiert werden."
+                                            errorMessage = it.toUserMessage("Feed konnte nicht als ungelesen markiert werden.")
                                         }
                                     }
                             }
@@ -416,7 +482,7 @@ fun HomeScreen(
                                     }
                                     .onFailure {
                                         if (it !is CancellationException) {
-                                            errorMessage = it.message ?: "Aktualisierungsdatum konnte nicht zurueckgesetzt werden."
+                                            errorMessage = it.toUserMessage("Aktualisierungsdatum konnte nicht zurueckgesetzt werden.")
                                         }
                                     }
                             }
@@ -488,7 +554,7 @@ fun HomeScreen(
                                 )
                             }.onFailure {
                                 if (it !is CancellationException) {
-                                    errorMessage = it.message ?: "Aktion fehlgeschlagen."
+                                    errorMessage = it.toUserMessage("Aktion fehlgeschlagen.")
                                 }
                             }
                         }
@@ -543,7 +609,7 @@ fun HomeScreen(
                                 )
                             }.onFailure {
                                 if (it !is CancellationException) {
-                                    errorMessage = it.message ?: "Loeschen fehlgeschlagen."
+                                    errorMessage = it.toUserMessage("Loeschen fehlgeschlagen.")
                                 }
                             }
                         }
@@ -579,17 +645,30 @@ private suspend fun importOpml(
     context: Context,
     repository: FeedRepository,
     uri: Uri
-) = context.contentResolver.openInputStream(uri)?.use { inputStream ->
-    repository.importOpml(inputStream)
-} ?: error("Die gewaehlte Datei konnte nicht gelesen werden.")
+) = runCatching {
+    context.contentResolver.openInputStream(uri)?.use { inputStream ->
+        repository.importOpml(inputStream)
+    } ?: throw RssReaderException.FileReadFailed()
+}.getOrElse { throwable ->
+    if (throwable is RssReaderException) {
+        throw throwable
+    }
+    throw RssReaderException.FileReadFailed(throwable)
+}
 
 private suspend fun exportOpml(
     context: Context,
     repository: FeedRepository,
     uri: Uri
-) = context.contentResolver.openOutputStream(uri)?.use { outputStream ->
-    repository.exportOpml(outputStream)
-} ?: error("Die Zieldatei konnte nicht geschrieben werden.")
+) = runCatching {
+    context.contentResolver.openOutputStream(uri)?.use { outputStream ->
+        repository.exportOpml(outputStream)
+    } ?: throw RssReaderException.FileWriteFailed()
+}.getOrElse { throwable ->
+    if (throwable is RssReaderException) {
+        throw throwable
+    }
+    throw RssReaderException.FileWriteFailed(throwable)
+}
 
 
-========================================================================================================================

@@ -1,26 +1,46 @@
 package com.example.rssreader.data.repository
 
 import android.database.sqlite.SQLiteConstraintException
+import android.util.Log
 import com.example.rssreader.data.db.ArticleDao
 import com.example.rssreader.data.db.ArticleEntity
 import com.example.rssreader.data.db.ArticleSearchResult
+import com.example.rssreader.data.db.AppDatabase
 import com.example.rssreader.data.db.FeedDao
 import com.example.rssreader.data.db.FeedEntity
 import com.example.rssreader.data.db.FeedSummary
+import com.example.rssreader.data.errors.RssReaderException
 import com.example.rssreader.data.network.FeedFetcher
 import com.example.rssreader.data.network.FeedParser
 import com.example.rssreader.data.opml.OpmlCodec
 import com.example.rssreader.data.opml.OpmlFeedEntry
+import java.io.ByteArrayInputStream
 import java.io.InputStream
 import java.io.OutputStream
 import java.nio.charset.StandardCharsets
+import androidx.room.withTransaction
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.withContext
 
+private val importableFeedSelfLinkRegex = Regex(
+    """<(?:(?:\w+):)?link\b[^>]*\brel\s*=\s*["']self["'][^>]*\bhref\s*=\s*["']([^"']+)["']|<(?:(?:\w+):)?link\b[^>]*\bhref\s*=\s*["']([^"']+)["'][^>]*\brel\s*=\s*["']self["']""",
+    setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL)
+)
+private val importableFeedTypedLinkRegex = Regex(
+    """<(?:(?:\w+):)?link\b[^>]*\bhref\s*=\s*["']([^"']+)["'][^>]*\btype\s*=\s*["'][^"']*(?:rss|atom|xml)[^"']*["']|<(?:(?:\w+):)?link\b[^>]*\btype\s*=\s*["'][^"']*(?:rss|atom|xml)[^"']*["'][^>]*\bhref\s*=\s*["']([^"']+)["']""",
+    setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL)
+)
+private val importableFeedTextLinkRegex = Regex(
+    """<link>\s*(https?://[^<\s]+)\s*</link>""",
+    setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL)
+)
+
 data class RefreshRunStats(
     val refreshedFeeds: Int = 0,
     val skippedFeeds: Int = 0,
+    val failedFeeds: Int = 0,
+    val retryableFeeds: Int = 0,
     val newArticles: Int = 0
 )
 
@@ -31,6 +51,7 @@ data class OpmlImportResult(
 )
 
 class FeedRepository(
+    private val database: AppDatabase,
     private val feedDao: FeedDao,
     private val articleDao: ArticleDao,
     private val fetcher: FeedFetcher,
@@ -40,6 +61,7 @@ class FeedRepository(
     fun observeFeeds(): Flow<List<FeedEntity>> = feedDao.observeFeeds()
     fun observeFeed(feedId: Long) = feedDao.observeById(feedId)
     fun observeArticles(feedId: Long) = articleDao.observeByFeed(feedId)
+    fun observeArticleNavigation(feedId: Long) = articleDao.observeNavigationByFeed(feedId)
     fun searchArticles(query: String): Flow<List<ArticleSearchResult>> =
         if (query.isBlank()) {
             kotlinx.coroutines.flow.flowOf(emptyList())
@@ -51,35 +73,43 @@ class FeedRepository(
         runOnIo {
             val parsed = parser.parse(fetcher.fetch(url), url)
             try {
-                val feedId = feedDao.insert(
-                    FeedEntity(
-                        title = parsed.title,
-                        customTitle = customTitle?.takeIf { it.isNotBlank() },
-                        url = url,
-                        siteUrl = parsed.siteUrl,
-                        iconUrl = parsed.iconUrl,
-                        displayOrder = feedDao.getMaxDisplayOrder() + 1,
-                        lastFetchedAt = System.currentTimeMillis(),
-                        wifiOnly = wifiOnly
-                    )
+                insertParsedFeed(
+                    url = url,
+                    customTitle = customTitle,
+                    wifiOnly = wifiOnly,
+                    parsed = parsed
                 )
-                insertArticles(feedId = feedId, parsed = parsed)
-                feedId
             } catch (_: SQLiteConstraintException) {
-                throw IllegalStateException("Dieser Feed ist bereits vorhanden.")
+                throw RssReaderException.DuplicateFeed()
             }
         }
 
     suspend fun refreshAll(): RefreshRunStats {
         return runOnIo {
             var refreshedFeeds = 0
+            var skippedFeeds = 0
+            var failedFeeds = 0
+            var retryableFeeds = 0
             var newArticles = 0
             feedDao.getAll().forEach { feed ->
-                newArticles += refreshFeedInternal(feed)
-                refreshedFeeds += 1
+                runCatching { refreshFeedInternal(feed) }
+                    .onSuccess { insertedArticles ->
+                        refreshedFeeds += 1
+                        newArticles += insertedArticles
+                    }
+                    .onFailure { throwable ->
+                        failedFeeds += 1
+                        if (throwable.isRetryableRefreshFailure()) {
+                            retryableFeeds += 1
+                        }
+                        Log.w(TAG, "Feed-Aktualisierung fehlgeschlagen: ${feed.url}", throwable)
+                    }
             }
             RefreshRunStats(
                 refreshedFeeds = refreshedFeeds,
+                skippedFeeds = skippedFeeds,
+                failedFeeds = failedFeeds,
+                retryableFeeds = retryableFeeds,
                 newArticles = newArticles
             )
         }
@@ -110,6 +140,8 @@ class FeedRepository(
         return runOnIo {
             var refreshedFeeds = 0
             var skippedFeeds = 0
+            var failedFeeds = 0
+            var retryableFeeds = 0
             var newArticles = 0
 
             feedDao.getAll().forEach { feed ->
@@ -123,11 +155,20 @@ class FeedRepository(
                         refreshedFeeds += 1
                         newArticles += insertedArticles
                     }
+                    .onFailure { throwable ->
+                        failedFeeds += 1
+                        if (throwable.isRetryableRefreshFailure()) {
+                            retryableFeeds += 1
+                        }
+                        Log.w(TAG, "Hintergrund-Aktualisierung fehlgeschlagen: ${feed.url}", throwable)
+                    }
             }
 
             RefreshRunStats(
                 refreshedFeeds = refreshedFeeds,
                 skippedFeeds = skippedFeeds,
+                failedFeeds = failedFeeds,
+                retryableFeeds = retryableFeeds,
                 newArticles = newArticles
             )
         }
@@ -137,26 +178,28 @@ class FeedRepository(
         runOnIo {
             val existingFeed = feedDao.getById(feedId) ?: return@runOnIo
             val parsed = parser.parse(fetcher.fetch(url), url)
-
-            if (existingFeed.url != url) {
-                articleDao.deleteByFeedId(feedId)
-            }
+            val urlChanged = existingFeed.url != url
 
             try {
-                feedDao.update(
-                    existingFeed.copy(
-                        title = parsed.title,
-                        customTitle = customTitle?.takeIf { it.isNotBlank() },
-                        url = url,
-                        siteUrl = parsed.siteUrl,
-                        iconUrl = parsed.iconUrl,
-                        lastFetchedAt = System.currentTimeMillis(),
-                        wifiOnly = wifiOnly
+                database.withTransaction {
+                    feedDao.update(
+                        existingFeed.copy(
+                            title = parsed.title,
+                            customTitle = customTitle?.takeIf { it.isNotBlank() },
+                            url = url,
+                            siteUrl = parsed.siteUrl,
+                            iconUrl = parsed.iconUrl,
+                            lastFetchedAt = System.currentTimeMillis(),
+                            wifiOnly = wifiOnly
+                        )
                     )
-                )
-                insertArticles(feedId = feedId, parsed = parsed)
+                    if (urlChanged) {
+                        articleDao.deleteByFeedId(feedId)
+                    }
+                    insertArticlesInCurrentTransaction(feedId = feedId, parsed = parsed)
+                }
             } catch (_: SQLiteConstraintException) {
-                throw IllegalStateException("Dieser Feed ist bereits vorhanden.")
+                throw RssReaderException.DuplicateFeed()
             }
         }
     }
@@ -222,29 +265,33 @@ class FeedRepository(
 
     suspend fun moveFeedUp(feedId: Long) {
         runOnIo {
-            val feeds = feedDao.getAll()
-            val currentIndex = feeds.indexOfFirst { it.id == feedId }
-            if (currentIndex <= 0) {
-                return@runOnIo
+            database.withTransaction {
+                val feeds = feedDao.getAll()
+                val currentIndex = feeds.indexOfFirst { it.id == feedId }
+                if (currentIndex <= 0) {
+                    return@withTransaction
+                }
+                val currentFeed = feeds[currentIndex]
+                val previousFeed = feeds[currentIndex - 1]
+                feedDao.updateDisplayOrder(currentFeed.id, previousFeed.displayOrder)
+                feedDao.updateDisplayOrder(previousFeed.id, currentFeed.displayOrder)
             }
-            val currentFeed = feeds[currentIndex]
-            val previousFeed = feeds[currentIndex - 1]
-            feedDao.updateDisplayOrder(currentFeed.id, previousFeed.displayOrder)
-            feedDao.updateDisplayOrder(previousFeed.id, currentFeed.displayOrder)
         }
     }
 
     suspend fun moveFeedDown(feedId: Long) {
         runOnIo {
-            val feeds = feedDao.getAll()
-            val currentIndex = feeds.indexOfFirst { it.id == feedId }
-            if (currentIndex == -1 || currentIndex >= feeds.lastIndex) {
-                return@runOnIo
+            database.withTransaction {
+                val feeds = feedDao.getAll()
+                val currentIndex = feeds.indexOfFirst { it.id == feedId }
+                if (currentIndex == -1 || currentIndex >= feeds.lastIndex) {
+                    return@withTransaction
+                }
+                val currentFeed = feeds[currentIndex]
+                val nextFeed = feeds[currentIndex + 1]
+                feedDao.updateDisplayOrder(currentFeed.id, nextFeed.displayOrder)
+                feedDao.updateDisplayOrder(nextFeed.id, currentFeed.displayOrder)
             }
-            val currentFeed = feeds[currentIndex]
-            val nextFeed = feeds[currentIndex + 1]
-            feedDao.updateDisplayOrder(currentFeed.id, nextFeed.displayOrder)
-            feedDao.updateDisplayOrder(nextFeed.id, currentFeed.displayOrder)
         }
     }
 
@@ -256,10 +303,64 @@ class FeedRepository(
     }
 
     suspend fun importOpml(inputStream: InputStream): OpmlImportResult = runOnIo {
-        val entries = OpmlCodec.parse(inputStream)
+        val importBytes = inputStream.readBytes()
+        val entries = runCatching {
+            OpmlCodec.parse(ByteArrayInputStream(importBytes))
+        }.getOrElse { throwable ->
+            if (throwable is RssReaderException.InvalidXml) {
+                emptyList()
+            } else {
+                throw throwable
+            }
+        }
         var importedFeeds = 0
         var skippedFeeds = 0
         var failedFeeds = 0
+
+        if (entries.isEmpty()) {
+            val xml = importBytes.toString(StandardCharsets.UTF_8)
+            val feedUrl = detectImportableFeedUrl(xml)
+            val parsed = runCatching { parser.parse(xml, feedUrl) }.getOrElse { throwable ->
+                if (throwable is RssReaderException.InvalidXml) {
+                    throw RssReaderException.UnsupportedImportFile()
+                }
+                throw throwable
+            }
+            if (feedUrl.isNullOrBlank()) {
+                return@runOnIo OpmlImportResult(
+                    importedFeeds = 0,
+                    skippedFeeds = 0,
+                    failedFeeds = 0
+                )
+            }
+            if (feedDao.existsByUrl(feedUrl)) {
+                return@runOnIo OpmlImportResult(
+                    importedFeeds = 0,
+                    skippedFeeds = 1,
+                    failedFeeds = 0
+                )
+            }
+
+            return@runOnIo runCatching {
+                insertParsedFeed(
+                    url = feedUrl,
+                    customTitle = null,
+                    wifiOnly = false,
+                    parsed = parsed
+                )
+            }.fold(
+                onSuccess = {
+                    OpmlImportResult(importedFeeds = 1, skippedFeeds = 0, failedFeeds = 0)
+                },
+                onFailure = { throwable ->
+                    if (throwable is SQLiteConstraintException) {
+                        OpmlImportResult(importedFeeds = 0, skippedFeeds = 1, failedFeeds = 0)
+                    } else {
+                        throw throwable
+                    }
+                }
+            )
+        }
 
         entries.forEach { entry ->
             if (feedDao.existsByUrl(entry.url)) {
@@ -314,6 +415,15 @@ class FeedRepository(
     }
 
     private suspend fun insertArticles(
+        feedId: Long,
+        parsed: com.example.rssreader.data.network.ParsedFeed
+    ): Int {
+        return database.withTransaction {
+            insertArticlesInCurrentTransaction(feedId = feedId, parsed = parsed)
+        }
+    }
+
+    private suspend fun insertArticlesInCurrentTransaction(
         feedId: Long,
         parsed: com.example.rssreader.data.network.ParsedFeed
     ): Int {
@@ -381,7 +491,75 @@ class FeedRepository(
     private suspend fun <T> runOnIo(block: suspend () -> T): T = withContext(Dispatchers.IO) {
         block()
     }
+
+    private suspend fun insertParsedFeed(
+        url: String,
+        customTitle: String?,
+        wifiOnly: Boolean,
+        parsed: com.example.rssreader.data.network.ParsedFeed
+    ): Long {
+        return database.withTransaction {
+            val feedId = feedDao.insert(
+                FeedEntity(
+                    title = parsed.title,
+                    customTitle = customTitle?.takeIf { it.isNotBlank() },
+                    url = url,
+                    siteUrl = parsed.siteUrl,
+                    iconUrl = parsed.iconUrl,
+                    displayOrder = feedDao.getMaxDisplayOrder() + 1,
+                    lastFetchedAt = System.currentTimeMillis(),
+                    wifiOnly = wifiOnly
+                )
+            )
+            insertArticlesInCurrentTransaction(feedId = feedId, parsed = parsed)
+            feedId
+        }
+    }
+
+    companion object {
+        private const val TAG = "FeedRepository"
+    }
+}
+
+private fun Throwable.isRetryableRefreshFailure(): Boolean {
+    return when (this) {
+        is RssReaderException.Timeout,
+        is RssReaderException.NetworkUnavailable,
+        is RssReaderException.ConnectionFailed -> true
+
+        is RssReaderException.HttpError -> code == 429 || code in 500..599
+        else -> false
+    }
+}
+
+internal fun detectImportableFeedUrl(xml: String): String? {
+    return sequenceOf(
+        importableFeedSelfLinkRegex.extractHttpUrl(xml),
+        importableFeedTypedLinkRegex.extractHttpUrl(xml),
+        importableFeedTextLinkRegex.extractHttpUrl(xml)?.takeIf(::looksLikeFeedUrl)
+    ).firstOrNull { !it.isNullOrBlank() }
+}
+
+private fun Regex.extractHttpUrl(xml: String): String? {
+    return find(xml)
+        ?.groupValues
+        ?.drop(1)
+        ?.firstOrNull { it.isNotBlank() }
+        ?.trim()
+        ?.takeIf(::isHttpUrl)
+}
+
+private fun isHttpUrl(url: String): Boolean {
+    return url.startsWith("http://", ignoreCase = true) ||
+        url.startsWith("https://", ignoreCase = true)
+}
+
+private fun looksLikeFeedUrl(url: String): Boolean {
+    val normalized = url.lowercase()
+    return "/feed" in normalized ||
+        ".xml" in normalized ||
+        "rss" in normalized ||
+        "atom" in normalized
 }
 
 
-========================================================================================================================

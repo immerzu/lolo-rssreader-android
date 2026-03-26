@@ -8,7 +8,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 @Database(
     entities = [FeedEntity::class, ArticleEntity::class],
     version = 6,
-    exportSchema = false
+    exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun feedDao(): FeedDao
@@ -16,38 +16,37 @@ abstract class AppDatabase : RoomDatabase() {
 
     companion object {
         val MIGRATION_1_2 = object : Migration(1, 2) {
-            override fun migrate(database: SupportSQLiteDatabase) {
-                database.execSQL("ALTER TABLE feeds ADD COLUMN lastOpenedAt INTEGER")
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE feeds ADD COLUMN lastOpenedAt INTEGER")
             }
         }
 
         val MIGRATION_2_3 = object : Migration(2, 3) {
-            override fun migrate(database: SupportSQLiteDatabase) {
-                database.execSQL("ALTER TABLE feeds ADD COLUMN siteUrl TEXT")
-                database.execSQL("ALTER TABLE feeds ADD COLUMN iconUrl TEXT")
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE feeds ADD COLUMN siteUrl TEXT")
+                db.execSQL("ALTER TABLE feeds ADD COLUMN iconUrl TEXT")
             }
         }
 
         val MIGRATION_3_4 = object : Migration(3, 4) {
-            override fun migrate(database: SupportSQLiteDatabase) {
-                database.execSQL("ALTER TABLE feeds ADD COLUMN displayOrder INTEGER NOT NULL DEFAULT 0")
-                database.execSQL("UPDATE feeds SET displayOrder = id WHERE displayOrder = 0")
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE feeds ADD COLUMN displayOrder INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("UPDATE feeds SET displayOrder = id WHERE displayOrder = 0")
             }
         }
 
         val MIGRATION_4_5 = object : Migration(4, 5) {
-            override fun migrate(database: SupportSQLiteDatabase) {
-                database.execSQL("ALTER TABLE articles ADD COLUMN isFavorite INTEGER NOT NULL DEFAULT 0")
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE articles ADD COLUMN isFavorite INTEGER NOT NULL DEFAULT 0")
             }
         }
 
         val MIGRATION_5_6 = object : Migration(5, 6) {
-            override fun migrate(database: SupportSQLiteDatabase) {
-                database.execSQL("ALTER TABLE articles ADD COLUMN contentHtml TEXT NOT NULL DEFAULT ''")
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE articles ADD COLUMN contentHtml TEXT NOT NULL DEFAULT ''")
             }
         }
     }
 }
 
 
-========================================================================================================================

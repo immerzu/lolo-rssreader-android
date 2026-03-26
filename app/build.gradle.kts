@@ -1,5 +1,7 @@
 import org.gradle.api.tasks.Copy
 import java.util.Properties
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
 
 plugins {
     id("com.android.application")
@@ -7,13 +9,15 @@ plugins {
     id("com.google.devtools.ksp")
 }
 
+val roomSchemaDir = projectDir.resolve("schemas")
+
 val versionPropertiesFile = rootProject.file("version.properties")
 val versionProperties = Properties().apply {
     if (versionPropertiesFile.exists()) {
         versionPropertiesFile.inputStream().use(::load)
     } else {
         setProperty("VERSION_CODE", "1")
-        setProperty("VERSION_NAME", "1.50.00")
+        setProperty("VERSION_NAME", "1.60.20")
         versionPropertiesFile.outputStream().use { output ->
             store(output, "RSS Reader build version")
         }
@@ -23,7 +27,7 @@ val versionProperties = Properties().apply {
 fun incrementPatchVersion(versionName: String): String {
     val parts = versionName.split(".").mapNotNull { it.toIntOrNull() }.toMutableList()
     if (parts.isEmpty()) {
-        return "1.50.01"
+        return "1.60.21"
     }
     while (parts.size < 3) {
         parts += 0
@@ -34,18 +38,16 @@ fun incrementPatchVersion(versionName: String): String {
     return "%d.%d.%02d".format(major, minor, patch)
 }
 
-val buildRequested = gradle.startParameter.taskNames.any { taskName ->
+val releaseBuildRequested = gradle.startParameter.taskNames.any { taskName ->
     val normalized = taskName.substringAfterLast(":").lowercase()
-    normalized.startsWith("assemble") ||
-        normalized.startsWith("bundle") ||
-        normalized.startsWith("install")
+    normalized == "assemblerelease" || normalized == "bundlerelease"
 }
 
 fun resolveBuildVersion(): Pair<Int, String> {
     val storedVersionCode = versionProperties.getProperty("VERSION_CODE")?.toIntOrNull() ?: 1
-    val storedVersionName = versionProperties.getProperty("VERSION_NAME") ?: "1.50.00"
+    val storedVersionName = versionProperties.getProperty("VERSION_NAME") ?: "1.60.20"
 
-    if (!buildRequested) {
+    if (!releaseBuildRequested) {
         return storedVersionCode to storedVersionName
     }
 
@@ -62,6 +64,7 @@ fun resolveBuildVersion(): Pair<Int, String> {
 val resolvedBuildVersion = resolveBuildVersion()
 val resolvedVersionCode = resolvedBuildVersion.first
 val resolvedVersionName = resolvedBuildVersion.second
+val debugBuildStamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss"))
 val keystorePropertiesFile = rootProject.file("keystore.properties")
 val keystoreProperties = Properties().apply {
     if (keystorePropertiesFile.exists()) {
@@ -136,6 +139,10 @@ android {
     }
 }
 
+ksp {
+    arg("room.schemaLocation", roomSchemaDir.path)
+}
+
 dependencies {
     implementation("androidx.core:core-ktx:1.13.1")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.4")
@@ -173,19 +180,21 @@ val exportedApkDir = rootProject.projectDir.parentFile?.resolve("Ausgabe_APK")
 tasks.register<Copy>("exportDebugApk") {
     from(layout.buildDirectory.file("outputs/apk/debug/app-debug.apk"))
     into(exportedApkDir)
-    rename { "RSS-Reader-v$resolvedVersionName-$resolvedVersionCode-debug.apk" }
+    outputs.upToDateWhen { false }
+    // Debug-Builds sollen archiviert statt ueberschrieben werden.
+    rename { "RSS-Reader-v$resolvedVersionName-debug-$debugBuildStamp.apk" }
 }
 
 tasks.register<Copy>("exportReleaseApk") {
     from(layout.buildDirectory.file("outputs/apk/release/app-release.apk"))
     into(exportedApkDir)
-    rename { "RSS-Reader-v$resolvedVersionName-$resolvedVersionCode-release.apk" }
+    rename { "RSS-Reader-v$resolvedVersionName-release.apk" }
 }
 
 tasks.register<Copy>("exportReleaseBundle") {
     from(layout.buildDirectory.file("outputs/bundle/release/app-release.aab"))
     into(exportedApkDir)
-    rename { "RSS-Reader-v$resolvedVersionName-$resolvedVersionCode-release.aab" }
+    rename { "RSS-Reader-v$resolvedVersionName-release.aab" }
 }
 
 tasks.matching { it.name == "assembleDebug" }.configureEach {
@@ -201,4 +210,3 @@ tasks.matching { it.name == "bundleRelease" }.configureEach {
 }
 
 
-========================================================================================================================

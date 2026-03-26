@@ -12,8 +12,14 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowDownward
+import androidx.compose.material.icons.filled.ArrowUpward
+import androidx.compose.material.icons.filled.UnfoldMore
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -39,8 +45,11 @@ import java.net.URI
 fun FeedListScreen(
     feeds: List<FeedSummary>,
     isRefreshing: Boolean,
+    isMoveMode: Boolean,
     onOpenFeed: (Long) -> Unit,
     onOpenFeedMenu: (Long) -> Unit,
+    onMoveFeedUp: (Long) -> Unit,
+    onMoveFeedDown: (Long) -> Unit,
     modifier: Modifier = Modifier
 ) {
     if (feeds.isEmpty()) {
@@ -67,15 +76,42 @@ fun FeedListScreen(
     }
 
     LazyColumn(modifier = modifier.fillMaxSize()) {
-        items(feeds, key = { it.id }) { feed ->
+        if (isMoveMode) {
+            item(key = "move-mode-hint") {
+                Text(
+                    text = "Verschiebemodus aktiv. Sortiere die Feeds mit den Pfeilen.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
+                )
+            }
+        }
+        itemsIndexed(feeds, key = { _, feed -> feed.id }) { index, feed ->
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .combinedClickable(
-                        onClick = { onOpenFeed(feed.id) },
-                        onLongClick = { onOpenFeedMenu(feed.id) }
+                        onClick = {
+                            if (!isMoveMode) {
+                                onOpenFeed(feed.id)
+                            }
+                        },
+                        onLongClick = {
+                            if (!isMoveMode) {
+                                onOpenFeedMenu(feed.id)
+                            }
+                        }
                     )
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(
+                        if (isMoveMode) {
+                            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.28f)
+                        } else {
+                            Color.Transparent
+                        }
+                    )
+                    .padding(horizontal = if (isMoveMode) 8.dp else 0.dp),
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                 verticalAlignment = Alignment.Top
             ) {
@@ -128,6 +164,39 @@ fun FeedListScreen(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
+                }
+                if (isMoveMode) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(2.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.UnfoldMore,
+                            contentDescription = "Verschiebbar",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                            modifier = Modifier.size(18.dp)
+                        )
+                        IconButton(
+                            onClick = { onMoveFeedUp(feed.id) },
+                            enabled = index > 0,
+                            modifier = Modifier.size(32.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.ArrowUpward,
+                                contentDescription = "Feed nach oben"
+                            )
+                        }
+                        IconButton(
+                            onClick = { onMoveFeedDown(feed.id) },
+                            enabled = index < feeds.lastIndex,
+                            modifier = Modifier.size(32.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.ArrowDownward,
+                                contentDescription = "Feed nach unten"
+                            )
+                        }
+                    }
                 }
             }
             HorizontalDivider()
@@ -213,4 +282,3 @@ private fun buildFaviconUrl(sourceUrl: String?): String? {
 }
 
 
-========================================================================================================================

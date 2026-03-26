@@ -15,7 +15,17 @@ class BackgroundRefreshWorker(
     override suspend fun doWork(): Result {
         val app = applicationContext as RssReaderApplication
         val isUnmeteredNetwork = isUnmeteredConnection()
-        val result = app.repository.refreshAllInBackground(isUnmeteredNetwork = isUnmeteredNetwork)
+        val result = runCatching {
+            app.repository.refreshAllInBackground(isUnmeteredNetwork = isUnmeteredNetwork)
+        }.getOrElse { throwable ->
+            Log.w(TAG, "Hintergrundaktualisierung komplett fehlgeschlagen", throwable)
+            return Result.retry()
+        }
+
+        if (shouldRetryBackgroundRefresh(result)) {
+            return Result.retry()
+        }
+
         runCatching {
             val settings = app.settingsRepository.getCurrentSettings()
             if (settings.notificationsEnabled) {
@@ -46,5 +56,8 @@ class BackgroundRefreshWorker(
     }
 }
 
+internal fun shouldRetryBackgroundRefresh(result: com.example.rssreader.data.repository.RefreshRunStats): Boolean {
+    return result.refreshedFeeds == 0 && result.retryableFeeds > 0
+}
 
-========================================================================================================================
+

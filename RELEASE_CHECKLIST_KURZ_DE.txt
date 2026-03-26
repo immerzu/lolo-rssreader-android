@@ -1,0 +1,14 @@
+RELEASE-CHECKLISTE KURZ
+
+1. Stabiler Code-Stand gesichert?
+2. Versionsnummer bewusst gesetzt?
+3. Keine bekannten kritischen Bugs offen?
+4. Feed anlegen / aktualisieren / lesen getestet?
+5. Suche / Einstellungen / OPML getestet?
+6. Artikel-Links und Browser-Öffnung getestet?
+7. Debug-Test ok?
+   .\gradlew.bat testDebugUnitTest
+8. Release gebaut?
+   .\gradlew.bat assembleRelease
+9. Release-APK in Ausgabe_APK vorhanden und installiert?
+10. Stand nach Release per Git commit/tag gesichert?

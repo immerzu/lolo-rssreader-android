@@ -1,9 +1,15 @@
 package com.example.rssreader.ui.screens
 
+import android.annotation.SuppressLint
 import android.content.Intent
 import android.net.Uri
+import android.text.format.DateUtils
 import android.text.TextUtils
+import android.util.Log
+import android.view.MotionEvent
+import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
@@ -20,6 +26,7 @@ import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -27,6 +34,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.OpenInBrowser
@@ -43,6 +51,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -60,15 +69,17 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import coil.compose.AsyncImage
+import com.example.rssreader.data.db.ArticleNavigationEntry
 import com.example.rssreader.data.db.ArticleEntity
 import com.example.rssreader.data.repository.FeedRepository
-import com.example.rssreader.ui.formatRelativeTime
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlin.math.abs
 
+@SuppressLint("SetJavaScriptEnabled")
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ArticleReaderScreen(
@@ -83,53 +94,72 @@ fun ArticleReaderScreen(
     val effectiveArticleBodyTextSizeOffset = articleBodyTextSizeOffset.coerceIn(-2, 2)
     var currentArticleId by rememberSaveable { mutableStateOf(articleId) }
     var article by remember { mutableStateOf<ArticleEntity?>(null) }
+    var isLoadingArticle by rememberSaveable { mutableStateOf(true) }
     var swipeDirection by remember { mutableStateOf(SwipeDirection.None) }
     var hasShownInitialArticle by rememberSaveable { mutableStateOf(false) }
     var showSwipeHint by rememberSaveable { mutableStateOf(false) }
+    var activeWebView by remember { mutableStateOf<WebView?>(null) }
+    var webViewFailed by remember(currentArticleId) { mutableStateOf(false) }
+    val webSwipeTracker = remember { WebSwipeTracker() }
     val defaultBodyTextStyle = MaterialTheme.typography.bodyLarge
-    val feedArticlesFlow = remember(repository, article?.feedId) {
-        article?.feedId?.let(repository::observeArticles) ?: flowOf(emptyList())
+    val articleNavigationFlow = remember(repository, article?.feedId) {
+        article?.feedId?.let(repository::observeArticleNavigation) ?: flowOf(emptyList())
     }
-    val feedArticles by feedArticlesFlow.collectAsState(initial = emptyList())
+    val articleNavigation by articleNavigationFlow.collectAsState(initial = emptyList())
     val fallbackBodyTextStyle = remember(defaultBodyTextStyle, effectiveArticleBodyTextSizeOffset) {
         defaultBodyTextStyle.copy(
             fontSize = (defaultBodyTextStyle.fontSize.value + effectiveArticleBodyTextSizeOffset).sp
         )
     }
-    val orderedArticles by remember(feedArticles) {
+    val currentIndex by remember(article?.id, articleNavigation) {
+        derivedStateOf { articleNavigation.indexOfFirst { it.id == article?.id } }
+    }
+    val newerArticleId by remember(currentIndex, articleNavigation) {
         derivedStateOf {
-            feedArticles.sortedWith(
-                compareByDescending<ArticleEntity> { it.publishedAt ?: 0L }
-                    .thenByDescending { it.id }
-            )
+            if (currentIndex > 0) articleNavigation[currentIndex - 1].id else null
         }
     }
-    val currentIndex by remember(article?.id, orderedArticles) {
-        derivedStateOf { orderedArticles.indexOfFirst { it.id == article?.id } }
-    }
-    val newerArticleId by remember(currentIndex, orderedArticles) {
+    val olderArticleId by remember(currentIndex, articleNavigation) {
         derivedStateOf {
-            if (currentIndex > 0) orderedArticles[currentIndex - 1].id else null
-        }
-    }
-    val olderArticleId by remember(currentIndex, orderedArticles) {
-        derivedStateOf {
-            if (currentIndex != -1 && currentIndex < orderedArticles.lastIndex) {
-                orderedArticles[currentIndex + 1].id
+            if (currentIndex != -1 && currentIndex < articleNavigation.lastIndex) {
+                articleNavigation[currentIndex + 1].id
             } else {
                 null
             }
         }
     }
     val openInBrowser = { openArticleInBrowser(context, article?.link) }
+    val triggerSwipe: (Float) -> Unit = { totalHorizontalDrag ->
+        when {
+            totalHorizontalDrag >= ARTICLE_SWIPE_THRESHOLD_PX && newerArticleId != null -> {
+                scope.launch {
+                    swipeDirection = SwipeDirection.ToNewer
+                    currentArticleId = newerArticleId!!
+                }
+            }
+            totalHorizontalDrag <= -ARTICLE_SWIPE_THRESHOLD_PX && olderArticleId != null -> {
+                scope.launch {
+                    swipeDirection = SwipeDirection.ToOlder
+                    currentArticleId = olderArticleId!!
+                }
+            }
+        }
+    }
 
     LaunchedEffect(articleId) {
         currentArticleId = articleId
     }
 
     LaunchedEffect(currentArticleId) {
-        article = withContext(Dispatchers.IO) { repository.getArticle(currentArticleId) }
-        withContext(Dispatchers.IO) { repository.markRead(currentArticleId) }
+        isLoadingArticle = true
+        webViewFailed = false
+        clearWebViewForReuse(activeWebView)
+        val loadedArticle = withContext(Dispatchers.IO) { repository.getArticle(currentArticleId) }
+        article = loadedArticle
+        if (loadedArticle != null) {
+            withContext(Dispatchers.IO) { repository.markRead(currentArticleId) }
+        }
+        isLoadingArticle = false
     }
 
     LaunchedEffect(article?.id) {
@@ -147,6 +177,13 @@ fun ArticleReaderScreen(
         if (article != null && swipeDirection != SwipeDirection.None) {
             delay(ARTICLE_SWITCH_ANIMATION_MS.toLong())
             swipeDirection = SwipeDirection.None
+        }
+    }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            destroyWebView(activeWebView)
+            activeWebView = null
         }
     }
 
@@ -175,7 +212,7 @@ fun ArticleReaderScreen(
             )
         }
     ) { padding ->
-        if (article == null) {
+        if (isLoadingArticle) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -183,6 +220,20 @@ fun ArticleReaderScreen(
                 contentAlignment = Alignment.Center
             ) {
                 CircularProgressIndicator()
+            }
+        } else if (article == null) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+                    .padding(24.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "Artikel nicht gefunden.",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         } else {
             val colorScheme = MaterialTheme.colorScheme
@@ -225,68 +276,90 @@ fun ArticleReaderScreen(
                     contentKey = { it?.id ?: -1L },
                     label = "article-swipe"
                 ) { currentArticle ->
+                    val readerLoadProfile = remember(currentArticle?.id, currentArticle?.contentHtml) {
+                        analyzeReaderLoad(currentArticle)
+                    }
+                    LaunchedEffect(currentArticle?.id, readerLoadProfile) {
+                        if (currentArticle != null && readerLoadProfile.isHeavy) {
+                            Log.d(
+                                TAG,
+                                "Heavy article detected: articleId=${currentArticle.id}, " +
+                                    "reasons=${readerLoadProfile.reasonSummary}, " +
+                                    "fallback=${readerLoadProfile.useFallback}"
+                            )
+                        }
+                    }
                     val articleHtml = remember(currentArticle, showImages, colorScheme, effectiveArticleBodyTextSizeOffset) {
                         buildReaderHtml(
                             article = currentArticle,
                             showImages = showImages,
                             colorScheme = colorScheme,
-                            articleBodyTextSizeOffset = effectiveArticleBodyTextSizeOffset
+                            articleBodyTextSizeOffset = effectiveArticleBodyTextSizeOffset,
+                            loadProfile = readerLoadProfile
                         )
                     }
-                    val articleHtmlContent = remember(currentArticle?.link, articleHtml) {
+                    val articleHtmlContent = remember(currentArticle?.link, articleHtml, readerLoadProfile) {
                         articleHtml?.let {
                             ReaderHtmlContent(
                                 baseUrl = currentArticle?.link,
-                                html = it
+                                html = it,
+                                requiresJavaScript = it.requiresReaderJavaScript(),
+                                loadProfile = readerLoadProfile
                             )
                         }
                     }
-                    val fallbackImageUrls = remember(currentArticle?.imageUrls) {
+                    val shouldUseWebView = remember(articleHtmlContent) {
+                        articleHtmlContent?.shouldUseWebView() == true
+                    }
+                    val fallbackImageUrls = remember(currentArticle?.imageUrls, readerLoadProfile) {
                         currentArticle?.imageUrls
                             ?.split("\n")
-                            ?.filter { imageUrl -> imageUrl.isNotBlank() }
+                            ?.filter { imageUrl ->
+                                imageUrl.isNotBlank() && imageUrl.looksLikeDirectImageUrl()
+                            }
+                            ?.let { imageUrls ->
+                                if (readerLoadProfile.isHeavy) {
+                                    imageUrls.take(READER_HEAVY_ARTICLE_MAX_IMAGES)
+                                } else {
+                                    imageUrls
+                                }
+                            }
                             .orEmpty()
                     }
                     Column(
                         modifier = Modifier
                             .fillMaxSize()
                             .padding(padding)
-                            .pointerInput(newerArticleId, olderArticleId) {
-                                var totalHorizontalDrag = 0f
-                                detectHorizontalDragGestures(
-                                    onDragStart = {
-                                        totalHorizontalDrag = 0f
-                                        showSwipeHint = false
-                                    },
-                                    onHorizontalDrag = { _, dragAmount ->
-                                        totalHorizontalDrag += dragAmount
-                                    },
-                                    onDragEnd = {
-                                        when {
-                                            totalHorizontalDrag >= 80f && newerArticleId != null -> {
-                                                scope.launch {
-                                                    swipeDirection = SwipeDirection.ToNewer
-                                                    currentArticleId = newerArticleId!!
-                                                }
-                                            }
-                                            totalHorizontalDrag <= -80f && olderArticleId != null -> {
-                                                scope.launch {
-                                                    swipeDirection = SwipeDirection.ToOlder
-                                                    currentArticleId = olderArticleId!!
-                                                }
-                                            }
-                                        }
-                                    },
-                                    onDragCancel = {}
-                                )
-                            },
+                            .then(
+                                if (shouldUseWebView && !webViewFailed) {
+                                    Modifier
+                                } else {
+                                    Modifier.pointerInput(newerArticleId, olderArticleId) {
+                                        var totalHorizontalDrag = 0f
+                                        detectHorizontalDragGestures(
+                                            onDragStart = {
+                                                totalHorizontalDrag = 0f
+                                                showSwipeHint = false
+                                            },
+                                            onHorizontalDrag = { _, dragAmount ->
+                                                totalHorizontalDrag += dragAmount
+                                            },
+                                            onDragEnd = {
+                                                triggerSwipe(totalHorizontalDrag)
+                                            },
+                                            onDragCancel = {}
+                                        )
+                                    }
+                                }
+                            ),
                         verticalArrangement = Arrangement.spacedBy(0.dp)
                     ) {
-                        if (articleHtml != null) {
+                        if (shouldUseWebView && !webViewFailed) {
                             AndroidView(
                                 factory = { viewContext ->
                                     WebView(viewContext).apply {
-                                        settings.javaScriptEnabled = true
+                                        activeWebView = this
+                                        settings.javaScriptEnabled = false
                                         settings.domStorageEnabled = true
                                         settings.cacheMode = WebSettings.LOAD_DEFAULT
                                         settings.loadsImagesAutomatically = true
@@ -294,37 +367,130 @@ fun ArticleReaderScreen(
                                         settings.allowFileAccess = false
                                         settings.allowContentAccess = false
                                         settings.javaScriptCanOpenWindowsAutomatically = false
+                                        settings.offscreenPreRaster = false
                                         settings.builtInZoomControls = false
                                         settings.displayZoomControls = false
                                         settings.useWideViewPort = true
                                         settings.loadWithOverviewMode = true
                                         overScrollMode = WebView.OVER_SCROLL_NEVER
+                                        // Touch-Beobachtung direkt am nativen WebView, damit
+                                        // vertikales Lesen nicht von einer Compose-Wischgeste
+                                        // versehentlich als Artikelwechsel gewertet wird.
+                                        setOnTouchListener { _, motionEvent ->
+                                            when (motionEvent.actionMasked) {
+                                                MotionEvent.ACTION_DOWN -> {
+                                                    webSwipeTracker.startX = motionEvent.x
+                                                    webSwipeTracker.startY = motionEvent.y
+                                                    webSwipeTracker.deltaX = 0f
+                                                    webSwipeTracker.deltaY = 0f
+                                                    showSwipeHint = false
+                                                    false
+                                                }
+
+                                                MotionEvent.ACTION_MOVE -> {
+                                                    webSwipeTracker.deltaX = motionEvent.x - webSwipeTracker.startX
+                                                    webSwipeTracker.deltaY = motionEvent.y - webSwipeTracker.startY
+                                                    false
+                                                }
+
+                                                MotionEvent.ACTION_UP -> {
+                                                    val totalHorizontalDrag = webSwipeTracker.deltaX
+                                                    val totalVerticalDrag = webSwipeTracker.deltaY
+                                                    val shouldHandleSwipe =
+                                                        abs(totalHorizontalDrag) >= ARTICLE_SWIPE_THRESHOLD_PX &&
+                                                            abs(totalHorizontalDrag) >
+                                                            abs(totalVerticalDrag) * ARTICLE_SWIPE_DIRECTION_BIAS
+
+                                                    if (shouldHandleSwipe) {
+                                                        triggerSwipe(totalHorizontalDrag)
+                                                    }
+                                                    webSwipeTracker.reset()
+                                                    shouldHandleSwipe
+                                                }
+
+                                                MotionEvent.ACTION_CANCEL -> {
+                                                    webSwipeTracker.reset()
+                                                    false
+                                                }
+
+                                                else -> false
+                                            }
+                                        }
                                         webViewClient = object : WebViewClient() {
                                             override fun shouldOverrideUrlLoading(
                                                 view: WebView?,
                                                 request: WebResourceRequest?
                                             ): Boolean {
-                                                val targetUri = request?.url
-                                                if (targetUri?.scheme == IMAGE_TAP_SCHEME) {
-                                                    val articleTarget = targetUri.getQueryParameter("url").orEmpty()
-                                                    openArticleInBrowser(viewContext, articleTarget)
-                                                    return true
+                                                return handleExternalNavigation(
+                                                    context = viewContext,
+                                                    targetUri = request?.url,
+                                                    isMainFrame = request?.isForMainFrame == true
+                                                )
+                                            }
+
+                                            override fun onReceivedError(
+                                                view: WebView?,
+                                                request: WebResourceRequest?,
+                                                error: WebResourceError?
+                                            ) {
+                                                super.onReceivedError(view, request, error)
+                                                if (request?.isForMainFrame == true) {
+                                                    webViewFailed = true
                                                 }
-                                                val target = targetUri?.toString().orEmpty()
-                                                if (request?.isForMainFrame == true && target.isNotBlank()) {
-                                                    viewContext.startActivity(
-                                                        Intent(Intent.ACTION_VIEW, Uri.parse(target))
-                                                    )
-                                                    return true
+                                            }
+
+                                            override fun onReceivedHttpError(
+                                                view: WebView?,
+                                                request: WebResourceRequest?,
+                                                errorResponse: WebResourceResponse?
+                                            ) {
+                                                super.onReceivedHttpError(view, request, errorResponse)
+                                                if (request?.isForMainFrame == true) {
+                                                    webViewFailed = true
                                                 }
-                                                return false
+                                            }
+
+                                            @Deprecated("Deprecated in WebView, but still used on some devices.")
+                                            override fun shouldOverrideUrlLoading(
+                                                view: WebView?,
+                                                url: String?
+                                            ): Boolean {
+                                                return handleExternalNavigation(
+                                                    context = viewContext,
+                                                    targetUri = url?.let(Uri::parse),
+                                                    isMainFrame = true
+                                                )
+                                            }
+
+                                            @Deprecated("Deprecated on older WebView versions.")
+                                            override fun onReceivedError(
+                                                view: WebView?,
+                                                errorCode: Int,
+                                                description: String?,
+                                                failingUrl: String?
+                                            ) {
+                                                super.onReceivedError(view, errorCode, description, failingUrl)
+                                                if (!failingUrl.isNullOrBlank() && failingUrl == view?.url) {
+                                                    webViewFailed = true
+                                                }
                                             }
                                         }
                                     }
                                 },
                                 update = { webView ->
                                     if (articleHtmlContent != null && webView.tag != articleHtmlContent) {
+                                        webViewFailed = false
+                                        clearWebViewForReuse(webView)
                                         webView.tag = articleHtmlContent
+                                        webView.settings.javaScriptEnabled =
+                                            articleHtmlContent.requiresJavaScript
+                                        // Auch bei schweren Artikeln Bilder weiter automatisch laden.
+                                        // Die Last wird bereits ueber reduzierte HTML-Inhalte begrenzt;
+                                        // deaktiviertes Bildladen fuehrt hier zu sichtbaren Broken Images.
+                                        webView.settings.loadsImagesAutomatically = true
+                                        webView.settings.offscreenPreRaster = false
+                                        webView.resumeTimers()
+                                        webView.onResume()
                                         webView.loadDataWithBaseURL(
                                             articleHtmlContent.baseUrl,
                                             articleHtmlContent.html,
@@ -337,45 +503,13 @@ fun ArticleReaderScreen(
                                 modifier = Modifier.fillMaxSize()
                             )
                         } else {
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .padding(16.dp),
-                                verticalArrangement = Arrangement.spacedBy(12.dp)
-                            ) {
-                                Text(
-                                    text = currentArticle?.title ?: "",
-                                    style = MaterialTheme.typography.headlineSmall
-                                )
-                                if (currentArticle?.publishedAt != null) {
-                                    Text(
-                                        text = formatRelativeTime(currentArticle.publishedAt),
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                                Text(
-                                    text = currentArticle?.plainText?.ifBlank { "Kein Textinhalt vorhanden." } ?: "",
-                                    style = fallbackBodyTextStyle
-                                )
-                                if (showImages) {
-                                    fallbackImageUrls.forEach { imageUrl ->
-                                        AsyncImage(
-                                            model = imageUrl,
-                                            contentDescription = null,
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .clickable { openInBrowser() }
-                                        )
-                                    }
-                                } else if (!currentArticle?.imageUrls.isNullOrBlank()) {
-                                    Text(
-                                        text = "Bilder sind in den Einstellungen deaktiviert.",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                            }
+                            ReaderFallbackContent(
+                                article = currentArticle,
+                                showImages = showImages,
+                                fallbackImageUrls = fallbackImageUrls,
+                                bodyTextStyle = fallbackBodyTextStyle,
+                                onOpenArticle = openInBrowser
+                            )
                         }
                     }
                 }
@@ -412,26 +546,43 @@ private fun buildReaderHtml(
     article: ArticleEntity?,
     showImages: Boolean,
     colorScheme: ColorScheme,
-    articleBodyTextSizeOffset: Int
+    articleBodyTextSizeOffset: Int,
+    loadProfile: ReaderLoadProfile
 ): String? {
     article ?: return null
     val prefersDark = colorScheme.background.luminance() < 0.5f
     val articleBodyFontSizePx = (17 + articleBodyTextSizeOffset.coerceIn(-2, 2)).coerceIn(15, 19)
     val encodedTitle = TextUtils.htmlEncode(article.title)
-    val encodedDate = article.publishedAt?.let(::formatRelativeTime)?.let(TextUtils::htmlEncode)
+    val encodedDate = article.publishedAt
+        ?.let { formatReaderRelativeTime(it) }
+        ?.let(TextUtils::htmlEncode)
+    val imageMaxWidthPx = if (loadProfile.isHeavy) 460 else 560
+    val imageMaxHeightPx = if (loadProfile.isHeavy) 220 else 300
+    val videoMaxHeightPx = if (loadProfile.isHeavy) 180 else 240
+    val heavyMediaContainRule = if (loadProfile.isHeavy) {
+        """
+        img, figure, iframe, video {
+          content-visibility: auto;
+          contain-intrinsic-size: 240px 180px;
+        }
+        """
+    } else {
+        ""
+    }
     val rawBody = article.contentHtml.ifBlank {
         article.plainText
             .lineSequence()
             .map(TextUtils::htmlEncode)
             .joinToString(separator = "<br><br>")
-    }
+    }.normalizeReaderBodyHtml(loadProfile)
     if (rawBody.isBlank()) {
         return null
     }
     val twitterScript = if (
+        !loadProfile.isHeavy &&
         "twitter-tweet" in rawBody ||
-        "twitter.com" in rawBody ||
-        "x.com" in rawBody
+        !loadProfile.isHeavy && "twitter.com" in rawBody ||
+        !loadProfile.isHeavy && "x.com" in rawBody
     ) {
         """<script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>"""
     } else {
@@ -442,22 +593,36 @@ private fun buildReaderHtml(
     } else {
         "img, figure { display: none !important; }"
     }
-    val imageTapUrl = article.link
+    val articleTapUrl = article.link
         .takeIf { it.isNotBlank() }
         ?.let { "$IMAGE_TAP_SCHEME://open?url=${Uri.encode(it)}" }
         .orEmpty()
-    val imageTapScript = if (imageTapUrl.isNotBlank()) {
+    val imageTapScript = if (articleTapUrl.isNotBlank()) {
         """
         <script>
           document.addEventListener('DOMContentLoaded', function() {
-            var articleUrl = '$imageTapUrl';
+            var articleUrl = '$articleTapUrl';
             document.querySelectorAll('img').forEach(function(img) {
+              img.loading = 'lazy';
+              img.decoding = 'async';
               img.addEventListener('click', function(event) {
                 event.preventDefault();
                 event.stopPropagation();
                 window.location.href = articleUrl;
               });
             });
+            document.querySelectorAll('iframe').forEach(function(frame) {
+              frame.loading = 'lazy';
+            });
+            // Force the title link through the same external-open path.
+            var titleLink = document.querySelector('h1 a');
+            if (titleLink) {
+              titleLink.addEventListener('click', function(event) {
+                event.preventDefault();
+                event.stopPropagation();
+                window.location.href = articleUrl;
+              });
+            }
           });
         </script>
         """
@@ -547,10 +712,10 @@ private fun buildReaderHtml(
             }
             img {
               display: block;
-              max-width: min(100%, 560px) !important;
+              max-width: min(100%, ${imageMaxWidthPx}px) !important;
               width: auto !important;
               height: auto !important;
-              max-height: 300px !important;
+              max-height: ${imageMaxHeightPx}px !important;
               margin: 0.85em auto 1.1em;
               margin-left: auto;
               margin-right: auto;
@@ -592,11 +757,11 @@ private fun buildReaderHtml(
             iframe[src*="player.vimeo.com"],
             video {
               display: block;
-              width: min(100%, 560px) !important;
+              width: min(100%, ${imageMaxWidthPx}px) !important;
               max-width: 100% !important;
               height: auto !important;
               aspect-ratio: 16 / 9;
-              max-height: 240px !important;
+              max-height: ${videoMaxHeightPx}px !important;
               margin: 1em auto 1.15em;
               border: 0;
               border-radius: 14px;
@@ -651,6 +816,7 @@ private fun buildReaderHtml(
               border-top: 1px solid var(--border);
               margin: 1.5em 0;
             }
+            $heavyMediaContainRule
             $imageRule
           </style>
           $twitterScript
@@ -674,25 +840,303 @@ private fun Color.toCssColor(): String {
 
 private data class ReaderHtmlContent(
     val baseUrl: String?,
-    val html: String
+    val html: String,
+    val requiresJavaScript: Boolean,
+    val loadProfile: ReaderLoadProfile
 )
+
+private fun ReaderHtmlContent.shouldUseWebView(): Boolean {
+    return !loadProfile.useFallback &&
+        (requiresJavaScript || readerComplexHtmlRegex.containsMatchIn(html))
+}
+
+private fun String.normalizeReaderBodyHtml(loadProfile: ReaderLoadProfile): String {
+    // Reader-HTML bleibt lesbar, aber fremde Inline-Skripte und Feed-eigene Styles
+    // sollen die WebView nicht unnötig belasten oder das Layout destabilisieren.
+    val normalizedHtml = readerResponsiveImageAttributeRegex.replace(
+        readerNoscriptTagRegex.replace(
+            readerStyleTagRegex.replace(
+                readerScriptTagRegex.replace(this, ""),
+                ""
+            ),
+            ""
+        ),
+        ""
+    )
+    if (!loadProfile.isHeavy) {
+        return normalizedHtml
+    }
+
+    return readerHeavyMediaTagRegex
+        .replace(normalizedHtml, "")
+        .limitReaderImages(READER_HEAVY_ARTICLE_MAX_IMAGES)
+}
+
+private fun String.requiresReaderJavaScript(): Boolean {
+    return contains(IMAGE_TAP_SCHEME) || contains("platform.twitter.com/widgets.js")
+}
+
+private fun analyzeReaderLoad(article: ArticleEntity?): ReaderLoadProfile {
+    val html = article?.contentHtml.orEmpty()
+    if (html.isBlank()) {
+        return ReaderLoadProfile()
+    }
+
+    val htmlLength = html.length
+    val imageCount = readerImgTagRegex.findAll(html).count()
+    val mediaEmbedCount = readerHeavyMediaTagRegex.findAll(html).count()
+    val reasons = buildList {
+        if (htmlLength >= READER_HEAVY_HTML_LENGTH_THRESHOLD) {
+            add("html=$htmlLength")
+        }
+        if (imageCount >= READER_HEAVY_IMAGE_COUNT_THRESHOLD) {
+            add("img=$imageCount")
+        }
+        if (mediaEmbedCount >= READER_HEAVY_MEDIA_COUNT_THRESHOLD) {
+            add("media=$mediaEmbedCount")
+        }
+    }
+
+    val useFallback =
+        htmlLength >= READER_FALLBACK_HTML_LENGTH_THRESHOLD ||
+            mediaEmbedCount >= READER_FALLBACK_MEDIA_COUNT_THRESHOLD ||
+            (
+                htmlLength >= READER_HEAVY_HTML_LENGTH_THRESHOLD &&
+                    imageCount >= READER_FALLBACK_IMAGE_COUNT_THRESHOLD
+                )
+
+    return ReaderLoadProfile(
+        isHeavy = reasons.isNotEmpty(),
+        useFallback = useFallback,
+        htmlLength = htmlLength,
+        imageCount = imageCount,
+        mediaEmbedCount = mediaEmbedCount,
+        reasonSummary = reasons.joinToString(", ")
+    )
+}
+
+private fun String.limitReaderImages(maxImages: Int): String {
+    if (maxImages <= 0) {
+        return readerImgTagRegex.replace(this, "")
+    }
+    var keptImages = 0
+    return readerImgTagRegex.replace(this) {
+        if (keptImages < maxImages) {
+            keptImages += 1
+            it.value
+        } else {
+            ""
+        }
+    }
+}
+
+private fun String.looksLikeDirectImageUrl(): Boolean {
+    val normalizedUrl = trim()
+    if (
+        !normalizedUrl.startsWith("https://", ignoreCase = true) &&
+        !normalizedUrl.startsWith("http://", ignoreCase = true)
+    ) {
+        return false
+    }
+
+    val lowerPath = substringBefore('#')
+        .substringBefore('?')
+        .lowercase()
+
+    return lowerPath.endsWith(".jpg") ||
+        lowerPath.endsWith(".jpeg") ||
+        lowerPath.endsWith(".png") ||
+        lowerPath.endsWith(".webp") ||
+        lowerPath.endsWith(".gif") ||
+        lowerPath.endsWith(".bmp") ||
+        lowerPath.endsWith(".svg") ||
+        lowerPath.endsWith(".avif")
+}
+
+@Composable
+private fun ReaderFallbackContent(
+    article: ArticleEntity?,
+    showImages: Boolean,
+    fallbackImageUrls: List<String>,
+    bodyTextStyle: androidx.compose.ui.text.TextStyle,
+    onOpenArticle: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Text(
+            text = article?.title ?: "",
+            style = MaterialTheme.typography.headlineSmall
+        )
+        if (article?.publishedAt != null) {
+            Text(
+                text = formatReaderRelativeTime(article.publishedAt),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        Text(
+            text = article?.plainText?.ifBlank { "Kein Textinhalt vorhanden." } ?: "",
+            style = bodyTextStyle
+        )
+        if (showImages) {
+            fallbackImageUrls.forEach { imageUrl ->
+                AsyncImage(
+                    model = imageUrl,
+                    contentDescription = null,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onOpenArticle() }
+                )
+            }
+        } else if (!article?.imageUrls.isNullOrBlank()) {
+            Text(
+                text = "Bilder sind in den Einstellungen deaktiviert.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+private fun handleExternalNavigation(
+    context: android.content.Context,
+    targetUri: Uri?,
+    isMainFrame: Boolean
+): Boolean {
+    if (targetUri?.scheme == IMAGE_TAP_SCHEME) {
+        openArticleInBrowser(context, targetUri.getQueryParameter("url"))
+        return true
+    }
+    if (isMainFrame) {
+        openArticleInBrowser(context, targetUri?.toString())
+        return true
+    }
+    return false
+}
 
 private fun openArticleInBrowser(context: android.content.Context, articleLink: String?) {
     val targetUri = articleLink
         ?.trim()
         ?.takeIf { it.isNotBlank() }
         ?.let(Uri::parse)
-        ?.takeIf { uri -> !uri.scheme.isNullOrBlank() }
+        ?.takeIf { uri ->
+            when (uri.scheme?.lowercase()) {
+                "http", "https" -> true
+                else -> false
+            }
+        }
         ?: return
 
     runCatching {
-        context.startActivity(Intent(Intent.ACTION_VIEW, targetUri))
+        context.startActivity(
+            Intent(Intent.ACTION_VIEW, targetUri).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        )
     }
 }
 
+private fun clearWebViewForReuse(webView: WebView?) {
+    webView ?: return
+    runCatching {
+        webView.stopLoading()
+        webView.onPause()
+        webView.pauseTimers()
+        webView.loadUrl("about:blank")
+        webView.clearHistory()
+        webView.clearFocus()
+    }
+}
+
+private fun destroyWebView(webView: WebView?) {
+    webView ?: return
+    runCatching {
+        clearWebViewForReuse(webView)
+        webView.removeAllViews()
+        webView.destroy()
+    }
+}
+
+private fun formatReaderRelativeTime(timestamp: Long?): String {
+    if (timestamp == null) {
+        return "nie"
+    }
+
+    return DateUtils.getRelativeTimeSpanString(
+        timestamp,
+        System.currentTimeMillis(),
+        DateUtils.MINUTE_IN_MILLIS,
+        DateUtils.FORMAT_ABBREV_RELATIVE
+    ).toString()
+}
+
+private data class ReaderLoadProfile(
+    val isHeavy: Boolean = false,
+    val useFallback: Boolean = false,
+    val htmlLength: Int = 0,
+    val imageCount: Int = 0,
+    val mediaEmbedCount: Int = 0,
+    val reasonSummary: String = ""
+)
+
+private const val TAG = "ArticleReaderScreen"
 private const val IMAGE_TAP_SCHEME = "rssreader-article"
 private const val ARTICLE_SWITCH_ANIMATION_MS = 220
+private const val ARTICLE_SWIPE_THRESHOLD_PX = 80f
+private const val ARTICLE_SWIPE_DIRECTION_BIAS = 1.35f
 private const val SWIPE_HINT_DURATION_MS = 2400
+private const val READER_HEAVY_HTML_LENGTH_THRESHOLD = 60000
+private const val READER_HEAVY_IMAGE_COUNT_THRESHOLD = 12
+private const val READER_HEAVY_MEDIA_COUNT_THRESHOLD = 3
+private const val READER_FALLBACK_HTML_LENGTH_THRESHOLD = 120000
+private const val READER_FALLBACK_IMAGE_COUNT_THRESHOLD = 28
+private const val READER_FALLBACK_MEDIA_COUNT_THRESHOLD = 5
+private const val READER_HEAVY_ARTICLE_MAX_IMAGES = 8
+private val readerStyleTagRegex = Regex(
+    "<style\\b[^>]*>.*?</style>",
+    setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL)
+)
+private val readerScriptTagRegex = Regex(
+    "<script\\b[^>]*>.*?</script>",
+    setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL)
+)
+private val readerNoscriptTagRegex = Regex(
+    "<noscript\\b[^>]*>.*?</noscript>",
+    setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL)
+)
+private val readerResponsiveImageAttributeRegex = Regex(
+    "\\s(?:srcset|sizes|fetchpriority)\\s*=\\s*(?:\"[^\"]*\"|'[^']*'|[^\\s>]+)",
+    RegexOption.IGNORE_CASE
+)
+private val readerImgTagRegex = Regex(
+    "<img\\b[^>]*>",
+    RegexOption.IGNORE_CASE
+)
+private val readerHeavyMediaTagRegex = Regex(
+    "<\\s*(?:iframe|video|embed|object)\\b[^>]*>.*?</\\s*(?:iframe|video|embed|object)\\s*>|<\\s*(?:iframe|video|embed|object)\\b[^>]*/?>",
+    setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL)
+)
+private val readerComplexHtmlRegex = Regex(
+    "<\\s*(?:a|iframe|video|embed|object|table|blockquote|pre|code|ul|ol|li|h[2-6])\\b|twitter-tweet|instagram-media|tiktok",
+    RegexOption.IGNORE_CASE
+)
+
+private class WebSwipeTracker {
+    var startX: Float = 0f
+    var startY: Float = 0f
+    var deltaX: Float = 0f
+    var deltaY: Float = 0f
+
+    fun reset() {
+        startX = 0f
+        startY = 0f
+        deltaX = 0f
+        deltaY = 0f
+    }
+}
 
 private enum class SwipeDirection {
     None,
@@ -701,4 +1145,3 @@ private enum class SwipeDirection {
 }
 
 
-========================================================================================================================

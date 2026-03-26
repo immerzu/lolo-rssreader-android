@@ -102,7 +102,7 @@ class FeedParserTest {
         val liveFeedFile = configuredLiveFeedPath
             ?.takeIf { it.isNotBlank() }
             ?.let(::File)
-            ?: File(System.getProperty("user.dir")).resolve("../ossiblock_feed_live.xml")
+            ?: File(System.getProperty("user.dir").orEmpty()).resolve("../ossiblock_feed_live.xml")
         assumeTrue("Live-Feed-Datei nicht vorhanden.", liveFeedFile.exists())
 
         val parsed = parser.parse(
@@ -125,7 +125,61 @@ class FeedParserTest {
         assertFalse(article.plainText.contains("Weiterlesen"))
         assertTrue(article.imageUrls.isEmpty())
     }
+
+    @Test
+    fun atomFeedMetadataStaysOnFeedLevelAndPrefersAlternateEntryLink() {
+        val parsed = parser.parse(
+            xml = """
+                <?xml version="1.0" encoding="UTF-8"?>
+                <feed xmlns="http://www.w3.org/2005/Atom">
+                  <title>Atom Beispiel</title>
+                  <link rel="self" href="https://example.com/feed.atom" />
+                  <link rel="alternate" href="https://example.com/" />
+                  <entry>
+                    <title>Eintragstitel</title>
+                    <link rel="self" href="https://example.com/posts/1.atom" />
+                    <link rel="alternate" href="https://example.com/posts/1" />
+                    <summary type="html">&lt;p&gt;Kurzinhalt&lt;/p&gt;</summary>
+                  </entry>
+                </feed>
+            """.trimIndent(),
+            sourceUrl = "https://example.com/feed.atom"
+        )
+
+        assertEquals("Atom Beispiel", parsed.title)
+        assertEquals("https://example.com/", parsed.siteUrl)
+        assertEquals(1, parsed.items.size)
+        assertEquals("https://example.com/posts/1", parsed.items.single().link)
+    }
+
+    @Test
+    fun atomXhtmlContentIsParsedWithoutCrashing() {
+        val parsed = parser.parse(
+            xml = """
+                <?xml version="1.0" encoding="UTF-8"?>
+                <feed xmlns="http://www.w3.org/2005/Atom">
+                  <title>XHTML Feed</title>
+                  <entry>
+                    <id>tag:example.com,2026:1</id>
+                    <title>XHTML Beitrag</title>
+                    <link href="https://example.com/xhtml" />
+                    <content type="xhtml">
+                      <div xmlns="http://www.w3.org/1999/xhtml">
+                        <p>Ein <strong>verschachtelter</strong> Inhalt.</p>
+                      </div>
+                    </content>
+                  </entry>
+                </feed>
+            """.trimIndent(),
+            sourceUrl = "https://example.com/feed.atom"
+        )
+
+        val article = parsed.items.single()
+        assertEquals("XHTML Beitrag", article.title)
+        assertEquals(ParsedContentSource.CONTENT, article.contentSource)
+        assertTrue(article.contentHtml.contains("<div"))
+        assertTrue(article.plainText.contains("Ein verschachtelter Inhalt."))
+    }
 }
 
 
-========================================================================================================================

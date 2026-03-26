@@ -5,7 +5,8 @@
 
     <application
         android:name=".RssReaderApplication"
-        android:allowBackup="true"
+        android:allowBackup="false"
+        android:enableOnBackInvokedCallback="true"
         android:icon="@mipmap/ic_launcher"
         android:label="RSS Reader"
         android:roundIcon="@mipmap/ic_launcher_round"
@@ -23,4 +24,3 @@
 </manifest>
 
 
-========================================================================================================================
