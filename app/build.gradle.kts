@@ -17,7 +17,7 @@ val versionProperties = Properties().apply {
         versionPropertiesFile.inputStream().use(::load)
     } else {
         setProperty("VERSION_CODE", "1")
-        setProperty("VERSION_NAME", "1.60.20")
+        setProperty("VERSION_NAME", "1.70.00")
         versionPropertiesFile.outputStream().use { output ->
             store(output, "RSS Reader build version")
         }
@@ -27,7 +27,7 @@ val versionProperties = Properties().apply {
 fun incrementPatchVersion(versionName: String): String {
     val parts = versionName.split(".").mapNotNull { it.toIntOrNull() }.toMutableList()
     if (parts.isEmpty()) {
-        return "1.60.21"
+        return "1.70.01"
     }
     while (parts.size < 3) {
         parts += 0
@@ -39,7 +39,7 @@ fun incrementPatchVersion(versionName: String): String {
 }
 
 val resolvedVersionCode = versionProperties.getProperty("VERSION_CODE")?.toIntOrNull() ?: 1
-val resolvedVersionName = versionProperties.getProperty("VERSION_NAME") ?: "1.60.20"
+val resolvedVersionName = versionProperties.getProperty("VERSION_NAME") ?: "1.70.00"
 val debugBuildStamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss"))
 val keystorePropertiesFile = rootProject.file("keystore.properties")
 val keystoreProperties = Properties().apply {
@@ -190,7 +190,7 @@ tasks.register("bumpReleaseVersion") {
     description = "Erhoeht VERSION_NAME und VERSION_CODE bewusst fuer den naechsten Release."
     doLast {
         val currentVersionCode = versionProperties.getProperty("VERSION_CODE")?.toIntOrNull() ?: 1
-        val currentVersionName = versionProperties.getProperty("VERSION_NAME") ?: "1.60.20"
+        val currentVersionName = versionProperties.getProperty("VERSION_NAME") ?: "1.70.00"
         versionProperties.setProperty("VERSION_CODE", (currentVersionCode + 1).toString())
         versionProperties.setProperty("VERSION_NAME", incrementPatchVersion(currentVersionName))
         versionPropertiesFile.outputStream().use { output ->
