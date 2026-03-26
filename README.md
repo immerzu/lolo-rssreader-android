@@ -2,6 +2,10 @@
 
 Ein einfaches Android-Projekt in Kotlin + Jetpack Compose.
 
+## Lizenz
+Dieses Projekt steht unter der Apache License 2.0.
+Details siehe [LICENSE](LICENSE).
+
 ## Enthalten
 - Feed-Uebersicht
 - Feed hinzufuegen
