@@ -26,6 +26,7 @@ Per Android Studio ueber `Build > Build APK(s)` oder lokal ueber `gradlew.bat as
 ## F-Droid Metadaten
 Store-Metadaten fuer F-Droid liegen unter `fastlane/metadata/android/`.
 Eine kurze Notiz zur offiziellen Einreichung steht in [docs/FDROID_EINREICHUNG_DE.md](docs/FDROID_EINREICHUNG_DE.md).
+Ein vorbereiteter Submission-Text liegt in [docs/FDROID_SUBMISSION_TEMPLATE_EN.md](docs/FDROID_SUBMISSION_TEMPLATE_EN.md).
 
 ## Hinweis zur Gradle-Konfiguration
 Der Wrapper ist fuer diese Maschine bereits vorbereitet und nutzt die lokal abgelegte Gradle-8.7-Distribution.
