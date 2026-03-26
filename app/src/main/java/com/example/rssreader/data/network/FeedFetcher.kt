@@ -2,6 +2,7 @@ package com.example.rssreader.data.network
 
 import android.util.Log
 import com.example.rssreader.data.errors.RssReaderException
+import com.example.rssreader.debug.DebugLogger
 import java.io.IOException
 import java.net.ConnectException
 import java.net.SocketTimeoutException
@@ -36,6 +37,7 @@ class FeedFetcher(
     }
 
     suspend fun fetch(url: String): String {
+        DebugLogger.i(TAG, "Feed-Abruf gestartet: $url")
         val request = try {
             Request.Builder()
                 .url(url)
@@ -62,7 +64,9 @@ class FeedFetcher(
                     return decodeResponseBody(
                         responseBytes = responseBytes,
                         contentTypeHeader = response.header("Content-Type")
-                    )
+                    ).also {
+                        DebugLogger.i(TAG, "Feed erfolgreich geladen: $url (${responseBytes.size} Bytes)")
+                    }
                 }
             } catch (exception: RssReaderException) {
                 if (!shouldRetry(exception, attempt)) {
@@ -173,11 +177,13 @@ class FeedFetcher(
     }
 
     private fun logInfo(message: String) {
+        DebugLogger.i(TAG, message)
         runCatching { Log.i(TAG, message) }
             .getOrElse { println("$TAG: $message") }
     }
 
     private fun logWarn(message: String, throwable: Throwable) {
+        DebugLogger.w(TAG, message, throwable)
         runCatching { Log.w(TAG, message, throwable) }
             .getOrElse {
                 System.err.println("$TAG: $message")

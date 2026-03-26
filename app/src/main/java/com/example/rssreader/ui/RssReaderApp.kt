@@ -13,6 +13,7 @@ import androidx.navigation.navArgument
 import com.example.rssreader.data.repository.FeedRepository
 import com.example.rssreader.data.settings.AppPreferences
 import com.example.rssreader.data.settings.SettingsRepository
+import com.example.rssreader.data.translation.ArticleTranslationManager
 import com.example.rssreader.sync.RefreshScheduler
 import com.example.rssreader.ui.navigation.Screen
 import com.example.rssreader.ui.screens.ArticleListScreen
@@ -26,6 +27,7 @@ import com.example.rssreader.ui.theme.RssReaderTheme
 @Composable
 fun RssReaderApp(
     repository: FeedRepository,
+    articleTranslationManager: ArticleTranslationManager,
     settingsRepository: SettingsRepository,
     refreshScheduler: RefreshScheduler
 ) {
@@ -115,6 +117,7 @@ fun RssReaderApp(
                     ArticleListScreen(
                         feedId = feedId,
                         repository = repository,
+                        translationManager = articleTranslationManager,
                         entrySortOrder = settings?.entrySortOrder ?: AppPreferences().entrySortOrder,
                         onOpenArticle = { articleId ->
                             navController.navigate(Screen.Reader.create(articleId))
@@ -130,6 +133,7 @@ fun RssReaderApp(
                     ArticleReaderScreen(
                         articleId = articleId,
                         repository = repository,
+                        translationManager = articleTranslationManager,
                         showImages = settings?.showImages ?: true,
                         articleBodyTextSizeOffset = settings?.articleBodyTextSizeOffset ?: 0,
                         onBack = { navController.popBackStack() }

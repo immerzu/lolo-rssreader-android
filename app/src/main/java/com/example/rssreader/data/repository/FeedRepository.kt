@@ -14,6 +14,7 @@ import com.example.rssreader.data.network.FeedFetcher
 import com.example.rssreader.data.network.FeedParser
 import com.example.rssreader.data.opml.OpmlCodec
 import com.example.rssreader.data.opml.OpmlFeedEntry
+import com.example.rssreader.debug.DebugLogger
 import java.io.ByteArrayInputStream
 import java.io.InputStream
 import java.io.OutputStream
@@ -86,6 +87,7 @@ class FeedRepository(
 
     suspend fun refreshAll(): RefreshRunStats {
         return runOnIo {
+            DebugLogger.i(TAG, "refreshAll gestartet")
             var refreshedFeeds = 0
             var skippedFeeds = 0
             var failedFeeds = 0
@@ -111,14 +113,25 @@ class FeedRepository(
                 failedFeeds = failedFeeds,
                 retryableFeeds = retryableFeeds,
                 newArticles = newArticles
-            )
+            ).also { stats ->
+                DebugLogger.i(
+                    TAG,
+                    "refreshAll beendet: refreshed=${stats.refreshedFeeds}, failed=${stats.failedFeeds}, skipped=${stats.skippedFeeds}, new=${stats.newArticles}"
+                )
+            }
         }
     }
 
     suspend fun refreshFeed(feedId: Long): Int {
         return runOnIo {
             val feed = feedDao.getById(feedId) ?: return@runOnIo 0
-            refreshFeedInternal(feed)
+            DebugLogger.i(TAG, "refreshFeed gestartet: feedId=$feedId, url=${feed.url}")
+            refreshFeedInternal(feed).also { inserted ->
+                DebugLogger.i(
+                    TAG,
+                    "refreshFeed beendet: feedId=$feedId, inserted=$inserted"
+                )
+            }
         }
     }
 
@@ -303,6 +316,7 @@ class FeedRepository(
     }
 
     suspend fun importOpml(inputStream: InputStream): OpmlImportResult = runOnIo {
+        DebugLogger.i(TAG, "Import gestartet")
         val importBytes = inputStream.readBytes()
         val entries = runCatching {
             OpmlCodec.parse(ByteArrayInputStream(importBytes))
@@ -331,14 +345,18 @@ class FeedRepository(
                     importedFeeds = 0,
                     skippedFeeds = 0,
                     failedFeeds = 0
-                )
+                ).also {
+                    DebugLogger.w(TAG, "Importdatei enthielt keine erkennbare Feed-URL")
+                }
             }
             if (feedDao.existsByUrl(feedUrl)) {
                 return@runOnIo OpmlImportResult(
                     importedFeeds = 0,
                     skippedFeeds = 1,
                     failedFeeds = 0
-                )
+                ).also {
+                    DebugLogger.i(TAG, "Import uebersprungen, Feed existiert bereits: $feedUrl")
+                }
             }
 
             return@runOnIo runCatching {
@@ -350,11 +368,15 @@ class FeedRepository(
                 )
             }.fold(
                 onSuccess = {
-                    OpmlImportResult(importedFeeds = 1, skippedFeeds = 0, failedFeeds = 0)
+                    OpmlImportResult(importedFeeds = 1, skippedFeeds = 0, failedFeeds = 0).also {
+                        DebugLogger.i(TAG, "Einzelner Feed aus XML importiert: $feedUrl")
+                    }
                 },
                 onFailure = { throwable ->
                     if (throwable is SQLiteConstraintException) {
-                        OpmlImportResult(importedFeeds = 0, skippedFeeds = 1, failedFeeds = 0)
+                        OpmlImportResult(importedFeeds = 0, skippedFeeds = 1, failedFeeds = 0).also {
+                            DebugLogger.i(TAG, "Import uebersprungen, Feed existiert bereits: $feedUrl")
+                        }
                     } else {
                         throw throwable
                     }
@@ -385,7 +407,12 @@ class FeedRepository(
             importedFeeds = importedFeeds,
             skippedFeeds = skippedFeeds,
             failedFeeds = failedFeeds
-        )
+        ).also { result ->
+            DebugLogger.i(
+                TAG,
+                "Import beendet: imported=${result.importedFeeds}, skipped=${result.skippedFeeds}, failed=${result.failedFeeds}"
+            )
+        }
     }
 
     suspend fun exportOpml(outputStream: OutputStream): Int = runOnIo {
@@ -398,7 +425,9 @@ class FeedRepository(
         val xml = OpmlCodec.build(entries)
         outputStream.write(xml.toByteArray(StandardCharsets.UTF_8))
         outputStream.flush()
-        entries.size
+        entries.size.also { count ->
+            DebugLogger.i(TAG, "Export beendet: feeds=$count")
+        }
     }
 
     private suspend fun refreshFeedInternal(feed: FeedEntity): Int {

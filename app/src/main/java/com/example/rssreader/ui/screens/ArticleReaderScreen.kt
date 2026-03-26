@@ -30,6 +30,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -37,6 +38,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.GTranslate
 import androidx.compose.material.icons.filled.OpenInBrowser
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.CircularProgressIndicator
@@ -72,11 +74,17 @@ import coil.compose.AsyncImage
 import com.example.rssreader.data.db.ArticleNavigationEntry
 import com.example.rssreader.data.db.ArticleEntity
 import com.example.rssreader.data.repository.FeedRepository
+import com.example.rssreader.data.translation.ArticleTranslationManager
+import com.example.rssreader.data.translation.shouldOfferTranslation
+import com.example.rssreader.data.translation.translationSourceText
+import com.example.rssreader.debug.DebugLogger
+import com.example.rssreader.ui.model.TranslationUiState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.util.Locale
 import kotlin.math.abs
 
 @SuppressLint("SetJavaScriptEnabled")
@@ -85,6 +93,7 @@ import kotlin.math.abs
 fun ArticleReaderScreen(
     articleId: Long,
     repository: FeedRepository,
+    translationManager: ArticleTranslationManager,
     showImages: Boolean,
     articleBodyTextSizeOffset: Int,
     onBack: () -> Unit
@@ -101,6 +110,17 @@ fun ArticleReaderScreen(
     var activeWebView by remember { mutableStateOf<WebView?>(null) }
     var webViewFailed by remember(currentArticleId) { mutableStateOf(false) }
     val webSwipeTracker = remember { WebSwipeTracker() }
+    val translationTargetLanguage = remember { defaultTranslationTargetLanguage() }
+    val translationStates by translationManager.states.collectAsState(initial = emptyMap())
+    val translationUiState = translationStates[currentArticleId] ?: TranslationUiState.Idle
+    val showTranslateButton by remember(article?.id, translationUiState) {
+        derivedStateOf {
+            translationUiState is TranslationUiState.Success || shouldOfferTranslation(
+                title = article?.title.orEmpty(),
+                body = article?.translationSourceText().orEmpty()
+            )
+        }
+    }
     val defaultBodyTextStyle = MaterialTheme.typography.bodyLarge
     val articleNavigationFlow = remember(repository, article?.feedId) {
         article?.feedId?.let(repository::observeArticleNavigation) ?: flowOf(emptyList())
@@ -154,10 +174,14 @@ fun ArticleReaderScreen(
         isLoadingArticle = true
         webViewFailed = false
         clearWebViewForReuse(activeWebView)
+        DebugLogger.i(TAG, "Artikel wird geladen: articleId=$currentArticleId")
         val loadedArticle = withContext(Dispatchers.IO) { repository.getArticle(currentArticleId) }
         article = loadedArticle
         if (loadedArticle != null) {
+            DebugLogger.i(TAG, "Artikel geladen: articleId=${loadedArticle.id}, title=${loadedArticle.title.take(80)}")
             withContext(Dispatchers.IO) { repository.markRead(currentArticleId) }
+        } else {
+            DebugLogger.w(TAG, "Artikel nicht gefunden: articleId=$currentArticleId")
         }
         isLoadingArticle = false
     }
@@ -192,14 +216,71 @@ fun ArticleReaderScreen(
             TopAppBar(
                 title = {
                     Text(
-                        text = article?.title ?: "Artikel",
+                        text = (translationUiState as? TranslationUiState.Success)
+                            ?.result
+                            ?.translatedTitle
+                            ?.ifBlank { article?.title.orEmpty() }
+                            ?: article?.title
+                            ?: "Artikel",
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
                 },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Zurueck")
+                    Row {
+                        IconButton(onClick = onBack) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Zurueck")
+                        }
+                        if (showTranslateButton) {
+                            IconButton(
+                                onClick = {
+                                    val currentArticle = article ?: return@IconButton
+                                    if (translationUiState is TranslationUiState.Loading) {
+                                        return@IconButton
+                                    }
+                                    if (translationUiState is TranslationUiState.Success) {
+                                        DebugLogger.d(
+                                            TAG,
+                                            "Reader-Uebersetzung verworfen: articleId=${currentArticle.id}"
+                                        )
+                                        translationManager.clearArticle(currentArticle.id)
+                                        return@IconButton
+                                    }
+                                    DebugLogger.i(
+                                        TAG,
+                                        "Reader-Uebersetzung angefordert: articleId=${currentArticle.id}, tl=$translationTargetLanguage"
+                                    )
+                                    scope.launch {
+                                        val translationState = translationManager.translateArticle(
+                                            articleId = currentArticle.id,
+                                            title = currentArticle.title,
+                                            body = currentArticle.translationSourceText(),
+                                            targetLanguage = translationTargetLanguage
+                                        )
+                                        if (translationState is TranslationUiState.Error) {
+                                            Log.w(
+                                                TAG,
+                                                "Article translation failed: articleId=${currentArticle.id}, message=${translationState.message}"
+                                            )
+                                        }
+                                    }
+                                },
+                                enabled = article != null
+                            ) {
+                                if (translationUiState is TranslationUiState.Loading) {
+                                    CircularProgressIndicator(strokeWidth = 2.dp, modifier = Modifier.padding(10.dp))
+                                } else {
+                                    Icon(
+                                        Icons.Default.GTranslate,
+                                        contentDescription = if (translationUiState is TranslationUiState.Success) {
+                                            "Original anzeigen"
+                                        } else {
+                                            "Mit Google uebersetzen"
+                                        }
+                                    )
+                                }
+                            }
+                        }
                     }
                 },
                 actions = {
@@ -276,6 +357,7 @@ fun ArticleReaderScreen(
                     contentKey = { it?.id ?: -1L },
                     label = "article-swipe"
                 ) { currentArticle ->
+                    val translatedResult = translationUiState as? TranslationUiState.Success
                     val readerLoadProfile = remember(currentArticle?.id, currentArticle?.contentHtml) {
                         analyzeReaderLoad(currentArticle)
                     }
@@ -308,8 +390,9 @@ fun ArticleReaderScreen(
                             )
                         }
                     }
-                    val shouldUseWebView = remember(articleHtmlContent) {
-                        articleHtmlContent?.shouldUseWebView() == true
+                    val shouldShowTranslatedContent = translatedResult != null
+                    val shouldUseWebView = remember(articleHtmlContent, shouldShowTranslatedContent) {
+                        !shouldShowTranslatedContent && articleHtmlContent?.shouldUseWebView() == true
                     }
                     val fallbackImageUrls = remember(currentArticle?.imageUrls, readerLoadProfile) {
                         currentArticle?.imageUrls
@@ -354,11 +437,36 @@ fun ArticleReaderScreen(
                             ),
                         verticalArrangement = Arrangement.spacedBy(0.dp)
                     ) {
+                        when (val translationState = translationUiState) {
+                            is TranslationUiState.Loading -> {
+                                Text(
+                                    text = "Uebersetzung wird geladen...",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
+                                )
+                            }
+
+                            is TranslationUiState.Error -> {
+                                Text(
+                                    text = translationState.message,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.error,
+                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
+                                )
+                            }
+
+                            else -> Unit
+                        }
                         if (shouldUseWebView && !webViewFailed) {
                             AndroidView(
                                 factory = { viewContext ->
                                     WebView(viewContext).apply {
                                         activeWebView = this
+                                        DebugLogger.i(
+                                            TAG,
+                                            "WebView erstellt: articleId=${currentArticle?.id?.toString().orEmpty()}"
+                                        )
                                         settings.javaScriptEnabled = false
                                         settings.domStorageEnabled = true
                                         settings.cacheMode = WebSettings.LOAD_DEFAULT
@@ -417,6 +525,14 @@ fun ArticleReaderScreen(
                                             }
                                         }
                                         webViewClient = object : WebViewClient() {
+                                            override fun onPageFinished(view: WebView?, url: String?) {
+                                                super.onPageFinished(view, url)
+                                                DebugLogger.d(
+                                                    TAG,
+                                                    "WebView Seite geladen: articleId=${currentArticle?.id?.toString().orEmpty()}, url=${url.orEmpty()}"
+                                                )
+                                            }
+
                                             override fun shouldOverrideUrlLoading(
                                                 view: WebView?,
                                                 request: WebResourceRequest?
@@ -434,10 +550,14 @@ fun ArticleReaderScreen(
                                                 error: WebResourceError?
                                             ) {
                                                 super.onReceivedError(view, request, error)
-                                                if (request?.isForMainFrame == true) {
-                                                    webViewFailed = true
-                                                }
-                                            }
+                                        if (request?.isForMainFrame == true) {
+                                            DebugLogger.w(
+                                                TAG,
+                                                "WebView Fehler im Hauptframe: articleId=${currentArticle?.id?.toString().orEmpty()}, code=${error?.errorCode}"
+                                            )
+                                            webViewFailed = true
+                                        }
+                                    }
 
                                             override fun onReceivedHttpError(
                                                 view: WebView?,
@@ -445,10 +565,14 @@ fun ArticleReaderScreen(
                                                 errorResponse: WebResourceResponse?
                                             ) {
                                                 super.onReceivedHttpError(view, request, errorResponse)
-                                                if (request?.isForMainFrame == true) {
-                                                    webViewFailed = true
-                                                }
-                                            }
+                                        if (request?.isForMainFrame == true) {
+                                            DebugLogger.w(
+                                                TAG,
+                                                "WebView HTTP-Fehler im Hauptframe: articleId=${currentArticle?.id?.toString().orEmpty()}, code=${errorResponse?.statusCode}"
+                                            )
+                                            webViewFailed = true
+                                        }
+                                    }
 
                                             @Deprecated("Deprecated in WebView, but still used on some devices.")
                                             override fun shouldOverrideUrlLoading(
@@ -471,6 +595,10 @@ fun ArticleReaderScreen(
                                             ) {
                                                 super.onReceivedError(view, errorCode, description, failingUrl)
                                                 if (!failingUrl.isNullOrBlank() && failingUrl == view?.url) {
+                                                    DebugLogger.w(
+                                                        TAG,
+                                                        "Legacy WebView Fehler: articleId=${currentArticle?.id?.toString().orEmpty()}, code=$errorCode, url=$failingUrl"
+                                                    )
                                                     webViewFailed = true
                                                 }
                                             }
@@ -491,6 +619,10 @@ fun ArticleReaderScreen(
                                         webView.settings.offscreenPreRaster = false
                                         webView.resumeTimers()
                                         webView.onResume()
+                                        DebugLogger.i(
+                                            TAG,
+                                            "WebView Inhalt geladen: articleId=${currentArticle?.id?.toString().orEmpty()}, heavy=${articleHtmlContent.loadProfile.isHeavy}, js=${articleHtmlContent.requiresJavaScript}"
+                                        )
                                         webView.loadDataWithBaseURL(
                                             articleHtmlContent.baseUrl,
                                             articleHtmlContent.html,
@@ -500,7 +632,9 @@ fun ArticleReaderScreen(
                                         )
                                     }
                                 },
-                                modifier = Modifier.fillMaxSize()
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .weight(1f)
                             )
                         } else {
                             ReaderFallbackContent(
@@ -508,6 +642,24 @@ fun ArticleReaderScreen(
                                 showImages = showImages,
                                 fallbackImageUrls = fallbackImageUrls,
                                 bodyTextStyle = fallbackBodyTextStyle,
+                                titleOverride = translatedResult?.result?.translatedTitle,
+                                bodyTextOverride = translatedResult?.result?.translatedBody,
+                                translationHint = translatedResult?.result?.let {
+                                    "Uebersetzt mit ${it.providerLabel}"
+                                },
+                                translationActionLabel = if (translatedResult != null) {
+                                    "Original anzeigen"
+                                } else {
+                                    null
+                                },
+                                onTranslationAction = if (translatedResult != null) {
+                                    { currentArticle?.id?.let(translationManager::clearArticle) }
+                                } else {
+                                    null
+                                },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .weight(1f),
                                 onOpenArticle = openInBrowser
                             )
                         }
@@ -959,18 +1111,25 @@ private fun ReaderFallbackContent(
     showImages: Boolean,
     fallbackImageUrls: List<String>,
     bodyTextStyle: androidx.compose.ui.text.TextStyle,
+    titleOverride: String? = null,
+    bodyTextOverride: String? = null,
+    translationHint: String? = null,
+    translationActionLabel: String? = null,
+    onTranslationAction: (() -> Unit)? = null,
+    modifier: Modifier = Modifier,
     onOpenArticle: () -> Unit
 ) {
     Column(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         Text(
-            text = article?.title ?: "",
-            style = MaterialTheme.typography.headlineSmall
+            text = titleOverride?.ifBlank { article?.title.orEmpty() } ?: article?.title.orEmpty(),
+            style = MaterialTheme.typography.headlineSmall,
+            modifier = Modifier.clickable(onClick = onOpenArticle)
         )
         if (article?.publishedAt != null) {
             Text(
@@ -979,8 +1138,25 @@ private fun ReaderFallbackContent(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
+        if (!translationHint.isNullOrBlank()) {
+            Text(
+                text = translationHint,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.primary
+            )
+        }
+        if (!translationActionLabel.isNullOrBlank() && onTranslationAction != null) {
+            Text(
+                text = translationActionLabel,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.clickable(onClick = onTranslationAction)
+            )
+        }
         Text(
-            text = article?.plainText?.ifBlank { "Kein Textinhalt vorhanden." } ?: "",
+            text = bodyTextOverride?.ifBlank {
+                article?.plainText.orEmpty()
+            } ?: article?.plainText?.ifBlank { "Kein Textinhalt vorhanden." }.orEmpty(),
             style = bodyTextStyle
         )
         if (showImages) {
@@ -1032,10 +1208,13 @@ private fun openArticleInBrowser(context: android.content.Context, articleLink: 
         }
         ?: return
 
+    DebugLogger.i(TAG, "Externer Browser wird geoeffnet: $targetUri")
     runCatching {
         context.startActivity(
             Intent(Intent.ACTION_VIEW, targetUri).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         )
+    }.onFailure {
+        DebugLogger.w(TAG, "Browser konnte nicht geoeffnet werden: $targetUri", it)
     }
 }
 
@@ -1071,6 +1250,12 @@ private fun formatReaderRelativeTime(timestamp: Long?): String {
         DateUtils.MINUTE_IN_MILLIS,
         DateUtils.FORMAT_ABBREV_RELATIVE
     ).toString()
+}
+
+private fun defaultTranslationTargetLanguage(): String {
+    return Locale.getDefault().language
+        .trim()
+        .ifBlank { "de" }
 }
 
 private data class ReaderLoadProfile(

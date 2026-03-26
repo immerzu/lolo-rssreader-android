@@ -48,6 +48,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             RssReaderApp(
                 repository = app.repository,
+                articleTranslationManager = app.articleTranslationManager,
                 settingsRepository = app.settingsRepository,
                 refreshScheduler = app.refreshScheduler
             )
