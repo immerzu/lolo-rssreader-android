@@ -4,6 +4,7 @@ import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
+import com.example.rssreader.data.repository.disableLegacyFtsMaintenanceTriggers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -80,6 +81,14 @@ class ArticleFtsTriggerTest {
     fun freshRoomDatabaseDoesNotCarryLegacyFtsTriggers() = runBlocking {
         insertFeed()
 
+        assertEquals(0, articleDao.countFtsMaintenanceTriggers())
+    }
+
+    @Test
+    fun freshRoomDatabaseLegacyTriggerCleanupFallbackIsNoOp() = runBlocking {
+        insertFeed()
+
+        assertEquals(0, disableLegacyFtsMaintenanceTriggers(database))
         assertEquals(0, articleDao.countFtsMaintenanceTriggers())
     }
 
@@ -470,6 +479,36 @@ class ArticleFtsTriggerTest {
 
             assertEquals(1, results.size)
             assertEquals(1, migratedArticleDao.countSearchIndexRows())
+            assertEquals(0, migratedArticleDao.countFtsMaintenanceTriggers())
+        } finally {
+            migratedDatabase.close()
+            context.deleteDatabase(databaseName)
+        }
+    }
+
+    @Test
+    fun version7To8MigrationLeavesLegacyTriggerCleanupFallbackAsNoOp() = runBlocking {
+        database.close()
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val databaseName = "fts-migration-7-to-8-noop-${System.nanoTime()}.db"
+        val databasePath = context.getDatabasePath(databaseName)
+        databasePath.parentFile?.mkdirs()
+        if (databasePath.exists()) {
+            databasePath.delete()
+        }
+
+        createVersion7DatabaseWithLegacyFtsTriggers(databasePath.absolutePath)
+
+        val migratedDatabase = Room.databaseBuilder(context, AppDatabase::class.java, databaseName)
+            .allowMainThreadQueries()
+            .addMigrations(AppDatabase.MIGRATION_7_8)
+            .build()
+
+        try {
+            val migratedArticleDao = migratedDatabase.articleDao()
+
+            assertEquals(0, migratedArticleDao.countFtsMaintenanceTriggers())
+            assertEquals(0, disableLegacyFtsMaintenanceTriggers(migratedDatabase))
             assertEquals(0, migratedArticleDao.countFtsMaintenanceTriggers())
         } finally {
             migratedDatabase.close()
