@@ -112,6 +112,16 @@ interface ArticleDao {
 
     @Query(
         """
+        SELECT COUNT(*)
+        FROM sqlite_master
+        WHERE type = 'trigger'
+          AND name IN ('articles_fts_ai', 'articles_fts_au', 'articles_fts_ad')
+        """
+    )
+    suspend fun countFtsMaintenanceTriggers(): Int
+
+    @Query(
+        """
         INSERT OR REPLACE INTO articles_fts(rowid, title, plainText)
         SELECT id, title, plainText
         FROM articles
@@ -127,6 +137,9 @@ interface ArticleDao {
         """
     )
     suspend fun deleteStaleSearchIndexEntries()
+
+    @Query("SELECT COUNT(*) FROM articles_fts")
+    suspend fun countSearchIndexRows(): Int
 
     @Query(
         """

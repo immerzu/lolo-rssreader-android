@@ -58,6 +58,9 @@ class FeedRepository(
     private val fetcher: FeedFetcher,
     private val parser: FeedParser
 ) {
+    @Volatile
+    private var legacyFtsTriggersDisabled = false
+
     fun observeFeedSummaries(): Flow<List<FeedSummary>> = feedDao.observeSummaries()
     fun observeFeeds(): Flow<List<FeedEntity>> = feedDao.observeFeeds()
     fun observeFeed(feedId: Long) = feedDao.observeById(feedId)
@@ -200,6 +203,7 @@ class FeedRepository(
             val existingFeed = feedDao.getById(feedId) ?: return@runOnIo
             val parsed = parser.parse(fetcher.fetch(url), url)
             val urlChanged = existingFeed.url != url
+            ensureManualSearchIndexMaintenance()
 
             try {
                 database.withTransaction {
@@ -217,7 +221,11 @@ class FeedRepository(
                     if (urlChanged) {
                         articleDao.deleteByFeedId(feedId)
                     }
-                    insertArticlesInCurrentTransaction(feedId = feedId, parsed = parsed)
+                    insertArticlesInCurrentTransaction(
+                        feedId = feedId,
+                        parsed = parsed,
+                        searchIndexMayContainStaleRows = urlChanged
+                    )
                 }
             } catch (_: SQLiteConstraintException) {
                 throw RssReaderException.DuplicateFeed()
@@ -227,6 +235,7 @@ class FeedRepository(
 
     suspend fun deleteFeed(feedId: Long) {
         runOnIo {
+            ensureManualSearchIndexMaintenance()
             database.withTransaction {
                 feedDao.deleteById(feedId)
                 articleDao.deleteStaleSearchIndexEntries()
@@ -269,6 +278,7 @@ class FeedRepository(
 
     suspend fun deleteAllReadEntries() {
         runOnIo {
+            ensureManualSearchIndexMaintenance()
             database.withTransaction {
                 articleDao.deleteAllRead()
                 articleDao.deleteStaleSearchIndexEntries()
@@ -278,6 +288,7 @@ class FeedRepository(
 
     suspend fun deleteFeedReadEntries(feedId: Long) {
         runOnIo {
+            ensureManualSearchIndexMaintenance()
             database.withTransaction {
                 articleDao.deleteReadByFeedId(feedId)
                 articleDao.deleteStaleSearchIndexEntries()
@@ -287,6 +298,7 @@ class FeedRepository(
 
     suspend fun deleteAllEntries() {
         runOnIo {
+            ensureManualSearchIndexMaintenance()
             database.withTransaction {
                 articleDao.deleteAllNonFavorite()
                 articleDao.deleteStaleSearchIndexEntries()
@@ -296,6 +308,7 @@ class FeedRepository(
 
     suspend fun deleteFeedEntries(feedId: Long) {
         runOnIo {
+            ensureManualSearchIndexMaintenance()
             database.withTransaction {
                 articleDao.deleteByFeedId(feedId)
                 articleDao.deleteStaleSearchIndexEntries()
@@ -481,22 +494,34 @@ class FeedRepository(
         parsed: com.example.rssreader.data.network.ParsedFeed
     ): Int {
         return database.withTransaction {
-            insertArticlesInCurrentTransaction(feedId = feedId, parsed = parsed)
+            insertArticlesInCurrentTransaction(
+                feedId = feedId,
+                parsed = parsed,
+                searchIndexMayContainStaleRows = false
+            )
         }
     }
 
     private suspend fun insertArticlesInCurrentTransaction(
         feedId: Long,
-        parsed: com.example.rssreader.data.network.ParsedFeed
+        parsed: com.example.rssreader.data.network.ParsedFeed,
+        searchIndexMayContainStaleRows: Boolean
     ): Int {
+        ensureManualSearchIndexMaintenance()
         val articles = createArticles(feedId = feedId, parsed = parsed)
         if (articles.isEmpty()) {
+            if (searchIndexMayContainStaleRows) {
+                articleDao.syncSearchIndexByFeed(feedId)
+                articleDao.deleteStaleSearchIndexEntries()
+            }
             return 0
         }
         val insertedIds = articleDao.insertAll(articles)
         val conflictingArticles = articles.filterIndexed { index, _ ->
             insertedIds.getOrNull(index) == -1L
         }
+        var updatedArticles = 0
+        var unchangedArticles = 0
         if (conflictingArticles.isNotEmpty()) {
             val existingArticlesByUniqueKey = articleDao
                 .getByFeedAndUniqueKeys(
@@ -507,14 +532,8 @@ class FeedRepository(
 
             conflictingArticles.forEach { article ->
                 val existingArticle = existingArticlesByUniqueKey[article.uniqueKey]
-                if (existingArticle != null &&
-                    existingArticle.title == article.title &&
-                    existingArticle.link == article.link &&
-                    existingArticle.publishedAt == article.publishedAt &&
-                    existingArticle.plainText == article.plainText &&
-                    existingArticle.contentHtml == article.contentHtml &&
-                    existingArticle.imageUrls == article.imageUrls
-                ) {
+                if (existingArticle != null && hasSameStoredArticleContent(existingArticle, article)) {
+                    unchangedArticles += 1
                     return@forEach
                 }
                 articleDao.updateByUniqueKey(
@@ -527,11 +546,24 @@ class FeedRepository(
                     contentHtml = article.contentHtml,
                     imageUrls = article.imageUrls
                 )
+                updatedArticles += 1
             }
         }
-        articleDao.syncSearchIndexByFeed(feedId)
-        articleDao.deleteStaleSearchIndexEntries()
-        return insertedIds.count { it != -1L }
+        val insertedArticles = insertedIds.count { it != -1L }
+        val shouldMaintainSearchIndex = shouldRunSearchIndexMaintenance(
+            insertedArticles = insertedArticles,
+            updatedArticles = updatedArticles,
+            searchIndexMayContainStaleRows = searchIndexMayContainStaleRows
+        )
+        if (shouldMaintainSearchIndex) {
+            articleDao.syncSearchIndexByFeed(feedId)
+            articleDao.deleteStaleSearchIndexEntries()
+        }
+        DebugLogger.i(
+            TAG,
+            "article_write feedId=$feedId inserted=$insertedArticles updated=$updatedArticles unchanged=$unchangedArticles ftsMode=manual ftsSync=$shouldMaintainSearchIndex"
+        )
+        return insertedArticles
     }
 
     private fun createArticles(
@@ -556,6 +588,15 @@ class FeedRepository(
         block()
     }
 
+    private suspend fun ensureManualSearchIndexMaintenance() {
+        if (legacyFtsTriggersDisabled) {
+            return
+        }
+        val droppedTriggers = disableLegacyFtsMaintenanceTriggers(database)
+        legacyFtsTriggersDisabled = true
+        DebugLogger.i(TAG, "fts_mode mode=manual droppedTriggers=$droppedTriggers")
+    }
+
     private suspend fun insertParsedFeed(
         url: String,
         customTitle: String?,
@@ -575,7 +616,11 @@ class FeedRepository(
                     wifiOnly = wifiOnly
                 )
             )
-            insertArticlesInCurrentTransaction(feedId = feedId, parsed = parsed)
+            insertArticlesInCurrentTransaction(
+                feedId = feedId,
+                parsed = parsed,
+                searchIndexMayContainStaleRows = false
+            )
             feedId
         }
     }
@@ -612,6 +657,47 @@ internal fun buildArticleSearchSpec(query: String): ArticleSearchSpec {
 }
 
 private val articleSearchTokenRegex = Regex("[\\p{L}\\p{N}]+")
+
+internal fun hasSameStoredArticleContent(
+    existingArticle: ArticleEntity,
+    incomingArticle: ArticleEntity
+): Boolean {
+    return existingArticle.title == incomingArticle.title &&
+        existingArticle.link == incomingArticle.link &&
+        existingArticle.publishedAt == incomingArticle.publishedAt &&
+        existingArticle.plainText == incomingArticle.plainText &&
+        existingArticle.contentHtml == incomingArticle.contentHtml &&
+        existingArticle.imageUrls == incomingArticle.imageUrls
+}
+
+internal fun shouldRunSearchIndexMaintenance(
+    insertedArticles: Int,
+    updatedArticles: Int,
+    searchIndexMayContainStaleRows: Boolean
+): Boolean {
+    return insertedArticles > 0 || updatedArticles > 0 || searchIndexMayContainStaleRows
+}
+
+internal fun disableLegacyFtsMaintenanceTriggers(database: AppDatabase): Int {
+    val writableDatabase = database.openHelper.writableDatabase
+    var existingTriggers = 0
+    writableDatabase.query(
+        """
+        SELECT name
+        FROM sqlite_master
+        WHERE type = 'trigger'
+          AND name IN ('articles_fts_ai', 'articles_fts_au', 'articles_fts_ad')
+        """.trimIndent()
+    ).use { cursor ->
+        while (cursor.moveToNext()) {
+            existingTriggers += 1
+        }
+    }
+    listOf("articles_fts_ai", "articles_fts_au", "articles_fts_ad").forEach { triggerName ->
+        writableDatabase.execSQL("DROP TRIGGER IF EXISTS $triggerName")
+    }
+    return existingTriggers
+}
 
 private fun Throwable.isRetryableRefreshFailure(): Boolean {
     return when (this) {
