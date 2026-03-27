@@ -827,16 +827,16 @@ internal fun formatDiagnosticsSummary(
         appendLine("Artikel: ${snapshot.articleCount}")
         appendLine("FTS-Zeilen: ${snapshot.searchIndexRowCount}")
         appendLine("FTS-Modus: ${if (snapshot.manualFtsMode) "manuell" else "unbekannt"}")
-        snapshot.lastRefreshRunStats?.let { stats ->
-            appendLine(
+        appendLine(
+            snapshot.lastRefreshRunStats?.let { stats ->
                 "Letzte Aktualisierung: refreshed=${stats.refreshedFeeds}, failed=${stats.failedFeeds}, skipped=${stats.skippedFeeds}, new=${stats.newArticles}"
-            )
-        }
-        snapshot.lastImportResult?.let { result ->
-            appendLine(
+            } ?: "Letzte Aktualisierung: keine"
+        )
+        appendLine(
+            snapshot.lastImportResult?.let { result ->
                 "Letzter Import: imported=${result.importedFeeds}, skipped=${result.skippedFeeds}, failed=${result.failedFeeds}"
-            )
-        }
+            } ?: "Letzter Import: keiner"
+        )
         snapshot.debugLogFilePath?.takeIf { it.isNotBlank() }?.let { path ->
             append("Debug-Log: ")
             append(path)

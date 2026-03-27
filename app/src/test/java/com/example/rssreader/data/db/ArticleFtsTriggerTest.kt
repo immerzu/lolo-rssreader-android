@@ -77,6 +77,16 @@ class ArticleFtsTriggerTest {
     }
 
     @Test
+    fun disableLegacyFtsMaintenanceTriggersIsNoOpOnFreshDatabase() = runBlocking {
+        insertFeed()
+
+        assertEquals(0, articleDao.countFtsMaintenanceTriggers())
+        assertEquals(0, disableLegacyFtsMaintenanceTriggers(database))
+        assertEquals(0, disableLegacyFtsMaintenanceTriggers(database))
+        assertEquals(0, articleDao.countFtsMaintenanceTriggers())
+    }
+
+    @Test
     fun freshRoomDatabaseManualSyncKeepsUpdateSearchResultsInSync() = runBlocking {
         val feedId = insertFeed()
         articleDao.insertAll(
@@ -163,6 +173,7 @@ class ArticleFtsTriggerTest {
 
             assertEquals(3, migratedArticleDao.countFtsMaintenanceTriggers())
             assertEquals(3, disableLegacyFtsMaintenanceTriggers(migratedDatabase))
+            assertEquals(0, disableLegacyFtsMaintenanceTriggers(migratedDatabase))
             assertEquals(0, migratedArticleDao.countFtsMaintenanceTriggers())
 
             val migratedResults = migratedArticleDao.searchArticles(

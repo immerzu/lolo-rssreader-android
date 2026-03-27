@@ -4,6 +4,7 @@ import com.example.rssreader.data.repository.OpmlImportResult
 import com.example.rssreader.data.repository.RefreshRunStats
 import com.example.rssreader.data.repository.RepositoryDiagnosticsSnapshot
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class HomeScreenFormatTest {
@@ -124,5 +125,24 @@ class HomeScreenFormatTest {
         assert(summary.contains("Letzte Aktualisierung: refreshed=9, failed=0, skipped=0, new=0"))
         assert(summary.contains("Letzter Import: imported=9, skipped=0, failed=0"))
         assert(summary.contains("Debug-Log: /data/user/0/de.lolo.rssreader/files/debug/rss-reader-debug.log"))
+    }
+
+    @Test
+    fun formatDiagnosticsSummaryShowsMissingRefreshAndImportState() {
+        val summary = formatDiagnosticsSummary(
+            snapshot = RepositoryDiagnosticsSnapshot(
+                feedCount = 2,
+                articleCount = 10,
+                searchIndexRowCount = 10,
+                manualFtsMode = true,
+                lastRefreshRunStats = null,
+                lastImportResult = null,
+                debugLogFilePath = null
+            ),
+            versionLabel = "1.70.02 (124)"
+        )
+
+        assertTrue(summary.contains("Letzte Aktualisierung: keine"))
+        assertTrue(summary.contains("Letzter Import: keiner"))
     }
 }

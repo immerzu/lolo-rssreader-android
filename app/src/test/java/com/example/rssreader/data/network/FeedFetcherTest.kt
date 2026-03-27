@@ -7,6 +7,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Protocol
 import okhttp3.Response
 import okhttp3.ResponseBody.Companion.toResponseBody
+import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -67,5 +68,55 @@ class FeedFetcherTest {
 
         assertTrue(result.exceptionOrNull() is RssReaderException.HttpError)
         assertEquals(1, callCount)
+    }
+
+    @Test
+    fun fetchedFeedPayloadOpensFreshReadersWithResolvedCharset() {
+        val payload = FetchedFeedPayload(
+            responseBytes = "Straße".toByteArray(Charsets.ISO_8859_1),
+            charset = Charsets.ISO_8859_1,
+            byteSize = 6,
+            defensiveMode = false
+        )
+
+        val firstRead = payload.openReader().use { it.readText() }
+        val secondRead = payload.openReader().use { it.readText() }
+
+        assertEquals("Straße", firstRead)
+        assertEquals("Straße", secondRead)
+    }
+
+    @Test
+    fun fetchedFeedPayloadOpensFreshStreamsForFutureParserWork() {
+        val bytes = byteArrayOf(1, 2, 3, 4)
+        val payload = FetchedFeedPayload(
+            responseBytes = bytes,
+            charset = Charsets.UTF_8,
+            byteSize = bytes.size,
+            defensiveMode = false
+        )
+
+        val firstRead = payload.openStream().readBytes()
+        val secondRead = payload.openStream().readBytes()
+
+        assertArrayEquals(bytes, firstRead)
+        assertArrayEquals(bytes, secondRead)
+    }
+
+    @Test
+    fun fetchedFeedPayloadReaderAndStreamAccessRemainIndependent() {
+        val bytes = "Feed Inhalt".toByteArray(Charsets.UTF_8)
+        val payload = FetchedFeedPayload(
+            responseBytes = bytes,
+            charset = Charsets.UTF_8,
+            byteSize = bytes.size,
+            defensiveMode = false
+        )
+
+        val textFromReader = payload.openReader().use { it.readText() }
+        val bytesFromStream = payload.openStream().readBytes()
+
+        assertEquals("Feed Inhalt", textFromReader)
+        assertArrayEquals(bytes, bytesFromStream)
     }
 }

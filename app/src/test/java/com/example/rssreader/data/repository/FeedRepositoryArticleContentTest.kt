@@ -73,6 +73,12 @@ class FeedRepositoryArticleContentTest {
         )
     }
 
+    @Test
+    fun shouldDeleteStaleSearchIndexEntriesAfterDeletionOnlyRunsWhenRowsWereDeleted() {
+        assertFalse(shouldDeleteStaleSearchIndexEntriesAfterDeletion(0))
+        assertTrue(shouldDeleteStaleSearchIndexEntriesAfterDeletion(3))
+    }
+
     private fun article(
         title: String = "Bangkok Tipps",
         link: String = "https://example.com/bangkok",

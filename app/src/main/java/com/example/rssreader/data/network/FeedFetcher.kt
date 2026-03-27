@@ -6,6 +6,7 @@ import com.example.rssreader.debug.DebugLogger
 import java.io.ByteArrayOutputStream
 import java.io.IOException
 import java.io.InputStream
+import java.io.ByteArrayInputStream
 import java.io.InputStreamReader
 import java.net.ConnectException
 import java.net.SocketTimeoutException
@@ -312,8 +313,17 @@ data class FetchedFeedPayload(
     val byteSize: Int,
     val defensiveMode: Boolean
 ) {
+    // Keep the payload as one bounded in-memory snapshot for now. This preserves the current
+    // charset detection and lets parser/tests open fresh readers without coupling callers to
+    // ByteArray-specific details, which keeps a later streaming migration localized.
+    // Each call returns a fresh stream so future parser work can consume the payload multiple
+    // times without exposing ByteArray handling at call sites.
+    fun openStream(): ByteArrayInputStream {
+        return ByteArrayInputStream(responseBytes)
+    }
+
     fun openReader(): InputStreamReader {
-        return InputStreamReader(responseBytes.inputStream(), charset)
+        return InputStreamReader(openStream(), charset)
     }
 }
 

@@ -36,6 +36,7 @@ private val importableFeedTextLinkRegex = Regex(
     """<link>\s*(https?://[^<\s]+)\s*</link>""",
     setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL)
 )
+private val legacyFtsTriggerNames = listOf("articles_fts_ai", "articles_fts_au", "articles_fts_ad")
 
 data class RefreshRunStats(
     val refreshedFeeds: Int = 0,
@@ -141,12 +142,13 @@ class FeedRepository(
                 failedFeeds = failedFeeds,
                 retryableFeeds = retryableFeeds,
                 newArticles = newArticles
-            ).also { stats ->
-                lastRefreshRunStats = stats
-                DebugLogger.i(
-                    TAG,
-                    "refreshAll beendet: refreshed=${stats.refreshedFeeds}, failed=${stats.failedFeeds}, skipped=${stats.skippedFeeds}, new=${stats.newArticles}"
-                )
+            ).let { stats ->
+                rememberRefreshRunStats(stats).also {
+                    DebugLogger.i(
+                        TAG,
+                        "refreshAll beendet: refreshed=${stats.refreshedFeeds}, failed=${stats.failedFeeds}, skipped=${stats.skippedFeeds}, new=${stats.newArticles}"
+                    )
+                }
             }
         }
     }
@@ -212,9 +214,7 @@ class FeedRepository(
                 failedFeeds = failedFeeds,
                 retryableFeeds = retryableFeeds,
                 newArticles = newArticles
-            ).also { stats ->
-                lastRefreshRunStats = stats
-            }
+            ).let(::rememberRefreshRunStats)
         }
     }
 
@@ -298,47 +298,19 @@ class FeedRepository(
     }
 
     suspend fun deleteAllReadEntries(): Int {
-        return runOnIo {
-            ensureManualSearchIndexMaintenance()
-            database.withTransaction {
-                val deletedArticles = articleDao.deleteAllRead()
-                articleDao.deleteStaleSearchIndexEntries()
-                deletedArticles
-            }
-        }
+        return deleteArticlesWithSearchCleanup { articleDao.deleteAllRead() }
     }
 
     suspend fun deleteFeedReadEntries(feedId: Long): Int {
-        return runOnIo {
-            ensureManualSearchIndexMaintenance()
-            database.withTransaction {
-                val deletedArticles = articleDao.deleteReadByFeedId(feedId)
-                articleDao.deleteStaleSearchIndexEntries()
-                deletedArticles
-            }
-        }
+        return deleteArticlesWithSearchCleanup { articleDao.deleteReadByFeedId(feedId) }
     }
 
     suspend fun deleteAllEntries(): Int {
-        return runOnIo {
-            ensureManualSearchIndexMaintenance()
-            database.withTransaction {
-                val deletedArticles = articleDao.deleteAllNonFavorite()
-                articleDao.deleteStaleSearchIndexEntries()
-                deletedArticles
-            }
-        }
+        return deleteArticlesWithSearchCleanup { articleDao.deleteAllNonFavorite() }
     }
 
     suspend fun deleteFeedEntries(feedId: Long): Int {
-        return runOnIo {
-            ensureManualSearchIndexMaintenance()
-            database.withTransaction {
-                val deletedArticles = articleDao.deleteByFeedId(feedId)
-                articleDao.deleteStaleSearchIndexEntries()
-                deletedArticles
-            }
-        }
+        return deleteArticlesWithSearchCleanup { articleDao.deleteByFeedId(feedId) }
     }
 
     suspend fun feedCount(): Int = runOnIo { feedDao.countFeeds() }
@@ -424,20 +396,22 @@ class FeedRepository(
                 throw throwable
             }
             if (feedUrl.isNullOrBlank()) {
-                return@runOnIo OpmlImportResult(
+                return@runOnIo rememberImportResult(
+                    OpmlImportResult(
                     importedFeeds = 0,
                     skippedFeeds = 0,
                     failedFeeds = 0
-                ).also {
+                )).also {
                     DebugLogger.w(TAG, "Importdatei enthielt keine erkennbare Feed-URL")
                 }
             }
             if (feedDao.existsByUrl(feedUrl)) {
-                return@runOnIo OpmlImportResult(
+                return@runOnIo rememberImportResult(
+                    OpmlImportResult(
                     importedFeeds = 0,
                     skippedFeeds = 1,
                     failedFeeds = 0
-                ).also {
+                )).also {
                     DebugLogger.i(TAG, "Import uebersprungen, Feed existiert bereits: $feedUrl")
                 }
             }
@@ -451,13 +425,17 @@ class FeedRepository(
                 )
             }.fold(
                 onSuccess = {
-                    OpmlImportResult(importedFeeds = 1, skippedFeeds = 0, failedFeeds = 0).also {
+                    rememberImportResult(
+                        OpmlImportResult(importedFeeds = 1, skippedFeeds = 0, failedFeeds = 0)
+                    ).also {
                         DebugLogger.i(TAG, "Einzelner Feed aus XML importiert: $feedUrl")
                     }
                 },
                 onFailure = { throwable ->
                     if (throwable is SQLiteConstraintException) {
-                        OpmlImportResult(importedFeeds = 0, skippedFeeds = 1, failedFeeds = 0).also {
+                        rememberImportResult(
+                            OpmlImportResult(importedFeeds = 0, skippedFeeds = 1, failedFeeds = 0)
+                        ).also {
                             DebugLogger.i(TAG, "Import uebersprungen, Feed existiert bereits: $feedUrl")
                         }
                     } else {
@@ -490,12 +468,13 @@ class FeedRepository(
             importedFeeds = importedFeeds,
             skippedFeeds = skippedFeeds,
             failedFeeds = failedFeeds
-        ).also { result ->
-            lastImportResult = result
+        ).let { result ->
+            rememberImportResult(result).also {
             DebugLogger.i(
                 TAG,
                 "Import beendet: imported=${result.importedFeeds}, skipped=${result.skippedFeeds}, failed=${result.failedFeeds}"
             )
+            }
         }
     }
 
@@ -630,6 +609,29 @@ class FeedRepository(
         block()
     }
 
+    private suspend fun deleteArticlesWithSearchCleanup(
+        deleteAction: suspend () -> Int
+    ): Int = runOnIo {
+        ensureManualSearchIndexMaintenance()
+        database.withTransaction {
+            val deletedArticles = deleteAction()
+            if (shouldDeleteStaleSearchIndexEntriesAfterDeletion(deletedArticles)) {
+                articleDao.deleteStaleSearchIndexEntries()
+            }
+            deletedArticles
+        }
+    }
+
+    private fun rememberImportResult(result: OpmlImportResult): OpmlImportResult {
+        lastImportResult = result
+        return result
+    }
+
+    private fun rememberRefreshRunStats(stats: RefreshRunStats): RefreshRunStats {
+        lastRefreshRunStats = stats
+        return stats
+    }
+
     private suspend fun ensureManualSearchIndexMaintenance() {
         if (legacyFtsTriggersDisabled) {
             return
@@ -725,22 +727,31 @@ internal fun shouldDeleteStaleSearchIndexEntries(
     return searchIndexMayContainStaleRows
 }
 
+internal fun shouldDeleteStaleSearchIndexEntriesAfterDeletion(
+    deletedArticles: Int
+): Boolean {
+    return deletedArticles > 0
+}
+
 internal fun disableLegacyFtsMaintenanceTriggers(database: AppDatabase): Int {
     val writableDatabase = database.openHelper.writableDatabase
     var existingTriggers = 0
+    // Historical v6->v7 databases may still carry the old trigger-based FTS maintenance.
+    // Manual repository-side maintenance is the runtime source of truth, so we count and
+    // drop only these known legacy triggers once, leaving current search semantics unchanged.
     writableDatabase.query(
         """
         SELECT name
         FROM sqlite_master
         WHERE type = 'trigger'
-          AND name IN ('articles_fts_ai', 'articles_fts_au', 'articles_fts_ad')
+          AND name IN (${legacyFtsTriggerNames.joinToString(",") { "'$it'" }})
         """.trimIndent()
     ).use { cursor ->
         while (cursor.moveToNext()) {
             existingTriggers += 1
         }
     }
-    listOf("articles_fts_ai", "articles_fts_au", "articles_fts_ad").forEach { triggerName ->
+    legacyFtsTriggerNames.forEach { triggerName ->
         writableDatabase.execSQL("DROP TRIGGER IF EXISTS $triggerName")
     }
     return existingTriggers

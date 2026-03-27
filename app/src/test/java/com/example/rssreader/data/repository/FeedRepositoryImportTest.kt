@@ -51,6 +51,35 @@ class FeedRepositoryImportTest {
     }
 
     @Test
+    fun detectImportableFeedUrlStillPrefersSelfLinkWhenPlainChannelLinkExists() {
+        val xml = """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+              <channel>
+                <title>Kommentare</title>
+                <atom:link rel="self" href="https://example.com/comments/feed/" type="application/rss+xml" />
+                <link>https://example.com/landing-page</link>
+              </channel>
+            </rss>
+        """.trimIndent()
+
+        assertEquals("https://example.com/comments/feed/", detectImportableFeedUrl(xml))
+    }
+
+    @Test
+    fun detectImportableFeedUrlAcceptsSelfLinkWhenHrefAndRelOrderIsReversed() {
+        val xml = """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <feed xmlns="http://www.w3.org/2005/Atom">
+              <title>Kommentare</title>
+              <link href="https://example.com/comments/feed/" rel="self" type="application/atom+xml" />
+            </feed>
+        """.trimIndent()
+
+        assertEquals("https://example.com/comments/feed/", detectImportableFeedUrl(xml))
+    }
+
+    @Test
     fun detectImportableFeedUrlAcceptsPlainFeedLikeChannelLink() {
         val xml = """
             <?xml version="1.0" encoding="UTF-8"?>
@@ -63,5 +92,35 @@ class FeedRepositoryImportTest {
         """.trimIndent()
 
         assertEquals("https://example.com/comments/feed/", detectImportableFeedUrl(xml))
+    }
+
+    @Test
+    fun detectImportableFeedUrlRejectsPlainChannelLinkWithoutFeedHint() {
+        val xml = """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <rss version="2.0">
+              <channel>
+                <title>Normale Website</title>
+                <link>https://example.com/articles/latest</link>
+              </channel>
+            </rss>
+        """.trimIndent()
+
+        assertNull(detectImportableFeedUrl(xml))
+    }
+
+    @Test
+    fun detectImportableFeedUrlAcceptsPlainChannelLinkWithXmlHint() {
+        val xml = """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <rss version="2.0">
+              <channel>
+                <title>Exportierter Feed</title>
+                <link>https://example.com/export/comments.xml</link>
+              </channel>
+            </rss>
+        """.trimIndent()
+
+        assertEquals("https://example.com/export/comments.xml", detectImportableFeedUrl(xml))
     }
 }
