@@ -112,6 +112,51 @@ interface ArticleDao {
 
     @Query(
         """
+        INSERT OR REPLACE INTO articles_fts(rowid, title, plainText)
+        SELECT id, title, plainText
+        FROM articles
+        WHERE feedId = :feedId
+        """
+    )
+    suspend fun syncSearchIndexByFeed(feedId: Long)
+
+    @Query(
+        """
+        DELETE FROM articles_fts
+        WHERE rowid NOT IN (SELECT id FROM articles)
+        """
+    )
+    suspend fun deleteStaleSearchIndexEntries()
+
+    @Query(
+        """
+        SELECT
+            articles.id AS articleId,
+            articles.feedId AS feedId,
+            feeds.title AS feedTitle,
+            feeds.customTitle AS feedCustomTitle,
+            articles.title AS articleTitle,
+            articles.plainText AS plainText,
+            articles.publishedAt AS publishedAt,
+            articles.isRead AS isRead,
+            articles.isFavorite AS isFavorite
+        FROM articles
+        INNER JOIN feeds ON feeds.id = articles.feedId
+        WHERE
+            articles.id IN (
+                SELECT rowid
+                FROM articles_fts
+                WHERE articles_fts MATCH :matchQuery
+            )
+            OR feeds.title LIKE '%' || :query || '%'
+            OR COALESCE(feeds.customTitle, '') LIKE '%' || :query || '%'
+        ORDER BY COALESCE(articles.publishedAt, 0) DESC, articles.id DESC
+        """
+    )
+    fun searchArticles(query: String, matchQuery: String): Flow<List<ArticleSearchResult>>
+
+    @Query(
+        """
         SELECT
             articles.id AS articleId,
             articles.feedId AS feedId,
@@ -132,7 +177,7 @@ interface ArticleDao {
         ORDER BY COALESCE(articles.publishedAt, 0) DESC, articles.id DESC
         """
     )
-    fun searchArticles(query: String): Flow<List<ArticleSearchResult>>
+    fun searchArticlesFallback(query: String): Flow<List<ArticleSearchResult>>
 }
 
 

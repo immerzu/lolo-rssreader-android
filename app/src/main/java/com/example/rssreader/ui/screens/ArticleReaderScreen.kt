@@ -3,6 +3,7 @@ package com.example.rssreader.ui.screens
 import android.annotation.SuppressLint
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
 import android.text.format.DateUtils
 import android.text.TextUtils
 import android.util.Log
@@ -467,19 +468,10 @@ fun ArticleReaderScreen(
                                             TAG,
                                             "WebView erstellt: articleId=${currentArticle?.id?.toString().orEmpty()}"
                                         )
-                                        settings.javaScriptEnabled = false
-                                        settings.domStorageEnabled = true
-                                        settings.cacheMode = WebSettings.LOAD_DEFAULT
-                                        settings.loadsImagesAutomatically = true
-                                        settings.mediaPlaybackRequiresUserGesture = true
-                                        settings.allowFileAccess = false
-                                        settings.allowContentAccess = false
-                                        settings.javaScriptCanOpenWindowsAutomatically = false
-                                        settings.offscreenPreRaster = false
-                                        settings.builtInZoomControls = false
-                                        settings.displayZoomControls = false
-                                        settings.useWideViewPort = true
-                                        settings.loadWithOverviewMode = true
+                                        configureReaderWebViewSettings(
+                                            webView = this,
+                                            requiresJavaScript = false
+                                        )
                                         overScrollMode = WebView.OVER_SCROLL_NEVER
                                         // Touch-Beobachtung direkt am nativen WebView, damit
                                         // vertikales Lesen nicht von einer Compose-Wischgeste
@@ -610,13 +602,10 @@ fun ArticleReaderScreen(
                                         webViewFailed = false
                                         clearWebViewForReuse(webView)
                                         webView.tag = articleHtmlContent
-                                        webView.settings.javaScriptEnabled =
-                                            articleHtmlContent.requiresJavaScript
-                                        // Auch bei schweren Artikeln Bilder weiter automatisch laden.
-                                        // Die Last wird bereits ueber reduzierte HTML-Inhalte begrenzt;
-                                        // deaktiviertes Bildladen fuehrt hier zu sichtbaren Broken Images.
-                                        webView.settings.loadsImagesAutomatically = true
-                                        webView.settings.offscreenPreRaster = false
+                                        configureReaderWebViewSettings(
+                                            webView = webView,
+                                            requiresJavaScript = articleHtmlContent.requiresJavaScript
+                                        )
                                         webView.resumeTimers()
                                         webView.onResume()
                                         DebugLogger.i(
@@ -624,7 +613,7 @@ fun ArticleReaderScreen(
                                             "WebView Inhalt geladen: articleId=${currentArticle?.id?.toString().orEmpty()}, heavy=${articleHtmlContent.loadProfile.isHeavy}, js=${articleHtmlContent.requiresJavaScript}"
                                         )
                                         webView.loadDataWithBaseURL(
-                                            articleHtmlContent.baseUrl,
+                                            READER_WEBVIEW_BASE_URL,
                                             articleHtmlContent.html,
                                             "text/html",
                                             "utf-8",
@@ -1235,6 +1224,60 @@ private fun clearWebViewForReuse(webView: WebView?) {
     }
 }
 
+private fun configureReaderWebViewSettings(
+    webView: WebView,
+    requiresJavaScript: Boolean
+) {
+    runCatching {
+        val settings = webView.settings.apply {
+            javaScriptEnabled = requiresJavaScript
+            domStorageEnabled = true
+            cacheMode = WebSettings.LOAD_DEFAULT
+            loadsImagesAutomatically = true
+            mediaPlaybackRequiresUserGesture = true
+            allowFileAccess = false
+            allowContentAccess = false
+            javaScriptCanOpenWindowsAutomatically = false
+            setSupportMultipleWindows(false)
+            offscreenPreRaster = false
+            builtInZoomControls = false
+            displayZoomControls = false
+            useWideViewPort = true
+            loadWithOverviewMode = true
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                safeBrowsingEnabled = true
+            }
+        }
+        DebugLogger.d(
+            TAG,
+            buildString {
+                append("WebView Settings: ")
+                append("js=").append(settings.javaScriptEnabled)
+                append(", domStorage=").append(settings.domStorageEnabled)
+                append(", fileAccess=").append(settings.allowFileAccess)
+                append(", contentAccess=").append(settings.allowContentAccess)
+                append(", multiWindow=").append(settings.supportMultipleWindows())
+                append(", jsOpenWindows=").append(settings.javaScriptCanOpenWindowsAutomatically)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                    append(", mixedContentMode=").append(settings.mixedContentMode)
+                }
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    append(", safeBrowsing=").append(settings.safeBrowsingEnabled)
+                }
+            }
+        )
+    }.onFailure {
+        DebugLogger.w(
+            TAG,
+            "WebView Einstellungen konnten nicht vollstaendig gesetzt werden",
+            it
+        )
+    }
+}
+
 private fun destroyWebView(webView: WebView?) {
     webView ?: return
     runCatching {
@@ -1274,6 +1317,7 @@ private data class ReaderLoadProfile(
 
 private const val TAG = "ArticleReaderScreen"
 private const val IMAGE_TAP_SCHEME = "rssreader-article"
+private const val READER_WEBVIEW_BASE_URL = "https://localhost/"
 private const val ARTICLE_SWITCH_ANIMATION_MS = 220
 private const val ARTICLE_SWIPE_THRESHOLD_PX = 80f
 private const val ARTICLE_SWIPE_DIRECTION_BIAS = 1.35f

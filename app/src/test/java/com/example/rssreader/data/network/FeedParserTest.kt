@@ -180,6 +180,114 @@ class FeedParserTest {
         assertTrue(article.contentHtml.contains("<div"))
         assertTrue(article.plainText.contains("Ein verschachtelter Inhalt."))
     }
+
+    @Test
+    fun defensivePayloadEarlyBoundsVeryLargeContentWithoutCrashing() {
+        val largeHtml = buildString {
+            append("<div>")
+            repeat(220_000) { append('A') }
+            append("</div>")
+        }
+        val xml = """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <rss version="2.0" xmlns:content="http://purl.org/rss/1.0/modules/content/">
+              <channel>
+                <title>Large Feed</title>
+                <item>
+                  <title>Large Item</title>
+                  <link>https://example.com/large</link>
+                  <content:encoded><![CDATA[$largeHtml]]></content:encoded>
+                </item>
+              </channel>
+            </rss>
+        """.trimIndent()
+
+        val parsed = parser.parse(
+            payload = FetchedFeedPayload(
+                responseBytes = xml.toByteArray(Charsets.UTF_8),
+                charset = Charsets.UTF_8,
+                byteSize = xml.toByteArray(Charsets.UTF_8).size,
+                defensiveMode = true
+            ),
+            sourceUrl = "https://example.com/feed.xml"
+        )
+
+        val article = parsed.items.single()
+        assertEquals("Large Item", article.title)
+        assertTrue(article.contentHtml.length <= 180_000)
+        assertTrue(article.plainText.isNotBlank())
+    }
+
+    @Test
+    fun defensivePayloadSkipsSupplementalImageScanForExtremeBoundedContent() {
+        val largeHtml = buildString {
+            append("<section>")
+            repeat(210_000) { append('B') }
+            append("</section>")
+        }
+        val xml = """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <rss version="2.0" xmlns:content="http://purl.org/rss/1.0/modules/content/">
+              <channel>
+                <title>Large Feed</title>
+                <item>
+                  <title>Extreme Item</title>
+                  <link>https://example.com/extreme</link>
+                  <content:encoded><![CDATA[$largeHtml]]></content:encoded>
+                </item>
+              </channel>
+            </rss>
+        """.trimIndent()
+
+        val parsed = parser.parse(
+            payload = FetchedFeedPayload(
+                responseBytes = xml.toByteArray(Charsets.UTF_8),
+                charset = Charsets.UTF_8,
+                byteSize = xml.toByteArray(Charsets.UTF_8).size,
+                defensiveMode = true
+            ),
+            sourceUrl = "https://example.com/feed.xml"
+        )
+
+        val article = parsed.items.single()
+        assertEquals("Extreme Item", article.title)
+        assertTrue(article.contentHtml.length <= 180_000)
+        assertTrue(article.imageUrls.isEmpty())
+    }
+
+    @Test
+    fun ordinaryPayloadBehaviorStaysUnchangedOnReaderPath() {
+        val xml = """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <rss version="2.0" xmlns:content="http://purl.org/rss/1.0/modules/content/">
+              <channel>
+                <title>Normal Feed</title>
+                <item>
+                  <title>Normal Item</title>
+                  <link>https://example.com/normal</link>
+                  <description><![CDATA[Teaser]]></description>
+                  <content:encoded><![CDATA[<p>Normaler Inhalt</p><img src="https://example.com/image.jpg" />]]></content:encoded>
+                </item>
+              </channel>
+            </rss>
+        """.trimIndent()
+
+        val parsed = parser.parse(
+            payload = FetchedFeedPayload(
+                responseBytes = xml.toByteArray(Charsets.UTF_8),
+                charset = Charsets.UTF_8,
+                byteSize = xml.toByteArray(Charsets.UTF_8).size,
+                defensiveMode = false
+            ),
+            sourceUrl = "https://example.com/feed.xml"
+        )
+
+        val article = parsed.items.single()
+        assertEquals("Normal Item", article.title)
+        assertEquals(ParsedContentSource.CONTENT_ENCODED, article.contentSource)
+        assertTrue(article.plainText.contains("Normaler Inhalt"))
+        assertTrue(article.imageUrls.contains("https://example.com/image.jpg"))
+    }
 }
 
 

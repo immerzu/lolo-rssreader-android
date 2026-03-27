@@ -10,8 +10,8 @@ plugins {
 }
 
 val roomSchemaDir = projectDir.resolve("schemas")
-val appVersionCode = 123
-val appVersionName = "1.70.01"
+val appVersionCode = 124
+val appVersionName = "1.70.02"
 
 val versionPropertiesFile = rootProject.file("version.properties")
 val versionProperties = Properties().apply {
@@ -206,7 +206,7 @@ tasks.register("bumpReleaseVersion") {
         val buildScriptFile = project.buildFile
         val updatedBuildScript = buildScriptFile.readText()
             .replace(Regex("""val appVersionCode = \d+"""), "val appVersionCode = $nextVersionCode")
-            .replace(Regex("""val appVersionName = "[^"]+""""), """val appVersionName = "$nextVersionName"""")
+            .replace(Regex("""val appVersionName = "1.70.02"]+""""), """val appVersionName = "1.70.02"""")
         buildScriptFile.writeText(updatedBuildScript)
     }
 }

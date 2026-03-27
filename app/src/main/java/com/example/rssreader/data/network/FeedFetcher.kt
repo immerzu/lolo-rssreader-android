@@ -3,7 +3,10 @@ package com.example.rssreader.data.network
 import android.util.Log
 import com.example.rssreader.data.errors.RssReaderException
 import com.example.rssreader.debug.DebugLogger
+import java.io.ByteArrayOutputStream
 import java.io.IOException
+import java.io.InputStream
+import java.io.InputStreamReader
 import java.net.ConnectException
 import java.net.SocketTimeoutException
 import java.net.UnknownHostException
@@ -24,6 +27,9 @@ class FeedFetcher(
         private const val USER_AGENT = "RSS-Reader/1.60 (+Android)"
         private const val MAX_FETCH_ATTEMPTS = 2
         private const val RETRY_DELAY_MS = 650L
+        private const val LARGE_FEED_SOFT_LIMIT_BYTES = 5L * 1024L * 1024L
+        private const val LARGE_FEED_HARD_LIMIT_BYTES = 12L * 1024L * 1024L
+        private const val FEED_STREAM_BUFFER_SIZE = 16 * 1024
         private val xmlEncodingRegex = Regex(
             """<\?xml[^>]*encoding=["']([A-Za-z0-9._\-]+)["']""",
             RegexOption.IGNORE_CASE
@@ -36,7 +42,7 @@ class FeedFetcher(
             .build()
     }
 
-    suspend fun fetch(url: String): String {
+    suspend fun fetch(url: String): FetchedFeedPayload {
         DebugLogger.i(TAG, "Feed-Abruf gestartet: $url")
         val request = try {
             Request.Builder()
@@ -56,20 +62,47 @@ class FeedFetcher(
                     }
 
                     val responseBody = response.body ?: throw RssReaderException.EmptyResponse()
-                    val responseBytes = responseBody.bytes()
+                    val responseBytes = readResponseBodyBounded(
+                        inputStream = responseBody.byteStream(),
+                        declaredContentLength = responseBody.contentLength()
+                    )
                     if (responseBytes.isEmpty()) {
                         throw RssReaderException.EmptyResponse()
                     }
 
-                    return decodeResponseBody(
+                    val defensiveMode = responseBytes.size.toLong() > LARGE_FEED_SOFT_LIMIT_BYTES
+                    if (defensiveMode) {
+                        logWarn(
+                            "feed_fetch_defensive url=$url bytes=${responseBytes.size} softLimit=$LARGE_FEED_SOFT_LIMIT_BYTES",
+                            null
+                        )
+                    }
+
+                    val charset = resolveResponseCharset(
                         responseBytes = responseBytes,
                         contentTypeHeader = response.header("Content-Type")
+                    )
+
+                    return FetchedFeedPayload(
+                        responseBytes = responseBytes,
+                        charset = charset,
+                        byteSize = responseBytes.size,
+                        defensiveMode = defensiveMode
                     ).also {
-                        DebugLogger.i(TAG, "Feed erfolgreich geladen: $url (${responseBytes.size} Bytes)")
+                        DebugLogger.i(
+                            TAG,
+                            "feed_fetch url=$url bytes=${responseBytes.size} defensive=$defensiveMode hardReject=false"
+                        )
                     }
                 }
             } catch (exception: RssReaderException) {
                 if (!shouldRetry(exception, attempt)) {
+                    if (exception is RssReaderException.FeedTooLarge) {
+                        logWarn(
+                            "feed_fetch_reject url=$url bytes=${exception.actualSizeBytes} hardLimit=${exception.limitBytes}",
+                            exception
+                        )
+                    }
                     logWarn("Feed konnte nicht geladen werden: $url", exception)
                     throw exception
                 }
@@ -109,10 +142,88 @@ class FeedFetcher(
         throw RssReaderException.ConnectionFailed()
     }
 
-    private fun decodeResponseBody(
+    private fun readResponseBodyBounded(
+        inputStream: InputStream,
+        declaredContentLength: Long
+    ): ByteArray {
+        if (declaredContentLength > LARGE_FEED_HARD_LIMIT_BYTES) {
+            throw RssReaderException.FeedTooLarge(
+                actualSizeBytes = declaredContentLength,
+                limitBytes = LARGE_FEED_HARD_LIMIT_BYTES
+            )
+        }
+
+        if (declaredContentLength in 1..Int.MAX_VALUE.toLong()) {
+            val expectedSize = declaredContentLength.toInt()
+            val result = ByteArray(expectedSize)
+            var totalRead = 0
+
+            inputStream.use { stream ->
+                while (totalRead < expectedSize) {
+                    val read = stream.read(result, totalRead, expectedSize - totalRead)
+                    if (read <= 0) {
+                        break
+                    }
+                    totalRead += read
+                }
+
+                val extraByte = stream.read()
+                if (extraByte == -1) {
+                    return if (totalRead == expectedSize) {
+                        result
+                    } else {
+                        result.copyOf(totalRead)
+                    }
+                }
+
+                val output = ByteArrayOutputStream(
+                    minOf(
+                        LARGE_FEED_HARD_LIMIT_BYTES,
+                        maxOf(totalRead.toLong() + FEED_STREAM_BUFFER_SIZE, LARGE_FEED_SOFT_LIMIT_BYTES)
+                    ).toInt()
+                )
+                output.write(result, 0, totalRead)
+                output.write(extraByte)
+                copyRemainingBounded(stream, output, totalRead.toLong() + 1L)
+                return output.toByteArray()
+            }
+        }
+
+        inputStream.use { stream ->
+            val output = ByteArrayOutputStream(FEED_STREAM_BUFFER_SIZE)
+            copyRemainingBounded(stream, output, 0L)
+            return output.toByteArray()
+        }
+    }
+
+    private fun copyRemainingBounded(
+        inputStream: InputStream,
+        outputStream: ByteArrayOutputStream,
+        initialBytesRead: Long
+    ) {
+        val buffer = ByteArray(FEED_STREAM_BUFFER_SIZE)
+        var totalRead = initialBytesRead
+
+        while (true) {
+            val read = inputStream.read(buffer)
+            if (read <= 0) {
+                return
+            }
+            totalRead += read
+            if (totalRead > LARGE_FEED_HARD_LIMIT_BYTES) {
+                throw RssReaderException.FeedTooLarge(
+                    actualSizeBytes = totalRead,
+                    limitBytes = LARGE_FEED_HARD_LIMIT_BYTES
+                )
+            }
+            outputStream.write(buffer, 0, read)
+        }
+    }
+
+    private fun resolveResponseCharset(
         responseBytes: ByteArray,
         contentTypeHeader: String?
-    ): String {
+    ): Charset {
         val charsetCandidates = buildList {
             extractCharset(contentTypeHeader)?.let(::add)
             extractXmlPrologCharset(responseBytes)?.let(::add)
@@ -122,7 +233,8 @@ class FeedFetcher(
 
         charsetCandidates.forEach { charset ->
             try {
-                return decodeStrict(responseBytes, charset)
+                decodeStrict(responseBytes, charset)
+                return charset
             } catch (_: CharacterCodingException) {
                 // Try the next candidate charset before surfacing an encoding error.
             }
@@ -182,13 +294,26 @@ class FeedFetcher(
             .getOrElse { println("$TAG: $message") }
     }
 
-    private fun logWarn(message: String, throwable: Throwable) {
+    private fun logWarn(message: String, throwable: Throwable?) {
         DebugLogger.w(TAG, message, throwable)
         runCatching { Log.w(TAG, message, throwable) }
             .getOrElse {
                 System.err.println("$TAG: $message")
-                System.err.println("$TAG: ${throwable.javaClass.simpleName}: ${throwable.message.orEmpty()}")
+                if (throwable != null) {
+                    System.err.println("$TAG: ${throwable.javaClass.simpleName}: ${throwable.message.orEmpty()}")
+                }
             }
+    }
+}
+
+data class FetchedFeedPayload(
+    val responseBytes: ByteArray,
+    val charset: Charset,
+    val byteSize: Int,
+    val defensiveMode: Boolean
+) {
+    fun openReader(): InputStreamReader {
+        return InputStreamReader(responseBytes.inputStream(), charset)
     }
 }
 

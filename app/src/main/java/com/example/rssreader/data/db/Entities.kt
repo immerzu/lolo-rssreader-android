@@ -1,9 +1,11 @@
 package com.example.rssreader.data.db
 
 import androidx.room.Entity
+import androidx.room.Fts4
 import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.PrimaryKey
+import androidx.room.ColumnInfo
 
 @Entity(
     tableName = "feeds",
@@ -49,6 +51,16 @@ data class ArticleEntity(
     val imageUrls: String,
     val isRead: Boolean = false,
     val isFavorite: Boolean = false
+)
+
+@Fts4
+@Entity(tableName = "articles_fts")
+data class ArticleFtsEntity(
+    @PrimaryKey
+    @ColumnInfo(name = "rowid")
+    val rowId: Long,
+    val title: String,
+    val plainText: String
 )
 
 

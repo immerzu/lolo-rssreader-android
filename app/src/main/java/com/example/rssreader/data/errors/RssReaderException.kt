@@ -40,6 +40,10 @@ sealed class RssReaderException(
         userMessage = "Der Feed hat keinen Inhalt geliefert."
     )
 
+    class FeedTooLarge(val actualSizeBytes: Long, val limitBytes: Long) : RssReaderException(
+        userMessage = "Der Feed ist fuer eine sichere Verarbeitung zu gross."
+    )
+
     class InvalidXml(cause: Throwable? = null) : RssReaderException(
         userMessage = "Der Feed enthaelt kein gueltiges RSS- oder Atom-XML.",
         cause = cause

@@ -67,7 +67,15 @@ class FeedRepository(
         if (query.isBlank()) {
             kotlinx.coroutines.flow.flowOf(emptyList())
         } else {
-            articleDao.searchArticles(query)
+            val searchSpec = buildArticleSearchSpec(query)
+            if (searchSpec.matchQuery == null) {
+                articleDao.searchArticlesFallback(searchSpec.query)
+            } else {
+                articleDao.searchArticles(
+                    query = searchSpec.query,
+                    matchQuery = searchSpec.matchQuery
+                )
+            }
         }
 
     suspend fun addFeed(url: String, customTitle: String?, wifiOnly: Boolean): Long =
@@ -218,7 +226,12 @@ class FeedRepository(
     }
 
     suspend fun deleteFeed(feedId: Long) {
-        runOnIo { feedDao.deleteById(feedId) }
+        runOnIo {
+            database.withTransaction {
+                feedDao.deleteById(feedId)
+                articleDao.deleteStaleSearchIndexEntries()
+            }
+        }
     }
 
     suspend fun getFeed(feedId: Long) = runOnIo { feedDao.getById(feedId) }
@@ -255,19 +268,39 @@ class FeedRepository(
     }
 
     suspend fun deleteAllReadEntries() {
-        runOnIo { articleDao.deleteAllRead() }
+        runOnIo {
+            database.withTransaction {
+                articleDao.deleteAllRead()
+                articleDao.deleteStaleSearchIndexEntries()
+            }
+        }
     }
 
     suspend fun deleteFeedReadEntries(feedId: Long) {
-        runOnIo { articleDao.deleteReadByFeedId(feedId) }
+        runOnIo {
+            database.withTransaction {
+                articleDao.deleteReadByFeedId(feedId)
+                articleDao.deleteStaleSearchIndexEntries()
+            }
+        }
     }
 
     suspend fun deleteAllEntries() {
-        runOnIo { articleDao.deleteAllNonFavorite() }
+        runOnIo {
+            database.withTransaction {
+                articleDao.deleteAllNonFavorite()
+                articleDao.deleteStaleSearchIndexEntries()
+            }
+        }
     }
 
     suspend fun deleteFeedEntries(feedId: Long) {
-        runOnIo { articleDao.deleteByFeedId(feedId) }
+        runOnIo {
+            database.withTransaction {
+                articleDao.deleteByFeedId(feedId)
+                articleDao.deleteStaleSearchIndexEntries()
+            }
+        }
     }
 
     suspend fun feedCount(): Int = runOnIo { feedDao.countFeeds() }
@@ -496,6 +529,8 @@ class FeedRepository(
                 )
             }
         }
+        articleDao.syncSearchIndexByFeed(feedId)
+        articleDao.deleteStaleSearchIndexEntries()
         return insertedIds.count { it != -1L }
     }
 
@@ -549,6 +584,34 @@ class FeedRepository(
         private const val TAG = "FeedRepository"
     }
 }
+
+internal data class ArticleSearchSpec(
+    val query: String,
+    val matchQuery: String?
+)
+
+internal fun buildArticleSearchSpec(query: String): ArticleSearchSpec {
+    val normalizedQuery = query.trim()
+    val tokens = articleSearchTokenRegex.findAll(normalizedQuery)
+        .map { it.value.lowercase() }
+        .filter { it.isNotBlank() }
+        .distinct()
+        .toList()
+
+    if (tokens.isEmpty()) {
+        return ArticleSearchSpec(
+            query = normalizedQuery,
+            matchQuery = null
+        )
+    }
+
+    return ArticleSearchSpec(
+        query = normalizedQuery,
+        matchQuery = tokens.joinToString(" AND ") { "$it*" }
+    )
+}
+
+private val articleSearchTokenRegex = Regex("[\\p{L}\\p{N}]+")
 
 private fun Throwable.isRetryableRefreshFailure(): Boolean {
     return when (this) {

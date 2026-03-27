@@ -6,8 +6,8 @@ import androidx.room.RoomDatabase
 import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
-    entities = [FeedEntity::class, ArticleEntity::class],
-    version = 6,
+    entities = [FeedEntity::class, ArticleEntity::class, ArticleFtsEntity::class],
+    version = 7,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -44,6 +44,49 @@ abstract class AppDatabase : RoomDatabase() {
         val MIGRATION_5_6 = object : Migration(5, 6) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE articles ADD COLUMN contentHtml TEXT NOT NULL DEFAULT ''")
+            }
+        }
+
+        val MIGRATION_6_7 = object : Migration(6, 7) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE VIRTUAL TABLE IF NOT EXISTS `articles_fts`
+                    USING fts4(`title`, `plainText`)
+                    """.trimIndent()
+                )
+                db.execSQL(
+                    """
+                    INSERT INTO articles_fts(rowid, title, plainText)
+                    SELECT id, title, plainText FROM articles
+                    """.trimIndent()
+                )
+                db.execSQL(
+                    """
+                    CREATE TRIGGER IF NOT EXISTS articles_fts_ai AFTER INSERT ON articles BEGIN
+                        INSERT INTO articles_fts(rowid, title, plainText)
+                        VALUES (new.id, new.title, new.plainText);
+                    END
+                    """.trimIndent()
+                )
+                db.execSQL(
+                    """
+                    CREATE TRIGGER IF NOT EXISTS articles_fts_ad AFTER DELETE ON articles BEGIN
+                        INSERT INTO articles_fts(articles_fts, rowid, title, plainText)
+                        VALUES('delete', old.id, old.title, old.plainText);
+                    END
+                    """.trimIndent()
+                )
+                db.execSQL(
+                    """
+                    CREATE TRIGGER IF NOT EXISTS articles_fts_au AFTER UPDATE ON articles BEGIN
+                        INSERT INTO articles_fts(articles_fts, rowid, title, plainText)
+                        VALUES('delete', old.id, old.title, old.plainText);
+                        INSERT INTO articles_fts(rowid, title, plainText)
+                        VALUES (new.id, new.title, new.plainText);
+                    END
+                    """.trimIndent()
+                )
             }
         }
     }
