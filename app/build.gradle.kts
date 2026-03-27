@@ -10,14 +10,16 @@ plugins {
 }
 
 val roomSchemaDir = projectDir.resolve("schemas")
+val appVersionCode = 123
+val appVersionName = "1.70.01"
 
 val versionPropertiesFile = rootProject.file("version.properties")
 val versionProperties = Properties().apply {
     if (versionPropertiesFile.exists()) {
         versionPropertiesFile.inputStream().use(::load)
     } else {
-        setProperty("VERSION_CODE", "1")
-        setProperty("VERSION_NAME", "1.70.00")
+        setProperty("VERSION_CODE", appVersionCode.toString())
+        setProperty("VERSION_NAME", appVersionName)
         versionPropertiesFile.outputStream().use { output ->
             store(output, "RSS Reader build version")
         }
@@ -38,8 +40,8 @@ fun incrementPatchVersion(versionName: String): String {
     return "%d.%d.%02d".format(major, minor, patch)
 }
 
-val resolvedVersionCode = versionProperties.getProperty("VERSION_CODE")?.toIntOrNull() ?: 1
-val resolvedVersionName = versionProperties.getProperty("VERSION_NAME") ?: "1.70.00"
+val resolvedVersionCode = versionProperties.getProperty("VERSION_CODE")?.toIntOrNull() ?: appVersionCode
+val resolvedVersionName = versionProperties.getProperty("VERSION_NAME") ?: appVersionName
 val debugBuildStamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss"))
 val keystorePropertiesFile = rootProject.file("keystore.properties")
 val keystoreProperties = Properties().apply {
@@ -67,8 +69,9 @@ android {
         applicationId = "de.lolo.rssreader"
         minSdk = 26
         targetSdk = 35
-        versionCode = resolvedVersionCode
-        versionName = resolvedVersionName
+        // Keep the version directly visible for external scanners like F-Droid.
+        versionCode = appVersionCode
+        versionName = appVersionName
     }
 
     buildTypes {
@@ -189,13 +192,22 @@ tasks.register("bumpReleaseVersion") {
     group = "versioning"
     description = "Erhoeht VERSION_NAME und VERSION_CODE bewusst fuer den naechsten Release."
     doLast {
-        val currentVersionCode = versionProperties.getProperty("VERSION_CODE")?.toIntOrNull() ?: 1
-        val currentVersionName = versionProperties.getProperty("VERSION_NAME") ?: "1.70.00"
-        versionProperties.setProperty("VERSION_CODE", (currentVersionCode + 1).toString())
-        versionProperties.setProperty("VERSION_NAME", incrementPatchVersion(currentVersionName))
+        val currentVersionCode = versionProperties.getProperty("VERSION_CODE")?.toIntOrNull() ?: appVersionCode
+        val currentVersionName = versionProperties.getProperty("VERSION_NAME") ?: appVersionName
+        val nextVersionCode = currentVersionCode + 1
+        val nextVersionName = incrementPatchVersion(currentVersionName)
+
+        versionProperties.setProperty("VERSION_CODE", nextVersionCode.toString())
+        versionProperties.setProperty("VERSION_NAME", nextVersionName)
         versionPropertiesFile.outputStream().use { output ->
             versionProperties.store(output, "RSS Reader build version")
         }
+
+        val buildScriptFile = project.buildFile
+        val updatedBuildScript = buildScriptFile.readText()
+            .replace(Regex("""val appVersionCode = \d+"""), "val appVersionCode = $nextVersionCode")
+            .replace(Regex("""val appVersionName = "[^"]+""""), """val appVersionName = "$nextVersionName"""")
+        buildScriptFile.writeText(updatedBuildScript)
     }
 }
 
