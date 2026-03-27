@@ -822,9 +822,9 @@ private fun buildReaderHtml(
               text-underline-offset: 0.14em;
             }
             h1 {
-              margin: 0 0 6px;
-              font-size: 22px;
-              line-height: 1.16;
+              margin: 0 0 3px;
+              font-size: 17px;
+              line-height: 1.12;
             }
             h2, h3 {
               margin: 1.4em 0 0.55em;
@@ -1119,6 +1119,11 @@ private fun ReaderFallbackContent(
     modifier: Modifier = Modifier,
     onOpenArticle: () -> Unit
 ) {
+    val compactHeaderTextStyle = MaterialTheme.typography.titleMedium.copy(
+        fontSize = 17.sp,
+        lineHeight = 19.sp
+    )
+
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -1128,7 +1133,7 @@ private fun ReaderFallbackContent(
     ) {
         Text(
             text = titleOverride?.ifBlank { article?.title.orEmpty() } ?: article?.title.orEmpty(),
-            style = MaterialTheme.typography.headlineSmall,
+            style = compactHeaderTextStyle,
             modifier = Modifier.clickable(onClick = onOpenArticle)
         )
         if (article?.publishedAt != null) {
