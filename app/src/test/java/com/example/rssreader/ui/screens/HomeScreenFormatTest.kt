@@ -72,6 +72,28 @@ class HomeScreenFormatTest {
     }
 
     @Test
+    fun formatStateChangeSummaryHandlesCounts() {
+        assertEquals(
+            "1 Artikel als gelesen markiert",
+            formatStateChangeSummary(
+                affectedCount = 1,
+                singularLabel = "Artikel",
+                pluralLabel = "Artikel",
+                suffix = "als gelesen markiert"
+            )
+        )
+        assertEquals(
+            "6 Artikel des Feeds als ungelesen markiert",
+            formatStateChangeSummary(
+                affectedCount = 6,
+                singularLabel = "Artikel des Feeds",
+                pluralLabel = "Artikel des Feeds",
+                suffix = "als ungelesen markiert"
+            )
+        )
+    }
+
+    @Test
     fun formatDiagnosticsSummaryIncludesKeyMaintenanceFields() {
         val summary = formatDiagnosticsSummary(
             snapshot = RepositoryDiagnosticsSnapshot(

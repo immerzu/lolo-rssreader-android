@@ -90,16 +90,16 @@ interface ArticleDao {
     suspend fun setFavorite(articleId: Long, isFavorite: Boolean)
 
     @Query("UPDATE articles SET isRead = 1 WHERE feedId = :feedId")
-    suspend fun markAllRead(feedId: Long)
+    suspend fun markAllRead(feedId: Long): Int
 
     @Query("UPDATE articles SET isRead = 0 WHERE feedId = :feedId")
-    suspend fun markAllUnread(feedId: Long)
+    suspend fun markAllUnread(feedId: Long): Int
 
     @Query("UPDATE articles SET isRead = 1")
-    suspend fun markAllReadGlobally()
+    suspend fun markAllReadGlobally(): Int
 
     @Query("UPDATE articles SET isRead = 0")
-    suspend fun markAllUnreadGlobally()
+    suspend fun markAllUnreadGlobally(): Int
 
     @Query("DELETE FROM articles WHERE isRead = 1 AND isFavorite = 0")
     suspend fun deleteAllRead(): Int

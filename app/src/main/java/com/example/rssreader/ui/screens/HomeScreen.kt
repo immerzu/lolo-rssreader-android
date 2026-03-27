@@ -285,8 +285,15 @@ fun HomeScreen(
                                 topMenuExpanded = false
                                 scope.launch {
                                     runCatching { repository.markAllReadGlobally() }
-                                        .onSuccess {
-                                            showInfoMessage("Alle Artikel als gelesen markiert")
+                                        .onSuccess { affectedCount ->
+                                            showInfoMessage(
+                                                formatStateChangeSummary(
+                                                    affectedCount = affectedCount,
+                                                    singularLabel = "Artikel",
+                                                    pluralLabel = "Artikel",
+                                                    suffix = "als gelesen markiert"
+                                                )
+                                            )
                                         }
                                         .onFailure {
                                             if (it !is CancellationException) {
@@ -305,8 +312,15 @@ fun HomeScreen(
                                 topMenuExpanded = false
                                 scope.launch {
                                     runCatching { repository.markAllUnreadGlobally() }
-                                        .onSuccess {
-                                            showInfoMessage("Alle Artikel als ungelesen markiert")
+                                        .onSuccess { affectedCount ->
+                                            showInfoMessage(
+                                                formatStateChangeSummary(
+                                                    affectedCount = affectedCount,
+                                                    singularLabel = "Artikel",
+                                                    pluralLabel = "Artikel",
+                                                    suffix = "als ungelesen markiert"
+                                                )
+                                            )
                                         }
                                         .onFailure {
                                             if (it !is CancellationException) {
@@ -460,8 +474,15 @@ fun HomeScreen(
                             selectedFeedMenuId = null
                             scope.launch {
                                 runCatching { repository.markAllRead(feedId) }
-                                    .onSuccess {
-                                        showInfoMessage("Alle Artikel des Feeds als gelesen markiert")
+                                    .onSuccess { affectedCount ->
+                                        showInfoMessage(
+                                            formatStateChangeSummary(
+                                                affectedCount = affectedCount,
+                                                singularLabel = "Artikel des Feeds",
+                                                pluralLabel = "Artikel des Feeds",
+                                                suffix = "als gelesen markiert"
+                                            )
+                                        )
                                     }
                                     .onFailure {
                                         if (it !is CancellationException) {
@@ -478,8 +499,15 @@ fun HomeScreen(
                             selectedFeedMenuId = null
                             scope.launch {
                                 runCatching { repository.markAllUnread(feedId) }
-                                    .onSuccess {
-                                        showInfoMessage("Alle Artikel des Feeds als ungelesen markiert")
+                                    .onSuccess { affectedCount ->
+                                        showInfoMessage(
+                                            formatStateChangeSummary(
+                                                affectedCount = affectedCount,
+                                                singularLabel = "Artikel des Feeds",
+                                                pluralLabel = "Artikel des Feeds",
+                                                suffix = "als ungelesen markiert"
+                                            )
+                                        )
                                     }
                                     .onFailure {
                                         if (it !is CancellationException) {
@@ -769,6 +797,21 @@ internal fun formatDeleteSummary(
         append(deletedCount)
         append(' ')
         append(if (deletedCount == 1) singularLabel else pluralLabel)
+        append(' ')
+        append(suffix)
+    }
+}
+
+internal fun formatStateChangeSummary(
+    affectedCount: Int,
+    singularLabel: String,
+    pluralLabel: String,
+    suffix: String
+): String {
+    return buildString {
+        append(affectedCount)
+        append(' ')
+        append(if (affectedCount == 1) singularLabel else pluralLabel)
         append(' ')
         append(suffix)
     }

@@ -277,22 +277,23 @@ class FeedRepository(
         runOnIo { articleDao.setFavorite(articleId, isFavorite) }
     }
 
-    suspend fun markAllRead(feedId: Long) {
-        runOnIo { articleDao.markAllRead(feedId) }
+    suspend fun markAllRead(feedId: Long): Int {
+        return runOnIo { articleDao.markAllRead(feedId) }
     }
 
-    suspend fun markAllUnread(feedId: Long) {
-        runOnIo { articleDao.markAllUnread(feedId) }
+    suspend fun markAllUnread(feedId: Long): Int {
+        return runOnIo { articleDao.markAllUnread(feedId) }
     }
 
-    suspend fun markAllReadGlobally() {
-        runOnIo { articleDao.markAllReadGlobally() }
+    suspend fun markAllReadGlobally(): Int {
+        return runOnIo { articleDao.markAllReadGlobally() }
     }
 
-    suspend fun markAllUnreadGlobally() {
-        runOnIo {
-            articleDao.markAllUnreadGlobally()
+    suspend fun markAllUnreadGlobally(): Int {
+        return runOnIo {
+            val affectedArticles = articleDao.markAllUnreadGlobally()
             feedDao.resetAllOpenedStates()
+            affectedArticles
         }
     }
 
