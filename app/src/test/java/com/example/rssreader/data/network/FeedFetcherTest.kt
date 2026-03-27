@@ -119,4 +119,36 @@ class FeedFetcherTest {
         assertEquals("Feed Inhalt", textFromReader)
         assertArrayEquals(bytes, bytesFromStream)
     }
+
+    @Test
+    fun fetchedFeedPayloadReaderStillSeesFullPayloadAfterStreamWasConsumed() {
+        val bytes = "Großer Feed".toByteArray(Charsets.UTF_8)
+        val payload = FetchedFeedPayload(
+            responseBytes = bytes,
+            charset = Charsets.UTF_8,
+            byteSize = bytes.size,
+            defensiveMode = true
+        )
+
+        payload.openStream().use { it.readBytes() }
+        val textFromReader = payload.openReader().use { it.readText() }
+
+        assertEquals("Großer Feed", textFromReader)
+    }
+
+    @Test
+    fun fetchedFeedPayloadStreamStillSeesFullPayloadAfterReaderWasConsumed() {
+        val bytes = "Noch ein Feed".toByteArray(Charsets.UTF_8)
+        val payload = FetchedFeedPayload(
+            responseBytes = bytes,
+            charset = Charsets.UTF_8,
+            byteSize = bytes.size,
+            defensiveMode = false
+        )
+
+        payload.openReader().use { it.readText() }
+        val bytesFromStream = payload.openStream().readBytes()
+
+        assertArrayEquals(bytes, bytesFromStream)
+    }
 }

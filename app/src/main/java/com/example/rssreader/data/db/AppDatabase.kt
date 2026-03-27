@@ -7,7 +7,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
     entities = [FeedEntity::class, ArticleEntity::class, ArticleFtsEntity::class],
-    version = 7,
+    version = 8,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -15,6 +15,12 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun articleDao(): ArticleDao
 
     companion object {
+        private val legacyFtsTriggerNames = listOf(
+            "articles_fts_ai",
+            "articles_fts_au",
+            "articles_fts_ad"
+        )
+
         val MIGRATION_1_2 = object : Migration(1, 2) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE feeds ADD COLUMN lastOpenedAt INTEGER")
@@ -49,6 +55,8 @@ abstract class AppDatabase : RoomDatabase() {
 
         val MIGRATION_6_7 = object : Migration(6, 7) {
             override fun migrate(db: SupportSQLiteDatabase) {
+                // Historical v7 introduced FTS plus trigger-based maintenance.
+                // MIGRATION_7_8 removes that trigger legacy again, leaving only manual sync.
                 db.execSQL(
                     """
                     CREATE VIRTUAL TABLE IF NOT EXISTS `articles_fts`
@@ -87,6 +95,16 @@ abstract class AppDatabase : RoomDatabase() {
                     END
                     """.trimIndent()
                 )
+            }
+        }
+
+        val MIGRATION_7_8 = object : Migration(7, 8) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // Manual repository-side FTS maintenance is the only supported runtime strategy.
+                // This migration removes the historical trigger-based side path from old v7 DBs.
+                legacyFtsTriggerNames.forEach { triggerName ->
+                    db.execSQL("DROP TRIGGER IF EXISTS $triggerName")
+                }
             }
         }
     }

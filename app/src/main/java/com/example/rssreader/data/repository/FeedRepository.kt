@@ -69,9 +69,9 @@ class FeedRepository(
     private val fetcher: FeedFetcher,
     private val parser: FeedParser
 ) {
-    // Fresh v7 databases never had the old FTS triggers, while migrated installs may still
-    // carry them from v6 -> v7. Manual repository-side FTS maintenance is the source of truth,
-    // so we drop any legacy triggers once and then stay on the explicit path everywhere.
+    // Fresh databases at the current schema version never create the old FTS triggers.
+    // MIGRATION_7_8 removes that historical v6 -> v7 trigger legacy from supported upgrades.
+    // Manual repository-side FTS maintenance remains the only intended runtime source of truth.
     @Volatile
     private var legacyFtsTriggersDisabled = false
     @Volatile
@@ -736,9 +736,8 @@ internal fun shouldDeleteStaleSearchIndexEntriesAfterDeletion(
 internal fun disableLegacyFtsMaintenanceTriggers(database: AppDatabase): Int {
     val writableDatabase = database.openHelper.writableDatabase
     var existingTriggers = 0
-    // Historical v6->v7 databases may still carry the old trigger-based FTS maintenance.
-    // Manual repository-side maintenance is the runtime source of truth, so we count and
-    // drop only these known legacy triggers once, leaving current search semantics unchanged.
+    // Supported databases should already be clean after MIGRATION_7_8. This is only a
+    // defensive fallback for unexpected legacy trigger state, without changing search semantics.
     writableDatabase.query(
         """
         SELECT name
