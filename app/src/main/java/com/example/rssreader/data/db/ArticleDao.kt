@@ -47,6 +47,9 @@ interface ArticleDao {
     @Query("SELECT * FROM articles WHERE id = :articleId LIMIT 1")
     suspend fun getById(articleId: Long): ArticleEntity?
 
+    @Query("SELECT COUNT(*) FROM articles")
+    suspend fun countArticles(): Int
+
     @Query("SELECT * FROM articles WHERE feedId = :feedId AND uniqueKey IN (:uniqueKeys)")
     suspend fun getByFeedAndUniqueKeys(feedId: Long, uniqueKeys: List<String>): List<ArticleEntity>
 
@@ -99,16 +102,16 @@ interface ArticleDao {
     suspend fun markAllUnreadGlobally()
 
     @Query("DELETE FROM articles WHERE isRead = 1 AND isFavorite = 0")
-    suspend fun deleteAllRead()
+    suspend fun deleteAllRead(): Int
 
     @Query("DELETE FROM articles WHERE feedId = :feedId AND isRead = 1 AND isFavorite = 0")
-    suspend fun deleteReadByFeedId(feedId: Long)
+    suspend fun deleteReadByFeedId(feedId: Long): Int
 
     @Query("DELETE FROM articles WHERE isFavorite = 0")
-    suspend fun deleteAllNonFavorite()
+    suspend fun deleteAllNonFavorite(): Int
 
     @Query("DELETE FROM articles WHERE feedId = :feedId AND isFavorite = 0")
-    suspend fun deleteByFeedId(feedId: Long)
+    suspend fun deleteByFeedId(feedId: Long): Int
 
     @Query(
         """

@@ -34,40 +34,40 @@ class FeedRepositoryArticleContentTest {
     }
 
     @Test
-    fun shouldRunSearchIndexMaintenanceSkipsUnchangedRefreshWrite() {
+    fun shouldSyncSearchIndexByFeedSkipsUnchangedRefreshWrite() {
         assertFalse(
-            shouldRunSearchIndexMaintenance(
+            shouldSyncSearchIndexByFeed(
                 insertedArticles = 0,
-                updatedArticles = 0,
-                searchIndexMayContainStaleRows = false
+                updatedArticles = 0
             )
         )
     }
 
     @Test
-    fun shouldRunSearchIndexMaintenanceRunsForChangedArticles() {
+    fun shouldSyncSearchIndexByFeedRunsForChangedArticles() {
         assertTrue(
-            shouldRunSearchIndexMaintenance(
+            shouldSyncSearchIndexByFeed(
                 insertedArticles = 1,
-                updatedArticles = 0,
-                searchIndexMayContainStaleRows = false
+                updatedArticles = 0
             )
         )
         assertTrue(
-            shouldRunSearchIndexMaintenance(
+            shouldSyncSearchIndexByFeed(
                 insertedArticles = 0,
-                updatedArticles = 1,
-                searchIndexMayContainStaleRows = false
+                updatedArticles = 1
             )
         )
     }
 
     @Test
-    fun shouldRunSearchIndexMaintenanceRunsWhenStaleRowsArePossible() {
+    fun shouldDeleteStaleSearchIndexEntriesOnlyRunsWhenStaleRowsArePossible() {
+        assertFalse(
+            shouldDeleteStaleSearchIndexEntries(
+                searchIndexMayContainStaleRows = false
+            )
+        )
         assertTrue(
-            shouldRunSearchIndexMaintenance(
-                insertedArticles = 0,
-                updatedArticles = 0,
+            shouldDeleteStaleSearchIndexEntries(
                 searchIndexMayContainStaleRows = true
             )
         )

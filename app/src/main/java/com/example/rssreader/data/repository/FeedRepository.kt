@@ -51,6 +51,16 @@ data class OpmlImportResult(
     val failedFeeds: Int = 0
 )
 
+data class RepositoryDiagnosticsSnapshot(
+    val feedCount: Int,
+    val articleCount: Int,
+    val searchIndexRowCount: Int,
+    val manualFtsMode: Boolean,
+    val lastRefreshRunStats: RefreshRunStats?,
+    val lastImportResult: OpmlImportResult?,
+    val debugLogFilePath: String?
+)
+
 class FeedRepository(
     private val database: AppDatabase,
     private val feedDao: FeedDao,
@@ -58,8 +68,15 @@ class FeedRepository(
     private val fetcher: FeedFetcher,
     private val parser: FeedParser
 ) {
+    // Fresh v7 databases never had the old FTS triggers, while migrated installs may still
+    // carry them from v6 -> v7. Manual repository-side FTS maintenance is the source of truth,
+    // so we drop any legacy triggers once and then stay on the explicit path everywhere.
     @Volatile
     private var legacyFtsTriggersDisabled = false
+    @Volatile
+    private var lastRefreshRunStats: RefreshRunStats? = null
+    @Volatile
+    private var lastImportResult: OpmlImportResult? = null
 
     fun observeFeedSummaries(): Flow<List<FeedSummary>> = feedDao.observeSummaries()
     fun observeFeeds(): Flow<List<FeedEntity>> = feedDao.observeFeeds()
@@ -125,6 +142,7 @@ class FeedRepository(
                 retryableFeeds = retryableFeeds,
                 newArticles = newArticles
             ).also { stats ->
+                lastRefreshRunStats = stats
                 DebugLogger.i(
                     TAG,
                     "refreshAll beendet: refreshed=${stats.refreshedFeeds}, failed=${stats.failedFeeds}, skipped=${stats.skippedFeeds}, new=${stats.newArticles}"
@@ -194,7 +212,9 @@ class FeedRepository(
                 failedFeeds = failedFeeds,
                 retryableFeeds = retryableFeeds,
                 newArticles = newArticles
-            )
+            ).also { stats ->
+                lastRefreshRunStats = stats
+            }
         }
     }
 
@@ -276,47 +296,63 @@ class FeedRepository(
         }
     }
 
-    suspend fun deleteAllReadEntries() {
-        runOnIo {
+    suspend fun deleteAllReadEntries(): Int {
+        return runOnIo {
             ensureManualSearchIndexMaintenance()
             database.withTransaction {
-                articleDao.deleteAllRead()
+                val deletedArticles = articleDao.deleteAllRead()
                 articleDao.deleteStaleSearchIndexEntries()
+                deletedArticles
             }
         }
     }
 
-    suspend fun deleteFeedReadEntries(feedId: Long) {
-        runOnIo {
+    suspend fun deleteFeedReadEntries(feedId: Long): Int {
+        return runOnIo {
             ensureManualSearchIndexMaintenance()
             database.withTransaction {
-                articleDao.deleteReadByFeedId(feedId)
+                val deletedArticles = articleDao.deleteReadByFeedId(feedId)
                 articleDao.deleteStaleSearchIndexEntries()
+                deletedArticles
             }
         }
     }
 
-    suspend fun deleteAllEntries() {
-        runOnIo {
+    suspend fun deleteAllEntries(): Int {
+        return runOnIo {
             ensureManualSearchIndexMaintenance()
             database.withTransaction {
-                articleDao.deleteAllNonFavorite()
+                val deletedArticles = articleDao.deleteAllNonFavorite()
                 articleDao.deleteStaleSearchIndexEntries()
+                deletedArticles
             }
         }
     }
 
-    suspend fun deleteFeedEntries(feedId: Long) {
-        runOnIo {
+    suspend fun deleteFeedEntries(feedId: Long): Int {
+        return runOnIo {
             ensureManualSearchIndexMaintenance()
             database.withTransaction {
-                articleDao.deleteByFeedId(feedId)
+                val deletedArticles = articleDao.deleteByFeedId(feedId)
                 articleDao.deleteStaleSearchIndexEntries()
+                deletedArticles
             }
         }
     }
 
     suspend fun feedCount(): Int = runOnIo { feedDao.countFeeds() }
+
+    suspend fun diagnosticsSnapshot(): RepositoryDiagnosticsSnapshot = runOnIo {
+        RepositoryDiagnosticsSnapshot(
+            feedCount = feedDao.countFeeds(),
+            articleCount = articleDao.countArticles(),
+            searchIndexRowCount = articleDao.countSearchIndexRows(),
+            manualFtsMode = true,
+            lastRefreshRunStats = lastRefreshRunStats,
+            lastImportResult = lastImportResult,
+            debugLogFilePath = DebugLogger.currentLogFilePath()
+        )
+    }
 
     suspend fun markFeedOpened(feedId: Long) {
         runOnIo { feedDao.markOpened(feedId, System.currentTimeMillis()) }
@@ -454,6 +490,7 @@ class FeedRepository(
             skippedFeeds = skippedFeeds,
             failedFeeds = failedFeeds
         ).also { result ->
+            lastImportResult = result
             DebugLogger.i(
                 TAG,
                 "Import beendet: imported=${result.importedFeeds}, skipped=${result.skippedFeeds}, failed=${result.failedFeeds}"
@@ -511,9 +548,12 @@ class FeedRepository(
         val articles = createArticles(feedId = feedId, parsed = parsed)
         if (articles.isEmpty()) {
             if (searchIndexMayContainStaleRows) {
-                articleDao.syncSearchIndexByFeed(feedId)
                 articleDao.deleteStaleSearchIndexEntries()
             }
+            DebugLogger.i(
+                TAG,
+                "article_write feedId=$feedId inserted=0 updated=0 unchanged=0 ftsMode=manual ftsSync=false ftsCleanup=$searchIndexMayContainStaleRows"
+            )
             return 0
         }
         val insertedIds = articleDao.insertAll(articles)
@@ -550,18 +590,19 @@ class FeedRepository(
             }
         }
         val insertedArticles = insertedIds.count { it != -1L }
-        val shouldMaintainSearchIndex = shouldRunSearchIndexMaintenance(
+        val shouldSyncSearchIndex = shouldSyncSearchIndexByFeed(
             insertedArticles = insertedArticles,
-            updatedArticles = updatedArticles,
-            searchIndexMayContainStaleRows = searchIndexMayContainStaleRows
+            updatedArticles = updatedArticles
         )
-        if (shouldMaintainSearchIndex) {
+        if (shouldSyncSearchIndex) {
             articleDao.syncSearchIndexByFeed(feedId)
+        }
+        if (shouldDeleteStaleSearchIndexEntries(searchIndexMayContainStaleRows)) {
             articleDao.deleteStaleSearchIndexEntries()
         }
         DebugLogger.i(
             TAG,
-            "article_write feedId=$feedId inserted=$insertedArticles updated=$updatedArticles unchanged=$unchangedArticles ftsMode=manual ftsSync=$shouldMaintainSearchIndex"
+            "article_write feedId=$feedId inserted=$insertedArticles updated=$updatedArticles unchanged=$unchangedArticles ftsMode=manual ftsSync=$shouldSyncSearchIndex ftsCleanup=$searchIndexMayContainStaleRows"
         )
         return insertedArticles
     }
@@ -670,12 +711,17 @@ internal fun hasSameStoredArticleContent(
         existingArticle.imageUrls == incomingArticle.imageUrls
 }
 
-internal fun shouldRunSearchIndexMaintenance(
+internal fun shouldSyncSearchIndexByFeed(
     insertedArticles: Int,
-    updatedArticles: Int,
+    updatedArticles: Int
+): Boolean {
+    return insertedArticles > 0 || updatedArticles > 0
+}
+
+internal fun shouldDeleteStaleSearchIndexEntries(
     searchIndexMayContainStaleRows: Boolean
 ): Boolean {
-    return insertedArticles > 0 || updatedArticles > 0 || searchIndexMayContainStaleRows
+    return searchIndexMayContainStaleRows
 }
 
 internal fun disableLegacyFtsMaintenanceTriggers(database: AppDatabase): Int {

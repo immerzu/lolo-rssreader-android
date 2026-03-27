@@ -6,7 +6,9 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.ExperimentalMaterialApi
 import androidx.compose.material.icons.Icons
@@ -39,10 +41,13 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.rssreader.data.errors.RssReaderException
 import com.example.rssreader.data.errors.toUserMessage
 import com.example.rssreader.data.repository.FeedRepository
+import com.example.rssreader.data.repository.RefreshRunStats
+import com.example.rssreader.data.repository.RepositoryDiagnosticsSnapshot
 import com.example.rssreader.data.settings.AppPreferences
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
@@ -83,6 +88,7 @@ fun HomeScreen(
     var pendingFeedActionId by rememberSaveable { mutableStateOf<Long?>(null) }
     var isMoveMode by rememberSaveable { mutableStateOf(false) }
     var busy by rememberSaveable { mutableStateOf(false) }
+    var diagnosticsText by rememberSaveable { mutableStateOf<String?>(null) }
     val snackbarHostState = remember { SnackbarHostState() }
     val showInfoMessage: (String) -> Unit = { message ->
         scope.launch {
@@ -98,15 +104,7 @@ fun HomeScreen(
             isRefreshing = true
             runCatching { repository.refreshAll() }
                 .onSuccess { stats ->
-                    showInfoMessage(
-                        buildString {
-                            append(stats.refreshedFeeds)
-                            append(" Feeds aktualisiert")
-                            append(", ")
-                            append(stats.newArticles)
-                            append(" neue Artikel")
-                        }
-                    )
+                    showInfoMessage(formatRefreshSummary(stats))
                 }
                 .onFailure {
                     if (it !is CancellationException) {
@@ -144,13 +142,7 @@ fun HomeScreen(
                 busy = true
                 runCatching { importOpml(context, repository, uri) }
                     .onSuccess { result ->
-                        showInfoMessage(
-                            buildString {
-                                append("Importiert: ${result.importedFeeds}")
-                                append(", uebersprungen: ${result.skippedFeeds}")
-                                append(", Fehler: ${result.failedFeeds}")
-                            }
-                        )
+                        showInfoMessage(formatImportSummary(result))
                     }
                 .onFailure {
                     if (it !is CancellationException) {
@@ -170,7 +162,7 @@ fun HomeScreen(
                 busy = true
                 runCatching { exportOpml(context, repository, uri) }
                     .onSuccess { exportedFeeds ->
-                        showInfoMessage("OPML exportiert, enthaltene Feeds: $exportedFeeds")
+                        showInfoMessage(formatExportSummary(exportedFeeds))
                     }
                 .onFailure {
                     if (it !is CancellationException) {
@@ -239,14 +231,18 @@ fun HomeScreen(
                         onDismissRequest = { topMenuExpanded = false }
                     ) {
                         DropdownMenuItem(
-                            text = { Text("Suchen", fontSize = 18.sp) },
+                            text = { Text("Suchen", fontSize = 14.sp) },
+                            modifier = compactMenuItemModifier(),
+                            contentPadding = compactMenuItemPadding(),
                             onClick = {
                                 topMenuExpanded = false
                                 onOpenSearch()
                             }
                         )
                         DropdownMenuItem(
-                            text = { Text("Einstellungen", fontSize = 18.sp) },
+                            text = { Text("Einstellungen", fontSize = 14.sp) },
+                            modifier = compactMenuItemModifier(),
+                            contentPadding = compactMenuItemPadding(),
                             onClick = {
                                 topMenuExpanded = false
                                 onOpenSettings()
@@ -260,23 +256,37 @@ fun HomeScreen(
                                     } else {
                                         "Verschiebemodus aktivieren"
                                     },
-                                    fontSize = 18.sp
+                                    fontSize = 14.sp
                                 )
                             },
+                            modifier = compactMenuItemModifier(),
+                            contentPadding = compactMenuItemPadding(),
                             onClick = {
                                 topMenuExpanded = false
                                 isMoveMode = !isMoveMode
                             }
                         )
                         DropdownMenuItem(
-                            text = { Text("Alle gelesen", fontSize = 18.sp) },
+                            text = { Text("Alle Feeds aktualisieren", fontSize = 14.sp) },
+                            enabled = !isRefreshing && !busy && !isMoveMode,
+                            modifier = compactMenuItemModifier(),
+                            contentPadding = compactMenuItemPadding(),
+                            onClick = {
+                                topMenuExpanded = false
+                                refreshAllFeeds()
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Alle Artikel als gelesen", fontSize = 14.sp) },
                             enabled = !isMoveMode,
+                            modifier = compactMenuItemModifier(),
+                            contentPadding = compactMenuItemPadding(),
                             onClick = {
                                 topMenuExpanded = false
                                 scope.launch {
                                     runCatching { repository.markAllReadGlobally() }
                                         .onSuccess {
-                                            showInfoMessage("Alle Eintraege als gelesen markiert")
+                                            showInfoMessage("Alle Artikel als gelesen markiert")
                                         }
                                         .onFailure {
                                             if (it !is CancellationException) {
@@ -287,14 +297,16 @@ fun HomeScreen(
                             }
                         )
                         DropdownMenuItem(
-                            text = { Text("Alle ungelesen", fontSize = 18.sp) },
+                            text = { Text("Alle Artikel als ungelesen", fontSize = 14.sp) },
                             enabled = !isMoveMode,
+                            modifier = compactMenuItemModifier(),
+                            contentPadding = compactMenuItemPadding(),
                             onClick = {
                                 topMenuExpanded = false
                                 scope.launch {
                                     runCatching { repository.markAllUnreadGlobally() }
                                         .onSuccess {
-                                            showInfoMessage("Alle Eintraege als ungelesen markiert")
+                                            showInfoMessage("Alle Artikel als ungelesen markiert")
                                         }
                                         .onFailure {
                                             if (it !is CancellationException) {
@@ -305,35 +317,68 @@ fun HomeScreen(
                             }
                         )
                         DropdownMenuItem(
-                            text = { Text("Importiere OPML", fontSize = 18.sp) },
+                            text = { Text("Gelesene Artikel loeschen", fontSize = 14.sp) },
                             enabled = !isMoveMode,
-                            onClick = {
-                                topMenuExpanded = false
-                                importLauncher.launch(arrayOf("text/xml", "application/xml", "*/*"))
-                            }
-                        )
-                        DropdownMenuItem(
-                            text = { Text("Exportiere OPML", fontSize = 18.sp) },
-                            enabled = !isMoveMode,
-                            onClick = {
-                                topMenuExpanded = false
-                                exportLauncher.launch("rss-reader-feeds.xml")
-                            }
-                        )
-                        DropdownMenuItem(
-                            text = { Text("Alle gelesenen Eintraege loeschen", fontSize = 18.sp) },
-                            enabled = !isMoveMode,
+                            modifier = compactMenuItemModifier(),
+                            contentPadding = compactMenuItemPadding(),
                             onClick = {
                                 topMenuExpanded = false
                                 pendingHomeAction = HomeAction.DELETE_READ
                             }
                         )
                         DropdownMenuItem(
-                            text = { Text("Alle Eintraege loeschen", fontSize = 18.sp) },
+                            text = { Text("Nicht favorisierte Artikel loeschen", fontSize = 14.sp) },
                             enabled = !isMoveMode,
+                            modifier = compactMenuItemModifier(),
+                            contentPadding = compactMenuItemPadding(),
                             onClick = {
                                 topMenuExpanded = false
                                 pendingHomeAction = HomeAction.DELETE_ALL
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("OPML importieren", fontSize = 14.sp) },
+                            enabled = !isMoveMode,
+                            modifier = compactMenuItemModifier(),
+                            contentPadding = compactMenuItemPadding(),
+                            onClick = {
+                                topMenuExpanded = false
+                                importLauncher.launch(arrayOf("text/xml", "application/xml", "*/*"))
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("OPML exportieren", fontSize = 14.sp) },
+                            enabled = !isMoveMode,
+                            modifier = compactMenuItemModifier(),
+                            contentPadding = compactMenuItemPadding(),
+                            onClick = {
+                                topMenuExpanded = false
+                                exportLauncher.launch("rss-reader-feeds.xml")
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Technischen Status anzeigen", fontSize = 14.sp) },
+                            enabled = !busy,
+                            modifier = compactMenuItemModifier(),
+                            contentPadding = compactMenuItemPadding(),
+                            onClick = {
+                                topMenuExpanded = false
+                                scope.launch {
+                                    busy = true
+                                    runCatching { repository.diagnosticsSnapshot() }
+                                        .onSuccess { snapshot ->
+                                            diagnosticsText = formatDiagnosticsSummary(
+                                                snapshot = snapshot,
+                                                versionLabel = currentAppVersionLabel(context)
+                                            )
+                                        }
+                                        .onFailure {
+                                            if (it !is CancellationException) {
+                                                errorMessage = it.toUserMessage("Diagnose konnte nicht geladen werden.")
+                                            }
+                                        }
+                                    busy = false
+                                }
                             }
                         )
                     }
@@ -398,7 +443,7 @@ fun HomeScreen(
                             scope.launch {
                                 runCatching { repository.refreshFeed(feedId) }
                                     .onSuccess { newArticles ->
-                                        showInfoMessage("Feed aktualisiert, $newArticles neue Artikel")
+                                        showInfoMessage(formatFeedRefreshSummary(newArticles))
                                     }
                                     .onFailure {
                                         if (it !is CancellationException) {
@@ -408,7 +453,7 @@ fun HomeScreen(
                             }
                         }
                     ) {
-                        Text("Aktualisieren", fontSize = 18.sp)
+                        Text("Feed aktualisieren", fontSize = 18.sp)
                     }
                     TextButton(
                         onClick = {
@@ -416,7 +461,7 @@ fun HomeScreen(
                             scope.launch {
                                 runCatching { repository.markAllRead(feedId) }
                                     .onSuccess {
-                                        showInfoMessage("Feed als gelesen markiert")
+                                        showInfoMessage("Alle Artikel des Feeds als gelesen markiert")
                                     }
                                     .onFailure {
                                         if (it !is CancellationException) {
@@ -426,7 +471,7 @@ fun HomeScreen(
                             }
                         }
                     ) {
-                        Text("Als gelesen markieren", fontSize = 18.sp)
+                        Text("Alle Artikel als gelesen", fontSize = 18.sp)
                     }
                     TextButton(
                         onClick = {
@@ -434,7 +479,7 @@ fun HomeScreen(
                             scope.launch {
                                 runCatching { repository.markAllUnread(feedId) }
                                     .onSuccess {
-                                        showInfoMessage("Feed als ungelesen markiert")
+                                        showInfoMessage("Alle Artikel des Feeds als ungelesen markiert")
                                     }
                                     .onFailure {
                                         if (it !is CancellationException) {
@@ -444,7 +489,7 @@ fun HomeScreen(
                             }
                         }
                     ) {
-                        Text("Als ungelesen markieren", fontSize = 18.sp)
+                        Text("Alle Artikel als ungelesen", fontSize = 18.sp)
                     }
                     TextButton(
                         onClick = {
@@ -453,7 +498,7 @@ fun HomeScreen(
                             pendingFeedAction = FeedConfirmAction.DELETE_READ
                         }
                     ) {
-                        Text("Alle gelesenen Eintraege loeschen", fontSize = 18.sp)
+                        Text("Gelesene Artikel loeschen", fontSize = 18.sp)
                     }
                     TextButton(
                         onClick = {
@@ -462,7 +507,7 @@ fun HomeScreen(
                             pendingFeedAction = FeedConfirmAction.DELETE_ALL
                         }
                     ) {
-                        Text("Alle Eintraege loeschen", fontSize = 18.sp)
+                        Text("Nicht favorisierte Artikel loeschen", fontSize = 18.sp)
                     }
                     TextButton(
                         onClick = {
@@ -544,11 +589,21 @@ fun HomeScreen(
                                     FeedConfirmAction.DELETE_ALL -> repository.deleteFeedEntries(currentFeedId)
                                     FeedConfirmAction.DELETE_FEED -> repository.deleteFeed(currentFeedId)
                                 }
-                            }.onSuccess {
+                            }.onSuccess { result ->
                                 showInfoMessage(
                                     when (currentAction) {
-                                        FeedConfirmAction.DELETE_READ -> "Gelesene Eintraege des Feeds geloescht"
-                                        FeedConfirmAction.DELETE_ALL -> "Eintraege des Feeds geloescht"
+                                        FeedConfirmAction.DELETE_READ -> formatDeleteSummary(
+                                            deletedCount = result as Int,
+                                            singularLabel = "gelesener Eintrag",
+                                            pluralLabel = "gelesene Eintraege",
+                                            suffix = "des Feeds geloescht"
+                                        )
+                                        FeedConfirmAction.DELETE_ALL -> formatDeleteSummary(
+                                            deletedCount = result as Int,
+                                            singularLabel = "Eintrag",
+                                            pluralLabel = "Eintraege",
+                                            suffix = "des Feeds geloescht"
+                                        )
                                         FeedConfirmAction.DELETE_FEED -> "Feed geloescht"
                                     }
                                 )
@@ -600,11 +655,21 @@ fun HomeScreen(
                                     HomeAction.DELETE_READ -> repository.deleteAllReadEntries()
                                     HomeAction.DELETE_ALL -> repository.deleteAllEntries()
                                 }
-                            }.onSuccess {
+                            }.onSuccess { deletedCount ->
                                 showInfoMessage(
                                     when (currentAction) {
-                                        HomeAction.DELETE_READ -> "Gelesene Eintraege geloescht"
-                                        HomeAction.DELETE_ALL -> "Eintraege geloescht"
+                                        HomeAction.DELETE_READ -> formatDeleteSummary(
+                                            deletedCount = deletedCount,
+                                            singularLabel = "gelesener Eintrag",
+                                            pluralLabel = "gelesene Eintraege",
+                                            suffix = "geloescht"
+                                        )
+                                        HomeAction.DELETE_ALL -> formatDeleteSummary(
+                                            deletedCount = deletedCount,
+                                            singularLabel = "Eintrag",
+                                            pluralLabel = "Eintraege",
+                                            suffix = "geloescht"
+                                        )
                                     }
                                 )
                             }.onFailure {
@@ -626,6 +691,19 @@ fun HomeScreen(
         )
     }
 
+    diagnosticsText?.let { message ->
+        AlertDialog(
+            onDismissRequest = { diagnosticsText = null },
+            title = { Text("Diagnose") },
+            text = { Text(message) },
+            confirmButton = {
+                TextButton(onClick = { diagnosticsText = null }) {
+                    Text("OK")
+                }
+            }
+        )
+    }
+
     errorMessage?.let { message ->
         AlertDialog(
             onDismissRequest = { errorMessage = null },
@@ -639,6 +717,93 @@ fun HomeScreen(
         )
     }
 
+}
+
+private fun compactMenuItemPadding(): PaddingValues {
+    return PaddingValues(horizontal = 12.dp, vertical = 0.dp)
+}
+
+private fun compactMenuItemModifier(): Modifier {
+    return Modifier.heightIn(min = 30.dp)
+}
+
+internal fun formatRefreshSummary(stats: RefreshRunStats): String {
+    return buildString {
+        append("Aktualisierung beendet: ")
+        append(stats.refreshedFeeds)
+        append(" aktualisiert, ")
+        append(stats.newArticles)
+        append(" neu")
+        if (stats.failedFeeds > 0) {
+            append(", ")
+            append(stats.failedFeeds)
+            append(" Fehler")
+        }
+        if (stats.skippedFeeds > 0) {
+            append(", ")
+            append(stats.skippedFeeds)
+            append(" uebersprungen")
+        }
+    }
+}
+
+internal fun formatFeedRefreshSummary(newArticles: Int): String {
+    return "Feed aktualisiert: $newArticles neue Artikel"
+}
+
+internal fun formatImportSummary(result: com.example.rssreader.data.repository.OpmlImportResult): String {
+    return "OPML importiert: ${result.importedFeeds} importiert, ${result.skippedFeeds} uebersprungen, ${result.failedFeeds} Fehler"
+}
+
+internal fun formatExportSummary(exportedFeeds: Int): String {
+    return "OPML exportiert: $exportedFeeds Feeds"
+}
+
+internal fun formatDeleteSummary(
+    deletedCount: Int,
+    singularLabel: String,
+    pluralLabel: String,
+    suffix: String
+): String {
+    return buildString {
+        append(deletedCount)
+        append(' ')
+        append(if (deletedCount == 1) singularLabel else pluralLabel)
+        append(' ')
+        append(suffix)
+    }
+}
+
+internal fun formatDiagnosticsSummary(
+    snapshot: RepositoryDiagnosticsSnapshot,
+    versionLabel: String
+): String {
+    return buildString {
+        appendLine("Version: $versionLabel")
+        appendLine("Feeds: ${snapshot.feedCount}")
+        appendLine("Artikel: ${snapshot.articleCount}")
+        appendLine("FTS-Zeilen: ${snapshot.searchIndexRowCount}")
+        appendLine("FTS-Modus: ${if (snapshot.manualFtsMode) "manuell" else "unbekannt"}")
+        snapshot.lastRefreshRunStats?.let { stats ->
+            appendLine(
+                "Letzte Aktualisierung: refreshed=${stats.refreshedFeeds}, failed=${stats.failedFeeds}, skipped=${stats.skippedFeeds}, new=${stats.newArticles}"
+            )
+        }
+        snapshot.lastImportResult?.let { result ->
+            appendLine(
+                "Letzter Import: imported=${result.importedFeeds}, skipped=${result.skippedFeeds}, failed=${result.failedFeeds}"
+            )
+        }
+        snapshot.debugLogFilePath?.takeIf { it.isNotBlank() }?.let { path ->
+            append("Debug-Log: ")
+            append(path)
+        }
+    }.trim()
+}
+
+private fun currentAppVersionLabel(context: Context): String {
+    val packageInfo = context.packageManager.getPackageInfo(context.packageName, 0)
+    return "${packageInfo.versionName.orEmpty()} (${packageInfo.longVersionCode})"
 }
 
 private suspend fun importOpml(

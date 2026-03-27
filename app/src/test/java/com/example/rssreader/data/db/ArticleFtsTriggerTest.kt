@@ -229,6 +229,59 @@ class ArticleFtsTriggerTest {
         }
     }
 
+    @Test
+    fun migratedDatabaseManualSyncKeepsUpdatedRowsSearchable() = runBlocking {
+        database.close()
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val databaseName = "fts-migration-update-${System.nanoTime()}.db"
+        val databasePath = context.getDatabasePath(databaseName)
+        databasePath.parentFile?.mkdirs()
+        if (databasePath.exists()) {
+            databasePath.delete()
+        }
+
+        createVersion6Database(databasePath.absolutePath)
+
+        val migratedDatabase = Room.databaseBuilder(context, AppDatabase::class.java, databaseName)
+            .allowMainThreadQueries()
+            .addMigrations(AppDatabase.MIGRATION_6_7)
+            .build()
+
+        try {
+            val migratedArticleDao = migratedDatabase.articleDao()
+            assertEquals(3, migratedArticleDao.countFtsMaintenanceTriggers())
+            disableLegacyFtsMaintenanceTriggers(migratedDatabase)
+
+            migratedArticleDao.updateByUniqueKey(
+                feedId = 1L,
+                uniqueKey = "a-1",
+                title = "Neu Titel",
+                link = "https://example.com/articles/a-1",
+                publishedAt = 1_700_000_000_000,
+                plainText = "Bangkok Reise",
+                contentHtml = "<p>Bangkok Reise</p>",
+                imageUrls = ""
+            )
+            migratedArticleDao.syncSearchIndexByFeed(1L)
+
+            val oldResults = migratedArticleDao.searchArticles(
+                query = "Thailand",
+                matchQuery = "thailand*"
+            ).first()
+            val updatedResults = migratedArticleDao.searchArticles(
+                query = "Bangkok",
+                matchQuery = "bangkok*"
+            ).first()
+
+            assertTrue(oldResults.isEmpty())
+            assertEquals(1, updatedResults.size)
+            assertEquals("Neu Titel", updatedResults.single().articleTitle)
+        } finally {
+            migratedDatabase.close()
+            context.deleteDatabase(databaseName)
+        }
+    }
+
     private fun createVersion6Database(path: String) {
         SQLiteDatabase.openOrCreateDatabase(path, null).use { sqliteDb ->
             sqliteDb.execSQL(
