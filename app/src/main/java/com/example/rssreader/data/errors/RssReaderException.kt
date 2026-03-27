@@ -62,6 +62,10 @@ sealed class RssReaderException(
         userMessage = "Die Datei ist kein OPML-Export und enthaelt keine direkt importierbare Feed-Adresse."
     )
 
+    class ImportFileTooLarge(val actualSizeBytes: Long, val limitBytes: Long) : RssReaderException(
+        userMessage = "Die Importdatei ist fuer eine sichere Verarbeitung zu gross."
+    )
+
     class FileReadFailed(cause: Throwable? = null) : RssReaderException(
         userMessage = "Die gewaehlte Datei konnte nicht gelesen werden.",
         cause = cause

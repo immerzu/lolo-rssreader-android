@@ -2,6 +2,7 @@ package com.example.rssreader.data.repository
 
 import android.database.sqlite.SQLiteConstraintException
 import android.util.Log
+import androidx.room.withTransaction
 import com.example.rssreader.data.db.ArticleDao
 import com.example.rssreader.data.db.ArticleEntity
 import com.example.rssreader.data.db.ArticleSearchResult
@@ -15,28 +16,14 @@ import com.example.rssreader.data.network.FeedParser
 import com.example.rssreader.data.opml.OpmlCodec
 import com.example.rssreader.data.opml.OpmlFeedEntry
 import com.example.rssreader.debug.DebugLogger
-import java.io.ByteArrayInputStream
+import kotlinx.coroutines.CoroutineDispatcher
 import java.io.InputStream
 import java.io.OutputStream
 import java.nio.charset.StandardCharsets
-import androidx.room.withTransaction
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.withContext
-
-private val importableFeedSelfLinkRegex = Regex(
-    """<(?:(?:\w+):)?link\b[^>]*\brel\s*=\s*["']self["'][^>]*\bhref\s*=\s*["']([^"']+)["']|<(?:(?:\w+):)?link\b[^>]*\bhref\s*=\s*["']([^"']+)["'][^>]*\brel\s*=\s*["']self["']""",
-    setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL)
-)
-private val importableFeedTypedLinkRegex = Regex(
-    """<(?:(?:\w+):)?link\b[^>]*\bhref\s*=\s*["']([^"']+)["'][^>]*\btype\s*=\s*["'][^"']*(?:rss|atom|xml)[^"']*["']|<(?:(?:\w+):)?link\b[^>]*\btype\s*=\s*["'][^"']*(?:rss|atom|xml)[^"']*["'][^>]*\bhref\s*=\s*["']([^"']+)["']""",
-    setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL)
-)
-private val importableFeedTextLinkRegex = Regex(
-    """<link>\s*(https?://[^<\s]+)\s*</link>""",
-    setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL)
-)
-private val legacyFtsTriggerNames = listOf("articles_fts_ai", "articles_fts_au", "articles_fts_ad")
+private const val REFRESH_PARALLELISM = 2
 
 data class RefreshRunStats(
     val refreshedFeeds: Int = 0,
@@ -67,17 +54,19 @@ class FeedRepository(
     private val feedDao: FeedDao,
     private val articleDao: ArticleDao,
     private val fetcher: FeedFetcher,
-    private val parser: FeedParser
+    private val parser: FeedParser,
+    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
 ) {
     // Fresh databases at the current schema version never create the old FTS triggers.
     // MIGRATION_7_8 removes that historical v6 -> v7 trigger legacy from supported upgrades.
     // Manual repository-side FTS maintenance remains the only intended runtime source of truth.
     @Volatile
-    private var legacyFtsTriggersDisabled = false
-    @Volatile
     private var lastRefreshRunStats: RefreshRunStats? = null
     @Volatile
     private var lastImportResult: OpmlImportResult? = null
+    private val ftsMaintenance = FtsMaintenance(database) { droppedTriggers ->
+        DebugLogger.i(TAG, "fts_mode mode=manual droppedTriggers=$droppedTriggers")
+    }
 
     fun observeFeedSummaries(): Flow<List<FeedSummary>> = feedDao.observeSummaries()
     fun observeFeeds(): Flow<List<FeedEntity>> = feedDao.observeFeeds()
@@ -101,7 +90,7 @@ class FeedRepository(
 
     suspend fun addFeed(url: String, customTitle: String?, wifiOnly: Boolean): Long =
         runOnIo {
-            val parsed = parser.parse(fetcher.fetch(url), url)
+            val parsed = fetchAndParseFeed(url)
             try {
                 insertParsedFeed(
                     url = url,
@@ -117,32 +106,7 @@ class FeedRepository(
     suspend fun refreshAll(): RefreshRunStats {
         return runOnIo {
             DebugLogger.i(TAG, "refreshAll gestartet")
-            var refreshedFeeds = 0
-            var skippedFeeds = 0
-            var failedFeeds = 0
-            var retryableFeeds = 0
-            var newArticles = 0
-            feedDao.getAll().forEach { feed ->
-                runCatching { refreshFeedInternal(feed) }
-                    .onSuccess { insertedArticles ->
-                        refreshedFeeds += 1
-                        newArticles += insertedArticles
-                    }
-                    .onFailure { throwable ->
-                        failedFeeds += 1
-                        if (throwable.isRetryableRefreshFailure()) {
-                            retryableFeeds += 1
-                        }
-                        Log.w(TAG, "Feed-Aktualisierung fehlgeschlagen: ${feed.url}", throwable)
-                    }
-            }
-            RefreshRunStats(
-                refreshedFeeds = refreshedFeeds,
-                skippedFeeds = skippedFeeds,
-                failedFeeds = failedFeeds,
-                retryableFeeds = retryableFeeds,
-                newArticles = newArticles
-            ).let { stats ->
+            refreshFeedsBounded(feedDao.getAll()).let { stats ->
                 rememberRefreshRunStats(stats).also {
                     DebugLogger.i(
                         TAG,
@@ -169,7 +133,7 @@ class FeedRepository(
     suspend fun refreshFeedIcon(feedId: Long) {
         runOnIo {
             val feed = feedDao.getById(feedId) ?: return@runOnIo
-            val parsed = parser.parse(fetcher.fetch(feed.url), feed.url)
+            val parsed = fetchAndParseFeed(feed.url)
             feedDao.update(
                 feed.copy(
                     siteUrl = parsed.siteUrl ?: feed.siteUrl,
@@ -182,38 +146,22 @@ class FeedRepository(
 
     suspend fun refreshAllInBackground(isUnmeteredNetwork: Boolean): RefreshRunStats {
         return runOnIo {
-            var refreshedFeeds = 0
+            val feeds = feedDao.getAll()
+            val refreshableFeeds = mutableListOf<FeedEntity>()
             var skippedFeeds = 0
-            var failedFeeds = 0
-            var retryableFeeds = 0
-            var newArticles = 0
 
-            feedDao.getAll().forEach { feed ->
+            feeds.forEach { feed ->
                 if (feed.wifiOnly && !isUnmeteredNetwork) {
                     skippedFeeds += 1
-                    return@forEach
+                } else {
+                    refreshableFeeds += feed
                 }
-
-                runCatching { refreshFeedInternal(feed) }
-                    .onSuccess { insertedArticles ->
-                        refreshedFeeds += 1
-                        newArticles += insertedArticles
-                    }
-                    .onFailure { throwable ->
-                        failedFeeds += 1
-                        if (throwable.isRetryableRefreshFailure()) {
-                            retryableFeeds += 1
-                        }
-                        Log.w(TAG, "Hintergrund-Aktualisierung fehlgeschlagen: ${feed.url}", throwable)
-                    }
             }
 
-            RefreshRunStats(
-                refreshedFeeds = refreshedFeeds,
+            refreshFeedsBounded(
+                feeds = refreshableFeeds,
                 skippedFeeds = skippedFeeds,
-                failedFeeds = failedFeeds,
-                retryableFeeds = retryableFeeds,
-                newArticles = newArticles
+                logPrefix = "Hintergrund-Aktualisierung"
             ).let(::rememberRefreshRunStats)
         }
     }
@@ -221,7 +169,7 @@ class FeedRepository(
     suspend fun updateFeed(feedId: Long, url: String, customTitle: String?, wifiOnly: Boolean) {
         runOnIo {
             val existingFeed = feedDao.getById(feedId) ?: return@runOnIo
-            val parsed = parser.parse(fetcher.fetch(url), url)
+            val parsed = fetchAndParseFeed(url)
             val urlChanged = existingFeed.url != url
             ensureManualSearchIndexMaintenance()
 
@@ -372,23 +320,15 @@ class FeedRepository(
 
     suspend fun importOpml(inputStream: InputStream): OpmlImportResult = runOnIo {
         DebugLogger.i(TAG, "Import gestartet")
-        val importBytes = inputStream.readBytes()
-        val entries = runCatching {
-            OpmlCodec.parse(ByteArrayInputStream(importBytes))
-        }.getOrElse { throwable ->
-            if (throwable is RssReaderException.InvalidXml) {
-                emptyList()
-            } else {
-                throw throwable
-            }
-        }
+        val importBytes = readImportBytes(inputStream)
+        val entries = OpmlImportSupport.parseEntriesOrEmpty(importBytes)
         var importedFeeds = 0
         var skippedFeeds = 0
         var failedFeeds = 0
 
         if (entries.isEmpty()) {
             val xml = importBytes.toString(StandardCharsets.UTF_8)
-            val feedUrl = detectImportableFeedUrl(xml)
+            val feedUrl = OpmlImportSupport.detectImportableFeedUrl(xml)
             val parsed = runCatching { parser.parse(xml, feedUrl) }.getOrElse { throwable ->
                 if (throwable is RssReaderException.InvalidXml) {
                     throw RssReaderException.UnsupportedImportFile()
@@ -396,22 +336,20 @@ class FeedRepository(
                 throw throwable
             }
             if (feedUrl.isNullOrBlank()) {
-                return@runOnIo rememberImportResult(
-                    OpmlImportResult(
+                return@runOnIo rememberImportCounts(
                     importedFeeds = 0,
                     skippedFeeds = 0,
                     failedFeeds = 0
-                )).also {
+                ).also {
                     DebugLogger.w(TAG, "Importdatei enthielt keine erkennbare Feed-URL")
                 }
             }
             if (feedDao.existsByUrl(feedUrl)) {
-                return@runOnIo rememberImportResult(
-                    OpmlImportResult(
+                return@runOnIo rememberImportCounts(
                     importedFeeds = 0,
                     skippedFeeds = 1,
                     failedFeeds = 0
-                )).also {
+                ).also {
                     DebugLogger.i(TAG, "Import uebersprungen, Feed existiert bereits: $feedUrl")
                 }
             }
@@ -425,16 +363,20 @@ class FeedRepository(
                 )
             }.fold(
                 onSuccess = {
-                    rememberImportResult(
-                        OpmlImportResult(importedFeeds = 1, skippedFeeds = 0, failedFeeds = 0)
+                    rememberImportCounts(
+                        importedFeeds = 1,
+                        skippedFeeds = 0,
+                        failedFeeds = 0
                     ).also {
                         DebugLogger.i(TAG, "Einzelner Feed aus XML importiert: $feedUrl")
                     }
                 },
                 onFailure = { throwable ->
                     if (throwable is SQLiteConstraintException) {
-                        rememberImportResult(
-                            OpmlImportResult(importedFeeds = 0, skippedFeeds = 1, failedFeeds = 0)
+                        rememberImportCounts(
+                            importedFeeds = 0,
+                            skippedFeeds = 1,
+                            failedFeeds = 0
                         ).also {
                             DebugLogger.i(TAG, "Import uebersprungen, Feed existiert bereits: $feedUrl")
                         }
@@ -464,12 +406,12 @@ class FeedRepository(
             }
         }
 
-        OpmlImportResult(
+        rememberImportCounts(
             importedFeeds = importedFeeds,
             skippedFeeds = skippedFeeds,
             failedFeeds = failedFeeds
         ).let { result ->
-            rememberImportResult(result).also {
+            result.also {
             DebugLogger.i(
                 TAG,
                 "Import beendet: imported=${result.importedFeeds}, skipped=${result.skippedFeeds}, failed=${result.failedFeeds}"
@@ -494,7 +436,7 @@ class FeedRepository(
     }
 
     private suspend fun refreshFeedInternal(feed: FeedEntity): Int {
-        val parsed = parser.parse(fetcher.fetch(feed.url), feed.url)
+        val parsed = fetchAndParseFeed(feed.url)
         feedDao.update(
             feed.copy(
                 title = parsed.title,
@@ -605,8 +547,56 @@ class FeedRepository(
         }
     }
 
-    private suspend fun <T> runOnIo(block: suspend () -> T): T = withContext(Dispatchers.IO) {
+    private suspend fun <T> runOnIo(block: suspend () -> T): T = withContext(ioDispatcher) {
         block()
+    }
+
+    private suspend fun fetchAndParseFeed(url: String): com.example.rssreader.data.network.ParsedFeed {
+        return parser.parse(fetcher.fetch(url), url)
+    }
+
+    private fun readImportBytes(inputStream: InputStream): ByteArray {
+        return OpmlImportSupport.readImportBytes(inputStream)
+    }
+
+    private suspend fun refreshFeedsBounded(
+        feeds: List<FeedEntity>,
+        skippedFeeds: Int = 0,
+        logPrefix: String = "Feed-Aktualisierung"
+    ): RefreshRunStats {
+        val coordinator = RefreshCoordinator<FeedEntity>(
+            parallelism = REFRESH_PARALLELISM,
+            task = { feed: FeedEntity ->
+                RefreshFeedOutcome(
+                    insertedArticles = refreshFeedInternal(feed),
+                    retryableFailure = false
+                )
+            },
+            onFailure = { feed: FeedEntity, throwable: Throwable ->
+                buildRefreshFailureOutcome(
+                    feed = feed,
+                    logPrefix = logPrefix,
+                    throwable = throwable
+                )
+            }
+        )
+        val outcomes = coordinator.run(feeds)
+        return buildRefreshRunStats(
+            outcomes = outcomes,
+            skippedFeeds = skippedFeeds
+        )
+    }
+
+    private fun buildRefreshFailureOutcome(
+        feed: FeedEntity,
+        logPrefix: String,
+        throwable: Throwable
+    ): RefreshFeedOutcome {
+        Log.w(TAG, "$logPrefix fehlgeschlagen: ${feed.url}", throwable)
+        return RefreshFeedOutcome(
+            insertedArticles = null,
+            retryableFailure = throwable.isRetryableRefreshFailure()
+        )
     }
 
     private suspend fun deleteArticlesWithSearchCleanup(
@@ -627,18 +617,27 @@ class FeedRepository(
         return result
     }
 
+    private fun rememberImportCounts(
+        importedFeeds: Int,
+        skippedFeeds: Int,
+        failedFeeds: Int
+    ): OpmlImportResult {
+        return rememberImportResult(
+            OpmlImportResult(
+                importedFeeds = importedFeeds,
+                skippedFeeds = skippedFeeds,
+                failedFeeds = failedFeeds
+            )
+        )
+    }
+
     private fun rememberRefreshRunStats(stats: RefreshRunStats): RefreshRunStats {
         lastRefreshRunStats = stats
         return stats
     }
 
     private suspend fun ensureManualSearchIndexMaintenance() {
-        if (legacyFtsTriggersDisabled) {
-            return
-        }
-        val droppedTriggers = disableLegacyFtsMaintenanceTriggers(database)
-        legacyFtsTriggersDisabled = true
-        DebugLogger.i(TAG, "fts_mode mode=manual droppedTriggers=$droppedTriggers")
+        ftsMaintenance.ensureManualMode()
     }
 
     private suspend fun insertParsedFeed(
@@ -733,29 +732,6 @@ internal fun shouldDeleteStaleSearchIndexEntriesAfterDeletion(
     return deletedArticles > 0
 }
 
-internal fun disableLegacyFtsMaintenanceTriggers(database: AppDatabase): Int {
-    val writableDatabase = database.openHelper.writableDatabase
-    var existingTriggers = 0
-    // Supported databases should already be clean after MIGRATION_7_8. This is only a
-    // defensive fallback for unexpected legacy trigger state, without changing search semantics.
-    writableDatabase.query(
-        """
-        SELECT name
-        FROM sqlite_master
-        WHERE type = 'trigger'
-          AND name IN (${legacyFtsTriggerNames.joinToString(",") { "'$it'" }})
-        """.trimIndent()
-    ).use { cursor ->
-        while (cursor.moveToNext()) {
-            existingTriggers += 1
-        }
-    }
-    legacyFtsTriggerNames.forEach { triggerName ->
-        writableDatabase.execSQL("DROP TRIGGER IF EXISTS $triggerName")
-    }
-    return existingTriggers
-}
-
 private fun Throwable.isRetryableRefreshFailure(): Boolean {
     return when (this) {
         is RssReaderException.Timeout,
@@ -767,34 +743,5 @@ private fun Throwable.isRetryableRefreshFailure(): Boolean {
     }
 }
 
-internal fun detectImportableFeedUrl(xml: String): String? {
-    return sequenceOf(
-        importableFeedSelfLinkRegex.extractHttpUrl(xml),
-        importableFeedTypedLinkRegex.extractHttpUrl(xml),
-        importableFeedTextLinkRegex.extractHttpUrl(xml)?.takeIf(::looksLikeFeedUrl)
-    ).firstOrNull { !it.isNullOrBlank() }
-}
-
-private fun Regex.extractHttpUrl(xml: String): String? {
-    return find(xml)
-        ?.groupValues
-        ?.drop(1)
-        ?.firstOrNull { it.isNotBlank() }
-        ?.trim()
-        ?.takeIf(::isHttpUrl)
-}
-
-private fun isHttpUrl(url: String): Boolean {
-    return url.startsWith("http://", ignoreCase = true) ||
-        url.startsWith("https://", ignoreCase = true)
-}
-
-private fun looksLikeFeedUrl(url: String): Boolean {
-    val normalized = url.lowercase()
-    return "/feed" in normalized ||
-        ".xml" in normalized ||
-        "rss" in normalized ||
-        "atom" in normalized
-}
 
 

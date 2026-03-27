@@ -151,4 +151,19 @@ class FeedFetcherTest {
 
         assertArrayEquals(bytes, bytesFromStream)
     }
+
+    @Test
+    fun fetchedFeedPayloadFromBytesDerivesByteSizeFromPayload() {
+        val bytes = "Feed Inhalt".toByteArray(Charsets.UTF_8)
+
+        val payload = FetchedFeedPayload.fromBytes(
+            responseBytes = bytes,
+            charset = Charsets.UTF_8,
+            defensiveMode = true
+        )
+
+        assertEquals(bytes.size, payload.byteSize)
+        assertTrue(payload.defensiveMode)
+        assertArrayEquals(bytes, payload.openStream().readBytes())
+    }
 }

@@ -84,10 +84,9 @@ class FeedFetcher(
                         contentTypeHeader = response.header("Content-Type")
                     )
 
-                    return FetchedFeedPayload(
+                    return FetchedFeedPayload.fromBytes(
                         responseBytes = responseBytes,
                         charset = charset,
-                        byteSize = responseBytes.size,
                         defensiveMode = defensiveMode
                     ).also {
                         DebugLogger.i(
@@ -313,6 +312,21 @@ data class FetchedFeedPayload(
     val byteSize: Int,
     val defensiveMode: Boolean
 ) {
+    companion object {
+        fun fromBytes(
+            responseBytes: ByteArray,
+            charset: Charset,
+            defensiveMode: Boolean
+        ): FetchedFeedPayload {
+            return FetchedFeedPayload(
+                responseBytes = responseBytes,
+                charset = charset,
+                byteSize = responseBytes.size,
+                defensiveMode = defensiveMode
+            )
+        }
+    }
+
     // Keep the payload as one bounded in-memory snapshot for now. This preserves the current
     // charset detection and lets parser/tests open fresh readers without coupling callers to
     // ByteArray-specific details, which keeps a later streaming migration localized.

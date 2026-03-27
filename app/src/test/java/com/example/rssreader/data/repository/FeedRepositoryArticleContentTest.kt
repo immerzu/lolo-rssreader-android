@@ -2,6 +2,7 @@ package com.example.rssreader.data.repository
 
 import com.example.rssreader.data.db.ArticleEntity
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -29,6 +30,14 @@ class FeedRepositoryArticleContentTest {
     fun hasSameStoredArticleContentReturnsFalseWhenStoredTextChanges() {
         val existingArticle = article(plainText = "Tempel und Street Food")
         val incomingArticle = article(plainText = "Tempel, Street Food und Nachtmarkt")
+
+        assertFalse(hasSameStoredArticleContent(existingArticle, incomingArticle))
+    }
+
+    @Test
+    fun hasSameStoredArticleContentReturnsFalseWhenStoredTitleChanges() {
+        val existingArticle = article(title = "Bangkok Tipps")
+        val incomingArticle = article(title = "Bangkok Nachtmarkt")
 
         assertFalse(hasSameStoredArticleContent(existingArticle, incomingArticle))
     }
@@ -77,6 +86,25 @@ class FeedRepositoryArticleContentTest {
     fun shouldDeleteStaleSearchIndexEntriesAfterDeletionOnlyRunsWhenRowsWereDeleted() {
         assertFalse(shouldDeleteStaleSearchIndexEntriesAfterDeletion(0))
         assertTrue(shouldDeleteStaleSearchIndexEntriesAfterDeletion(3))
+    }
+
+    @Test
+    fun buildRefreshRunStatsKeepsRefreshAndFailureCountsStable() {
+        val stats = buildRefreshRunStats(
+            outcomes = listOf(
+                RefreshFeedOutcome(insertedArticles = 3, retryableFailure = false),
+                RefreshFeedOutcome(insertedArticles = 0, retryableFailure = false),
+                RefreshFeedOutcome(insertedArticles = null, retryableFailure = true),
+                RefreshFeedOutcome(insertedArticles = null, retryableFailure = false)
+            ),
+            skippedFeeds = 2
+        )
+
+        assertEquals(2, stats.refreshedFeeds)
+        assertEquals(2, stats.skippedFeeds)
+        assertEquals(2, stats.failedFeeds)
+        assertEquals(1, stats.retryableFeeds)
+        assertEquals(3, stats.newArticles)
     }
 
     private fun article(

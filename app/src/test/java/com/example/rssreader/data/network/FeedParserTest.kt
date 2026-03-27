@@ -335,6 +335,52 @@ class FeedParserTest {
         assertEquals(stringArticle.imageUrls, payloadArticle.imageUrls)
         assertEquals(stringArticle.contentSource, payloadArticle.contentSource)
     }
+
+    @Test
+    fun atomPayloadParsingMatchesStringParsing() {
+        val xml = """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <feed xmlns="http://www.w3.org/2005/Atom">
+              <title>Atom Beispiel</title>
+              <link rel="self" href="https://example.com/feed.atom" />
+              <link rel="alternate" href="https://example.com/" />
+              <entry>
+                <id>tag:example.com,2026:1</id>
+                <title>Atom Beitrag</title>
+                <link rel="alternate" href="https://example.com/posts/1" />
+                <summary type="html">&lt;p&gt;Kurzinhalt&lt;/p&gt;</summary>
+              </entry>
+            </feed>
+        """.trimIndent()
+
+        val parsedFromString = parser.parse(
+            xml = xml,
+            sourceUrl = "https://example.com/feed.atom"
+        )
+        val parsedFromPayload = parser.parse(
+            payload = FetchedFeedPayload(
+                responseBytes = xml.toByteArray(Charsets.UTF_8),
+                charset = Charsets.UTF_8,
+                byteSize = xml.toByteArray(Charsets.UTF_8).size,
+                defensiveMode = false
+            ),
+            sourceUrl = "https://example.com/feed.atom"
+        )
+
+        assertEquals(parsedFromString.title, parsedFromPayload.title)
+        assertEquals(parsedFromString.siteUrl, parsedFromPayload.siteUrl)
+        assertEquals(parsedFromString.iconUrl, parsedFromPayload.iconUrl)
+        assertEquals(parsedFromString.items.size, parsedFromPayload.items.size)
+
+        val stringArticle = parsedFromString.items.single()
+        val payloadArticle = parsedFromPayload.items.single()
+        assertEquals(stringArticle.title, payloadArticle.title)
+        assertEquals(stringArticle.link, payloadArticle.link)
+        assertEquals(stringArticle.plainText, payloadArticle.plainText)
+        assertEquals(stringArticle.contentHtml, payloadArticle.contentHtml)
+        assertEquals(stringArticle.imageUrls, payloadArticle.imageUrls)
+        assertEquals(stringArticle.contentSource, payloadArticle.contentSource)
+    }
 }
 
 
