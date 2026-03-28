@@ -107,15 +107,12 @@ class ArticleFtsTriggerTest {
         )
         articleDao.syncSearchIndexByFeed(feedId)
 
-        articleDao.updateByUniqueKey(
+        updateStoredArticle(
+            articleDao = articleDao,
             feedId = feedId,
             uniqueKey = "a-1",
             title = "Neuer Titel",
-            link = "https://example.com/articles/a-1",
-            publishedAt = 1_700_000_000_000,
-            plainText = "Korea Reise",
-            contentHtml = "<p>Korea Reise</p>",
-            imageUrls = ""
+            plainText = "Korea Reise"
         )
         articleDao.syncSearchIndexByFeed(feedId)
 
@@ -276,15 +273,12 @@ class ArticleFtsTriggerTest {
             assertEquals(1, insertedResults.size)
             assertEquals(2, migratedArticleDao.countSearchIndexRows())
 
-            migratedArticleDao.updateByUniqueKey(
+            updateStoredArticle(
+                articleDao = migratedArticleDao,
                 feedId = 1L,
                 uniqueKey = "a-1",
                 title = "Neu Titel",
-                link = "https://example.com/articles/a-1",
-                publishedAt = 1_700_000_000_000,
-                plainText = "Bangkok Reise",
-                contentHtml = "<p>Bangkok Reise</p>",
-                imageUrls = ""
+                plainText = "Bangkok Reise"
             )
             migratedArticleDao.syncSearchIndexByFeed(1L)
 
@@ -338,15 +332,12 @@ class ArticleFtsTriggerTest {
             val migratedArticleDao = migratedDatabase.articleDao()
             assertEquals(0, migratedArticleDao.countFtsMaintenanceTriggers())
 
-            migratedArticleDao.updateByUniqueKey(
+            updateStoredArticle(
+                articleDao = migratedArticleDao,
                 feedId = 1L,
                 uniqueKey = "a-1",
                 title = "Neu Titel",
-                link = "https://example.com/articles/a-1",
-                publishedAt = 1_700_000_000_000,
-                plainText = "Bangkok Reise",
-                contentHtml = "<p>Bangkok Reise</p>",
-                imageUrls = ""
+                plainText = "Bangkok Reise"
             )
             migratedArticleDao.syncSearchIndexByFeed(1L)
 
@@ -514,15 +505,12 @@ class ArticleFtsTriggerTest {
             ).first()
             assertEquals(1, insertedResults.size)
 
-            migratedArticleDao.updateByUniqueKey(
+            updateStoredArticle(
+                articleDao = migratedArticleDao,
                 feedId = 1L,
                 uniqueKey = "a-1",
                 title = "Neu Titel",
-                link = "https://example.com/articles/a-1",
-                publishedAt = 1_700_000_000_000,
-                plainText = "Bangkok Reise",
-                contentHtml = "<p>Bangkok Reise</p>",
-                imageUrls = ""
+                plainText = "Bangkok Reise"
             )
             migratedArticleDao.syncSearchIndexByFeed(1L)
 
@@ -727,6 +715,25 @@ class ArticleFtsTriggerTest {
                 title = "Test Feed",
                 url = "https://example.com/feed.xml",
                 displayOrder = 1
+            )
+        )
+    }
+
+    private suspend fun updateStoredArticle(
+        articleDao: ArticleDao,
+        feedId: Long,
+        uniqueKey: String,
+        title: String,
+        plainText: String
+    ) {
+        val existingArticle = articleDao.getByFeedAndUniqueKeys(feedId, listOf(uniqueKey)).single()
+        articleDao.updateAll(
+            listOf(
+                existingArticle.copy(
+                    title = title,
+                    plainText = plainText,
+                    contentHtml = "<p>$plainText</p>"
+                )
             )
         )
     }

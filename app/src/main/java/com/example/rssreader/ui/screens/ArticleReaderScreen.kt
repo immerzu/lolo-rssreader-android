@@ -85,6 +85,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.net.URI
 import java.util.Locale
 import kotlin.math.abs
 
@@ -613,7 +614,7 @@ fun ArticleReaderScreen(
                                             "WebView Inhalt geladen: articleId=${currentArticle?.id?.toString().orEmpty()}, heavy=${articleHtmlContent.loadProfile.isHeavy}, js=${articleHtmlContent.requiresJavaScript}"
                                         )
                                         webView.loadDataWithBaseURL(
-                                            READER_WEBVIEW_BASE_URL,
+                                            resolveReaderWebViewBaseUrl(articleHtmlContent.baseUrl),
                                             articleHtmlContent.html,
                                             "text/html",
                                             "utf-8",
@@ -985,6 +986,22 @@ private data class ReaderHtmlContent(
     val requiresJavaScript: Boolean,
     val loadProfile: ReaderLoadProfile
 )
+
+internal fun resolveReaderWebViewBaseUrl(articleBaseUrl: String?): String {
+    val resolvedArticleBaseUrl = articleBaseUrl
+        ?.trim()
+        ?.takeIf { it.isNotBlank() }
+        ?.let { runCatching { URI(it) }.getOrNull() }
+        ?.takeIf { uri ->
+            when (uri.scheme?.lowercase()) {
+                "http", "https" -> true
+                else -> false
+            }
+        }
+        ?.toString()
+
+    return resolvedArticleBaseUrl ?: READER_WEBVIEW_BASE_URL
+}
 
 private fun ReaderHtmlContent.shouldUseWebView(): Boolean {
     return !loadProfile.useFallback &&

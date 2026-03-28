@@ -24,12 +24,11 @@ private val importableFeedTextLinkRegex = Regex(
 )
 
 internal object OpmlImportSupport {
-    fun readImportBytes(inputStream: InputStream): ByteArray {
-        return readInputStreamBounded(
+    fun readImportBytes(inputStream: InputStream): ByteArray =
+        readInputStreamBounded(
             inputStream = inputStream,
             maxBytes = OPML_IMPORT_SOFT_MAX_BYTES
         )
-    }
 
     fun parseEntriesOrEmpty(importBytes: ByteArray): List<OpmlFeedEntry> {
         return runCatching {
@@ -43,13 +42,12 @@ internal object OpmlImportSupport {
         }
     }
 
-    fun detectImportableFeedUrl(xml: String): String? {
-        return sequenceOf(
+    fun detectImportableFeedUrl(xml: String): String? =
+        sequenceOf(
             importableFeedSelfLinkRegex.extractHttpUrl(xml),
             importableFeedTypedLinkRegex.extractHttpUrl(xml),
             importableFeedTextLinkRegex.extractHttpUrl(xml)?.takeIf(::looksLikeFeedUrl)
         ).firstOrNull { !it.isNullOrBlank() }
-    }
 }
 
 internal fun readInputStreamBounded(
@@ -78,23 +76,19 @@ internal fun readInputStreamBounded(
     }
 }
 
-internal fun detectImportableFeedUrl(xml: String): String? {
-    return OpmlImportSupport.detectImportableFeedUrl(xml)
-}
+internal fun detectImportableFeedUrl(xml: String): String? = OpmlImportSupport.detectImportableFeedUrl(xml)
 
-private fun Regex.extractHttpUrl(xml: String): String? {
-    return find(xml)
+private fun Regex.extractHttpUrl(xml: String): String? =
+    find(xml)
         ?.groupValues
         ?.drop(1)
         ?.firstOrNull { it.isNotBlank() }
         ?.trim()
         ?.takeIf(::isHttpUrl)
-}
 
-private fun isHttpUrl(url: String): Boolean {
-    return url.startsWith("http://", ignoreCase = true) ||
+private fun isHttpUrl(url: String): Boolean =
+    url.startsWith("http://", ignoreCase = true) ||
         url.startsWith("https://", ignoreCase = true)
-}
 
 private fun looksLikeFeedUrl(url: String): Boolean {
     val normalized = url.lowercase()

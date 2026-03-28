@@ -59,6 +59,42 @@ class FeedParserTest {
     }
 
     @Test
+    fun payloadReaderPreservesLatin1UmlautsOnParserPath() {
+        val xml = """
+            <?xml version="1.0" encoding="ISO-8859-1"?>
+            <rss version="2.0" xmlns:content="http://purl.org/rss/1.0/modules/content/">
+              <channel>
+                <title>Beispiel Feed</title>
+                <link>https://example.com/</link>
+                <item>
+                  <title>Beitragsüberschrift mit Straße und Grüße</title>
+                  <link>https://example.com/post-1</link>
+                  <description><![CDATA[Teaser mit Köln]]></description>
+                  <content:encoded><![CDATA[<p>Schöne Grüße aus München.</p>]]></content:encoded>
+                </item>
+              </channel>
+            </rss>
+        """.trimIndent()
+
+        val payload = FetchedFeedPayload(
+            responseBytes = xml.toByteArray(Charsets.ISO_8859_1),
+            charset = Charsets.ISO_8859_1,
+            byteSize = xml.toByteArray(Charsets.ISO_8859_1).size,
+            defensiveMode = false
+        )
+
+        val parsed = parser.parse(
+            payload = payload,
+            sourceUrl = "https://example.com/feed.xml"
+        )
+
+        val article = parsed.items.single()
+        assertEquals("Beitragsüberschrift mit Straße und Grüße", article.title)
+        assertTrue(article.plainText.contains("Schöne Grüße aus München."))
+        assertFalse(article.plainText.contains("Teaser mit Köln"))
+    }
+
+    @Test
     fun wordpressDescriptionFallbackDoesNotUseMediaTitleAsArticleTitle() {
         val parsed = parser.parse(
             xml = """

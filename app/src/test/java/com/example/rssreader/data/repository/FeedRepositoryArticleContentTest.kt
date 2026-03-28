@@ -85,20 +85,6 @@ class FeedRepositoryArticleContentTest {
     }
 
     @Test
-    fun shouldDeleteStaleSearchIndexEntriesOnlyRunsWhenStaleRowsArePossible() {
-        assertFalse(
-            shouldDeleteStaleSearchIndexEntries(
-                searchIndexMayContainStaleRows = false
-            )
-        )
-        assertTrue(
-            shouldDeleteStaleSearchIndexEntries(
-                searchIndexMayContainStaleRows = true
-            )
-        )
-    }
-
-    @Test
     fun shouldDeleteStaleSearchIndexEntriesAfterDeletionOnlyRunsWhenRowsWereDeleted() {
         assertFalse(shouldDeleteStaleSearchIndexEntriesAfterDeletion(0))
         assertTrue(shouldDeleteStaleSearchIndexEntriesAfterDeletion(3))
@@ -208,23 +194,6 @@ class FeedRepositoryArticleContentTest {
         )
 
         assertEquals(listOf(second), conflicting)
-    }
-
-    @Test
-    fun extractConflictingUniqueKeysDeduplicatesWhileKeepingOrder() {
-        val first = article(title = "Erster").copy(uniqueKey = "bangkok-1")
-        val second = article(title = "Zweiter").copy(uniqueKey = "bangkok-2")
-        val third = article(title = "Dritter").copy(uniqueKey = "bangkok-1")
-        val fourth = article(title = "Vierter").copy(uniqueKey = "bangkok-3")
-
-        val uniqueKeys = extractConflictingUniqueKeys(
-            listOf(first, second, third, fourth)
-        )
-
-        assertEquals(
-            listOf("bangkok-1", "bangkok-2", "bangkok-3"),
-            uniqueKeys
-        )
     }
 
     @Test

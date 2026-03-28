@@ -658,6 +658,42 @@ class FeedRepositoryRefreshIntegrationTest {
     }
 
     @Test
+    fun importSingleFeedXmlPreservesUtf8UmlautsAndSearchIndex() = runTest {
+        val feedUrl = "https://example.com/single-import-utf8.xml"
+        val xml = """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+              <channel>
+                <title>Beispiel Feed</title>
+                <link>https://example.com/</link>
+                <atom:link href="$feedUrl" rel="self" type="application/rss+xml" />
+                <item>
+                  <guid>single-import-utf8</guid>
+                  <title>Beitragsüberschrift mit Straße und Grüße</title>
+                  <link>https://example.com/single-import-utf8</link>
+                  <description><![CDATA[<p>Schöne Grüße aus München</p>]]></description>
+                </item>
+              </channel>
+            </rss>
+        """.trimIndent()
+
+        val result = repository.importOpml(
+            xml.byteInputStream()
+        )
+
+        assertEquals(1, result.importedFeeds)
+        assertEquals(0, result.skippedFeeds)
+        assertEquals(0, result.failedFeeds)
+        assertEquals(1, feedDao.countFeeds())
+        assertEquals(1, articleDao.countArticles())
+        assertEquals(1, articleDao.countSearchIndexRows())
+        assertEquals(0, articleDao.countFtsMaintenanceTriggers())
+        assertEquals(listOf("Beitragsüberschrift mit Straße und Grüße"), searchTitles("München", "münchen*"))
+        assertEquals(result, repository.diagnosticsSnapshot().lastImportResult)
+        assertEquals(feedUrl, feedDao.getAll().single().url)
+    }
+
+    @Test
     fun importSingleFeedXmlSkipsExistingFeedByDetectedUrl() = runTest {
         val feedUrl = "https://example.com/single-skip.xml"
         insertFeed(feedUrl)
@@ -773,6 +809,244 @@ class FeedRepositoryRefreshIntegrationTest {
         assertEquals(0, articleDao.countFtsMaintenanceTriggers())
         assertEquals(listOf("Erfolgreiche Reise"), searchTitles("Riga", "riga*"))
         assertEquals(stats, repository.diagnosticsSnapshot().lastRefreshRunStats)
+    }
+
+    @Test
+    fun refreshAllPreservesLatin1CharactersThroughRepositoryAndFts() = runTest {
+        val url = "https://example.com/feed-latin1.xml"
+        val feedId = insertFeed(url)
+
+        val xml = """
+            <?xml version="1.0" encoding="ISO-8859-1"?>
+            <rss version="2.0">
+              <channel>
+                <title>Test Feed</title>
+                <link>https://example.com/</link>
+                <item>
+                  <guid>latin1-1</guid>
+                  <title>Straße &amp; Grüße</title>
+                  <link>https://example.com/latin1-1</link>
+                  <description><![CDATA[<p>Schöne Grüße aus Köln</p>]]></description>
+                </item>
+              </channel>
+            </rss>
+        """.trimIndent()
+
+        enqueue(
+            url = url,
+            response = QueuedHttpResponse(
+                code = 200,
+                body = String(xml.toByteArray(Charsets.ISO_8859_1), Charsets.ISO_8859_1),
+                contentType = "application/rss+xml; charset=ISO-8859-1"
+            )
+        )
+
+        val stats = repository.refreshAll()
+        val storedArticle = articleDao.getByFeedAndUniqueKeys(feedId, listOf("latin1-1")).single()
+
+        assertEquals(1, stats.refreshedFeeds)
+        assertEquals(1, stats.newArticles)
+        assertEquals("Straße & Grüße", storedArticle.title)
+        assertEquals("Schöne Grüße aus Köln", storedArticle.plainText)
+        assertEquals(listOf("Straße & Grüße"), searchTitles("Köln", "köln*"))
+        assertEquals(1, articleDao.countSearchIndexRows())
+        assertEquals(0, articleDao.countFtsMaintenanceTriggers())
+    }
+
+    @Test
+    fun refreshAllUpdatesLatin1CharactersThroughRepositoryAndFts() = runTest {
+        val url = "https://example.com/feed-latin1-update.xml"
+        val feedId = insertFeed(url)
+
+        val firstXml = """
+            <?xml version="1.0" encoding="ISO-8859-1"?>
+            <rss version="2.0">
+              <channel>
+                <title>Test Feed</title>
+                <link>https://example.com/</link>
+                <item>
+                  <guid>latin1-update</guid>
+                  <title>Straße Alt</title>
+                  <link>https://example.com/latin1-update</link>
+                  <description><![CDATA[<p>Grüße aus Köln</p>]]></description>
+                </item>
+              </channel>
+            </rss>
+        """.trimIndent()
+        val secondXml = """
+            <?xml version="1.0" encoding="ISO-8859-1"?>
+            <rss version="2.0">
+              <channel>
+                <title>Test Feed</title>
+                <link>https://example.com/</link>
+                <item>
+                  <guid>latin1-update</guid>
+                  <title>Straße Neu</title>
+                  <link>https://example.com/latin1-update</link>
+                  <description><![CDATA[<p>Schöne Grüße aus München</p>]]></description>
+                </item>
+              </channel>
+            </rss>
+        """.trimIndent()
+
+        enqueue(
+            url = url,
+            response = QueuedHttpResponse(
+                code = 200,
+                body = String(firstXml.toByteArray(Charsets.ISO_8859_1), Charsets.ISO_8859_1),
+                contentType = "application/rss+xml; charset=ISO-8859-1"
+            )
+        )
+        assertEquals(1, repository.refreshAll().newArticles)
+
+        enqueue(
+            url = url,
+            response = QueuedHttpResponse(
+                code = 200,
+                body = String(secondXml.toByteArray(Charsets.ISO_8859_1), Charsets.ISO_8859_1),
+                contentType = "application/rss+xml; charset=ISO-8859-1"
+            )
+        )
+
+        val secondStats = repository.refreshAll()
+        val storedArticle = articleDao.getByFeedAndUniqueKeys(feedId, listOf("latin1-update")).single()
+
+        assertEquals(1, secondStats.refreshedFeeds)
+        assertEquals(0, secondStats.newArticles)
+        assertEquals("Straße Neu", storedArticle.title)
+        assertEquals("Schöne Grüße aus München", storedArticle.plainText)
+        assertTrue(searchTitles("Köln", "köln*").isEmpty())
+        assertEquals(listOf("Straße Neu"), searchTitles("München", "münchen*"))
+        assertEquals(1, articleDao.countSearchIndexRows())
+        assertEquals(0, articleDao.countFtsMaintenanceTriggers())
+    }
+
+    @Test
+    fun refreshAllPreservesFlagsWhenLatin1ArticleUpdates() = runTest {
+        val url = "https://example.com/feed-latin1-flags.xml"
+        val feedId = insertFeed(url)
+
+        val firstXml = """
+            <?xml version="1.0" encoding="ISO-8859-1"?>
+            <rss version="2.0">
+              <channel>
+                <title>Test Feed</title>
+                <link>https://example.com/</link>
+                <item>
+                  <guid>latin1-flags</guid>
+                  <title>Straße Alt</title>
+                  <link>https://example.com/latin1-flags</link>
+                  <description><![CDATA[<p>Grüße aus Köln</p>]]></description>
+                </item>
+              </channel>
+            </rss>
+        """.trimIndent()
+        val secondXml = """
+            <?xml version="1.0" encoding="ISO-8859-1"?>
+            <rss version="2.0">
+              <channel>
+                <title>Test Feed</title>
+                <link>https://example.com/</link>
+                <item>
+                  <guid>latin1-flags</guid>
+                  <title>Straße Neu</title>
+                  <link>https://example.com/latin1-flags</link>
+                  <description><![CDATA[<p>Schöne Grüße aus München</p>]]></description>
+                </item>
+              </channel>
+            </rss>
+        """.trimIndent()
+
+        enqueue(
+            url = url,
+            response = QueuedHttpResponse(
+                code = 200,
+                body = String(firstXml.toByteArray(Charsets.ISO_8859_1), Charsets.ISO_8859_1),
+                contentType = "application/rss+xml; charset=ISO-8859-1"
+            )
+        )
+        assertEquals(1, repository.refreshAll().newArticles)
+
+        val initialArticle = articleDao.getByFeedAndUniqueKeys(feedId, listOf("latin1-flags")).single()
+        repository.markRead(initialArticle.id)
+        repository.setFavorite(initialArticle.id, true)
+
+        enqueue(
+            url = url,
+            response = QueuedHttpResponse(
+                code = 200,
+                body = String(secondXml.toByteArray(Charsets.ISO_8859_1), Charsets.ISO_8859_1),
+                contentType = "application/rss+xml; charset=ISO-8859-1"
+            )
+        )
+
+        assertEquals(0, repository.refreshAll().newArticles)
+
+        val storedArticle = articleDao.getByFeedAndUniqueKeys(feedId, listOf("latin1-flags")).single()
+
+        assertEquals(initialArticle.id, storedArticle.id)
+        assertTrue(storedArticle.isRead)
+        assertTrue(storedArticle.isFavorite)
+        assertEquals("Straße Neu", storedArticle.title)
+        assertEquals("Schöne Grüße aus München", storedArticle.plainText)
+        assertTrue(searchTitles("Köln", "köln*").isEmpty())
+        assertEquals(listOf("Straße Neu"), searchTitles("München", "münchen*"))
+        assertEquals(1, articleDao.countSearchIndexRows())
+        assertEquals(0, articleDao.countFtsMaintenanceTriggers())
+    }
+
+    @Test
+    fun refreshAllKeepsUnchangedLatin1ArticleStableAcrossSecondRun() = runTest {
+        val url = "https://example.com/feed-latin1-stable.xml"
+        val feedId = insertFeed(url)
+
+        val xml = """
+            <?xml version="1.0" encoding="ISO-8859-1"?>
+            <rss version="2.0">
+              <channel>
+                <title>Test Feed</title>
+                <link>https://example.com/</link>
+                <item>
+                  <guid>latin1-stable</guid>
+                  <title>Straße Stabil</title>
+                  <link>https://example.com/latin1-stable</link>
+                  <description><![CDATA[<p>Grüße aus Köln</p>]]></description>
+                </item>
+              </channel>
+            </rss>
+        """.trimIndent()
+
+        enqueue(
+            url = url,
+            response = QueuedHttpResponse(
+                code = 200,
+                body = String(xml.toByteArray(Charsets.ISO_8859_1), Charsets.ISO_8859_1),
+                contentType = "application/rss+xml; charset=ISO-8859-1"
+            )
+        )
+        val firstStats = repository.refreshAll()
+        val initialArticle = articleDao.getByFeedAndUniqueKeys(feedId, listOf("latin1-stable")).single()
+
+        enqueue(
+            url = url,
+            response = QueuedHttpResponse(
+                code = 200,
+                body = String(xml.toByteArray(Charsets.ISO_8859_1), Charsets.ISO_8859_1),
+                contentType = "application/rss+xml; charset=ISO-8859-1"
+            )
+        )
+        val secondStats = repository.refreshAll()
+        val storedArticle = articleDao.getByFeedAndUniqueKeys(feedId, listOf("latin1-stable")).single()
+
+        assertEquals(1, firstStats.newArticles)
+        assertEquals(0, secondStats.newArticles)
+        assertEquals(initialArticle.id, storedArticle.id)
+        assertEquals("Straße Stabil", storedArticle.title)
+        assertEquals("Grüße aus Köln", storedArticle.plainText)
+        assertEquals(listOf("Straße Stabil"), searchTitles("Köln", "köln*"))
+        assertEquals(1, articleDao.countArticles())
+        assertEquals(1, articleDao.countSearchIndexRows())
+        assertEquals(0, articleDao.countFtsMaintenanceTriggers())
     }
 
     private suspend fun insertFeed(url: String, wifiOnly: Boolean = false): Long {

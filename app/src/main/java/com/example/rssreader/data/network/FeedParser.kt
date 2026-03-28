@@ -840,20 +840,18 @@ class FeedParser {
         }
     }
 
-    private fun escapeHtmlAttribute(value: String?): String {
-        return value.orEmpty()
+    private fun escapeHtmlAttribute(value: String?): String =
+        value.orEmpty()
             .replace("&", "&amp;")
             .replace("\"", "&quot;")
             .replace("<", "&lt;")
             .replace(">", "&gt;")
-    }
 
-    private fun String.isNonArticleLinkRel(): Boolean {
-        return equals("self", ignoreCase = true) ||
+    private fun String.isNonArticleLinkRel(): Boolean =
+        equals("self", ignoreCase = true) ||
             equals("edit", ignoreCase = true) ||
             equals("enclosure", ignoreCase = true) ||
             equals("replies", ignoreCase = true)
-    }
 
     private fun StringBuilder.ensureAppendCapacity(additionalChars: Int) {
         if (additionalChars > 0) {
@@ -885,9 +883,7 @@ class FeedParser {
         var imageScanSkipped: Boolean = false
             private set
 
-        fun canParseMoreItems(currentCount: Int): Boolean {
-            return itemCap == null || currentCount < itemCap
-        }
+        fun canParseMoreItems(currentCount: Int): Boolean = itemCap == null || currentCount < itemCap
 
         fun earlyContentReadCharLimit(): Int? = perItemContentCharLimit
 

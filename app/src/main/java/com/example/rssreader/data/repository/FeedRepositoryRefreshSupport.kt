@@ -56,10 +56,6 @@ internal data class RefreshAccumulator(
         }
     }
 
-    fun addAll(outcomes: List<RefreshFeedOutcome>): RefreshAccumulator {
-        return outcomes.fold(this) { accumulator, outcome -> accumulator.add(outcome) }
-    }
-
     fun toStats(skippedFeeds: Int): RefreshRunStats {
         require(skippedFeeds >= 0) { "skippedFeeds must be greater than or equal to 0" }
         return RefreshRunStats(
@@ -76,7 +72,7 @@ internal fun buildRefreshRunStats(
     outcomes: List<RefreshFeedOutcome>,
     skippedFeeds: Int
 ): RefreshRunStats {
-    return RefreshAccumulator()
-        .addAll(outcomes)
+    return outcomes
+        .fold(RefreshAccumulator()) { accumulator, outcome -> accumulator.add(outcome) }
         .toStats(skippedFeeds)
 }

@@ -44,9 +44,10 @@ Im Projektordner:
 cd D:\Codex\RSS_Reader_Android\rss_reader_full_project
 .\gradlew.bat testDebugUnitTest
 .\gradlew.bat assembleDebug
+.\gradlew.bat assembleRelease
 ```
 
-Wenn alles sauber ist, danach erst Release bauen.
+Wenn alles sauber ist, ist auch der Release-Build einmal technisch gegengeprueft.
 
 ## 4. Release bauen
 

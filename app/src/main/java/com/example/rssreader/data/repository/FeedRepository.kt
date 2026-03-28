@@ -488,11 +488,10 @@ class FeedRepository(
         var unchangedArticles = 0
         if (conflictingArticles.isNotEmpty()) {
             val latestConflictingArticles = collapseConflictingArticlesByUniqueKey(conflictingArticles)
-            val conflictingUniqueKeys = extractConflictingUniqueKeys(latestConflictingArticles)
             val existingArticlesByUniqueKey = articleDao
                 .getByFeedAndUniqueKeys(
                     feedId = feedId,
-                    uniqueKeys = conflictingUniqueKeys
+                    uniqueKeys = latestConflictingArticles.map { it.uniqueKey }
                 )
                 .associateBy { it.uniqueKey }
             val changedArticles = ArrayList<ArticleEntity>(latestConflictingArticles.size)
@@ -523,7 +522,7 @@ class FeedRepository(
         if (shouldSyncSearchIndex) {
             articleDao.syncSearchIndexByFeed(feedId)
         }
-        if (shouldDeleteStaleSearchIndexEntries(searchIndexMayContainStaleRows)) {
+        if (searchIndexMayContainStaleRows) {
             articleDao.deleteStaleSearchIndexEntries()
         }
         DebugLogger.i(
@@ -733,21 +732,11 @@ internal fun hasSameStoredArticleContent(
 internal fun shouldSyncSearchIndexByFeed(
     insertedArticles: Int,
     updatedArticles: Int
-): Boolean {
-    return insertedArticles > 0 || updatedArticles > 0
-}
-
-internal fun shouldDeleteStaleSearchIndexEntries(
-    searchIndexMayContainStaleRows: Boolean
-): Boolean {
-    return searchIndexMayContainStaleRows
-}
+): Boolean = insertedArticles > 0 || updatedArticles > 0
 
 internal fun shouldDeleteStaleSearchIndexEntriesAfterDeletion(
     deletedArticles: Int
-): Boolean {
-    return deletedArticles > 0
-}
+): Boolean = deletedArticles > 0
 
 internal fun collectConflictingArticles(
     articles: List<ArticleEntity>,
@@ -764,16 +753,6 @@ internal fun collectConflictingArticles(
         }
     }
     return conflictingArticles
-}
-
-internal fun extractConflictingUniqueKeys(
-    conflictingArticles: List<ArticleEntity>
-): List<String> {
-    return conflictingArticles
-        .asSequence()
-        .map { it.uniqueKey }
-        .distinct()
-        .toList()
 }
 
 internal fun collapseConflictingArticlesByUniqueKey(
@@ -803,15 +782,13 @@ internal fun buildUpdatedArticleEntity(
     )
 }
 
-private fun Throwable.isRetryableRefreshFailure(): Boolean {
-    return when (this) {
-        is RssReaderException.Timeout,
-        is RssReaderException.NetworkUnavailable,
-        is RssReaderException.ConnectionFailed -> true
+private fun Throwable.isRetryableRefreshFailure(): Boolean = when (this) {
+    is RssReaderException.Timeout,
+    is RssReaderException.NetworkUnavailable,
+    is RssReaderException.ConnectionFailed -> true
 
-        is RssReaderException.HttpError -> code == 429 || code in 500..599
-        else -> false
-    }
+    is RssReaderException.HttpError -> code == 429 || code in 500..599
+    else -> false
 }
 
 

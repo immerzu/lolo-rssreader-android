@@ -60,30 +60,6 @@ interface ArticleDao {
     @Update
     suspend fun updateAll(items: List<ArticleEntity>): Int
 
-    @Query(
-        """
-        UPDATE articles
-        SET
-            title = :title,
-            link = :link,
-            publishedAt = :publishedAt,
-            plainText = :plainText,
-            contentHtml = :contentHtml,
-            imageUrls = :imageUrls
-        WHERE feedId = :feedId AND uniqueKey = :uniqueKey
-        """
-    )
-    suspend fun updateByUniqueKey(
-        feedId: Long,
-        uniqueKey: String,
-        title: String,
-        link: String,
-        publishedAt: Long?,
-        plainText: String,
-        contentHtml: String,
-        imageUrls: String
-    ): Int
-
     @Query("UPDATE articles SET isRead = 1 WHERE id = :articleId")
     suspend fun markRead(articleId: Long)
 

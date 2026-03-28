@@ -22,6 +22,7 @@ Alternativ startet `start-android-studio.ps1` Android Studio bereits mit den lok
 
 ## Build
 Per Android Studio ueber `Build > Build APK(s)` oder lokal ueber `gradlew.bat assembleDebug`.
+Vor einem Release-Kandidaten zusaetzlich `gradlew.bat assembleRelease` ausfuehren und die Checkliste in [RELEASE_CHECKLIST_RSS_READER_DE.md](D:/Codex/RSS_Reader_Android/rss_reader_full_project/RELEASE_CHECKLIST_RSS_READER_DE.md) verwenden.
 
 ## F-Droid Metadaten
 Store-Metadaten fuer F-Droid liegen unter `fastlane/metadata/android/`.

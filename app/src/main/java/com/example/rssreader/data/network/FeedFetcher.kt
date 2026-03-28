@@ -274,18 +274,14 @@ class FeedFetcher(
             .toString()
     }
 
-    private fun shouldRetry(exception: RssReaderException, attempt: Int): Boolean {
-        if (attempt >= MAX_FETCH_ATTEMPTS - 1) {
-            return false
-        }
-        return when (exception) {
+    private fun shouldRetry(exception: RssReaderException, attempt: Int): Boolean =
+        attempt < MAX_FETCH_ATTEMPTS - 1 && when (exception) {
             is RssReaderException.Timeout,
             is RssReaderException.ConnectionFailed -> true
 
             is RssReaderException.HttpError -> exception.code == 429 || exception.code in 500..599
             else -> false
         }
-    }
 
     private fun logInfo(message: String) {
         DebugLogger.i(TAG, message)
@@ -316,14 +312,13 @@ data class FetchedFeedPayload(
             responseBytes: ByteArray,
             charset: Charset,
             defensiveMode: Boolean
-        ): FetchedFeedPayload {
-            return FetchedFeedPayload(
+        ): FetchedFeedPayload =
+            FetchedFeedPayload(
                 responseBytes = responseBytes,
                 charset = charset,
                 byteSize = responseBytes.size,
                 defensiveMode = defensiveMode
             )
-        }
     }
 
     // Keep the payload as one bounded in-memory snapshot for now. This preserves the current
@@ -331,13 +326,9 @@ data class FetchedFeedPayload(
     // ByteArray-specific details, which keeps a later streaming migration localized.
     // Each call returns a fresh stream so future parser work can consume the payload multiple
     // times without exposing ByteArray handling at call sites.
-    fun openStream(): ByteArrayInputStream {
-        return ByteArrayInputStream(responseBytes)
-    }
+    fun openStream(): ByteArrayInputStream = ByteArrayInputStream(responseBytes)
 
-    fun openReader(): InputStreamReader {
-        return InputStreamReader(openStream(), charset)
-    }
+    fun openReader(): InputStreamReader = InputStreamReader(openStream(), charset)
 }
 
 
