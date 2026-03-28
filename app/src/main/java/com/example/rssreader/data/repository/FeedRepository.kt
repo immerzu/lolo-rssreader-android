@@ -437,24 +437,16 @@ class FeedRepository(
 
     private suspend fun refreshFeedInternal(feed: FeedEntity): Int {
         val parsed = fetchAndParseFeed(feed.url)
-        feedDao.update(
-            feed.copy(
-                title = parsed.title,
-                siteUrl = parsed.siteUrl ?: feed.siteUrl,
-                iconUrl = parsed.iconUrl ?: feed.iconUrl,
-                lastFetchedAt = System.currentTimeMillis()
-            )
-        )
-        return insertArticles(feedId = feed.id, parsed = parsed)
-    }
-
-    private suspend fun insertArticles(
-        feedId: Long,
-        parsed: com.example.rssreader.data.network.ParsedFeed
-    ): Int {
         return database.withTransaction {
+            feedDao.update(
+                buildRefreshedFeedEntity(
+                    existingFeed = feed,
+                    parsed = parsed,
+                    fetchedAt = System.currentTimeMillis()
+                )
+            )
             insertArticlesInCurrentTransaction(
-                feedId = feedId,
+                feedId = feed.id,
                 parsed = parsed,
                 searchIndexMayContainStaleRows = false
             )
@@ -479,9 +471,10 @@ class FeedRepository(
             return 0
         }
         val insertedIds = articleDao.insertAll(articles)
-        val conflictingArticles = articles.filterIndexed { index, _ ->
-            insertedIds.getOrNull(index) == -1L
-        }
+        val conflictingArticles = collectConflictingArticles(
+            articles = articles,
+            insertedIds = insertedIds
+        )
         var updatedArticles = 0
         var unchangedArticles = 0
         if (conflictingArticles.isNotEmpty()) {
@@ -491,6 +484,7 @@ class FeedRepository(
                     uniqueKeys = conflictingArticles.map { it.uniqueKey }
                 )
                 .associateBy { it.uniqueKey }
+            val changedArticles = ArrayList<ArticleEntity>(conflictingArticles.size)
 
             conflictingArticles.forEach { article ->
                 val existingArticle = existingArticlesByUniqueKey[article.uniqueKey]
@@ -498,17 +492,16 @@ class FeedRepository(
                     unchangedArticles += 1
                     return@forEach
                 }
-                articleDao.updateByUniqueKey(
-                    feedId = article.feedId,
-                    uniqueKey = article.uniqueKey,
-                    title = article.title,
-                    link = article.link,
-                    publishedAt = article.publishedAt,
-                    plainText = article.plainText,
-                    contentHtml = article.contentHtml,
-                    imageUrls = article.imageUrls
-                )
-                updatedArticles += 1
+                if (existingArticle != null) {
+                    changedArticles += buildUpdatedArticleEntity(
+                        existingArticle = existingArticle,
+                        incomingArticle = article
+                    )
+                }
+            }
+            if (changedArticles.isNotEmpty()) {
+                articleDao.updateAll(changedArticles)
+                updatedArticles = changedArticles.size
             }
         }
         val insertedArticles = insertedIds.count { it != -1L }
@@ -545,6 +538,19 @@ class FeedRepository(
                 imageUrls = item.imageUrls.joinToString("\n")
             )
         }
+    }
+
+    private fun buildRefreshedFeedEntity(
+        existingFeed: FeedEntity,
+        parsed: com.example.rssreader.data.network.ParsedFeed,
+        fetchedAt: Long
+    ): FeedEntity {
+        return existingFeed.copy(
+            title = parsed.title,
+            siteUrl = parsed.siteUrl ?: existingFeed.siteUrl,
+            iconUrl = parsed.iconUrl ?: existingFeed.iconUrl,
+            lastFetchedAt = fetchedAt
+        )
     }
 
     private suspend fun <T> runOnIo(block: suspend () -> T): T = withContext(ioDispatcher) {
@@ -730,6 +736,37 @@ internal fun shouldDeleteStaleSearchIndexEntriesAfterDeletion(
     deletedArticles: Int
 ): Boolean {
     return deletedArticles > 0
+}
+
+internal fun collectConflictingArticles(
+    articles: List<ArticleEntity>,
+    insertedIds: List<Long>
+): List<ArticleEntity> {
+    if (articles.isEmpty() || insertedIds.isEmpty()) {
+        return emptyList()
+    }
+    val conflictingArticles = ArrayList<ArticleEntity>(minOf(articles.size, insertedIds.size))
+    val limit = minOf(articles.size, insertedIds.size)
+    for (index in 0 until limit) {
+        if (insertedIds[index] == -1L) {
+            conflictingArticles += articles[index]
+        }
+    }
+    return conflictingArticles
+}
+
+internal fun buildUpdatedArticleEntity(
+    existingArticle: ArticleEntity,
+    incomingArticle: ArticleEntity
+): ArticleEntity {
+    return existingArticle.copy(
+        title = incomingArticle.title,
+        link = incomingArticle.link,
+        publishedAt = incomingArticle.publishedAt,
+        plainText = incomingArticle.plainText,
+        contentHtml = incomingArticle.contentHtml,
+        imageUrls = incomingArticle.imageUrls
+    )
 }
 
 private fun Throwable.isRetryableRefreshFailure(): Boolean {

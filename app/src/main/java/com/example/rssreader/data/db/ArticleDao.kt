@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Update
 import kotlinx.coroutines.flow.Flow
 
 data class ArticleSearchResult(
@@ -56,6 +57,9 @@ interface ArticleDao {
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertAll(items: List<ArticleEntity>): List<Long>
 
+    @Update
+    suspend fun updateAll(items: List<ArticleEntity>): Int
+
     @Query(
         """
         UPDATE articles
@@ -78,7 +82,7 @@ interface ArticleDao {
         plainText: String,
         contentHtml: String,
         imageUrls: String
-    )
+    ): Int
 
     @Query("UPDATE articles SET isRead = 1 WHERE id = :articleId")
     suspend fun markRead(articleId: Long)

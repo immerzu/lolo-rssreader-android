@@ -107,6 +107,43 @@ class FeedRepositoryArticleContentTest {
         assertEquals(3, stats.newArticles)
     }
 
+    @Test
+    fun collectConflictingArticlesKeepsOnlyFailedInserts() {
+        val first = article(title = "Erster")
+        val second = article(title = "Zweiter").copy(uniqueKey = "bangkok-2")
+        val third = article(title = "Dritter").copy(uniqueKey = "bangkok-3")
+
+        val conflicting = collectConflictingArticles(
+            articles = listOf(first, second, third),
+            insertedIds = listOf(11L, -1L, -1L)
+        )
+
+        assertEquals(listOf(second, third), conflicting)
+    }
+
+    @Test
+    fun buildUpdatedArticleEntityPreservesReadAndFavoriteFlags() {
+        val existing = article(title = "Alt").copy(
+            id = 15,
+            isRead = true,
+            isFavorite = true
+        )
+        val incoming = article(title = "Neu").copy(
+            id = 99,
+            plainText = "Neuer Text",
+            contentHtml = "<p>Neu</p>"
+        )
+
+        val updated = buildUpdatedArticleEntity(existing, incoming)
+
+        assertEquals(15, updated.id)
+        assertTrue(updated.isRead)
+        assertTrue(updated.isFavorite)
+        assertEquals("Neu", updated.title)
+        assertEquals("Neuer Text", updated.plainText)
+        assertEquals("<p>Neu</p>", updated.contentHtml)
+    }
+
     private fun article(
         title: String = "Bangkok Tipps",
         link: String = "https://example.com/bangkok",

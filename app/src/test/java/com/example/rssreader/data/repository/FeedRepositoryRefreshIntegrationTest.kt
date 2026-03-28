@@ -5,6 +5,7 @@ import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.example.rssreader.data.db.AppDatabase
 import com.example.rssreader.data.db.ArticleDao
+import com.example.rssreader.data.db.ArticleEntity
 import com.example.rssreader.data.db.FeedDao
 import com.example.rssreader.data.db.FeedEntity
 import com.example.rssreader.data.network.FeedFetcher
@@ -22,6 +23,8 @@ import okhttp3.Response
 import okhttp3.ResponseBody.Companion.toResponseBody
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -144,6 +147,43 @@ class FeedRepositoryRefreshIntegrationTest {
         assertEquals(listOf("Neuer Titel"), searchTitles("Neu", "neu*"))
         assertEquals(1, articleDao.countSearchIndexRows())
         assertEquals(0, articleDao.countFtsMaintenanceTriggers())
+    }
+
+    @Test
+    fun refreshFeedRollsBackFeedMetadataWhenArticlePersistenceFails() = runTest {
+        val feedUrl = "https://example.com/feed-rollback.xml"
+        val feedId = feedDao.insert(
+            FeedEntity(
+                title = "Alter Feedtitel",
+                url = feedUrl,
+                siteUrl = "https://example.com/alt",
+                iconUrl = "https://example.com/alt.ico",
+                displayOrder = nextDisplayOrder++,
+                lastFetchedAt = 1234L
+            )
+        )
+        val failingRepository = FeedRepository(
+            database = database,
+            feedDao = feedDao,
+            articleDao = FailingInsertArticleDao(articleDao),
+            fetcher = FeedFetcher(buildQueuedClient()),
+            parser = FeedParser(),
+            ioDispatcher = UnconfinedTestDispatcher()
+        )
+
+        enqueueSuccess(feedUrl, rssXml("rollback-1", "Neuer Feedtitel", "Rollback Text"))
+
+        val result = runCatching { failingRepository.refreshFeed(feedId) }
+        val storedFeed = feedDao.getById(feedId)
+
+        assertTrue(result.isFailure)
+        assertNotNull(storedFeed)
+        assertEquals("Alter Feedtitel", storedFeed?.title)
+        assertEquals("https://example.com/alt", storedFeed?.siteUrl)
+        assertEquals("https://example.com/alt.ico", storedFeed?.iconUrl)
+        assertEquals(1234L, storedFeed?.lastFetchedAt)
+        assertEquals(0, articleDao.countArticles())
+        assertEquals(0, articleDao.countSearchIndexRows())
     }
 
     @Test
@@ -339,6 +379,27 @@ class FeedRepositoryRefreshIntegrationTest {
             .add(response)
     }
 
+    private fun buildQueuedClient(): OkHttpClient {
+        return OkHttpClient.Builder()
+            .addInterceptor { chain ->
+                val url = chain.request().url.toString()
+                val queuedResponse = responseQueues[url]?.poll()
+                    ?: error("No queued response for $url")
+                Response.Builder()
+                    .request(chain.request())
+                    .protocol(Protocol.HTTP_1_1)
+                    .code(queuedResponse.code)
+                    .message(if (queuedResponse.code in 200..299) "OK" else "Error")
+                    .body(
+                        queuedResponse.body.toResponseBody(
+                            queuedResponse.contentType?.toMediaType()
+                        )
+                    )
+                    .build()
+            }
+            .build()
+    }
+
     private fun rssXml(uniqueKey: String, title: String, plainText: String): String {
         return """
             <?xml version="1.0" encoding="UTF-8"?>
@@ -363,3 +424,11 @@ private data class QueuedHttpResponse(
     val body: String,
     val contentType: String?
 )
+
+private class FailingInsertArticleDao(
+    private val delegate: ArticleDao
+) : ArticleDao by delegate {
+    override suspend fun insertAll(items: List<ArticleEntity>): List<Long> {
+        throw IllegalStateException("insertAll failed")
+    }
+}

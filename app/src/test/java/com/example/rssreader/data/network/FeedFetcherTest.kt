@@ -166,4 +166,29 @@ class FeedFetcherTest {
         assertTrue(payload.defensiveMode)
         assertArrayEquals(bytes, payload.openStream().readBytes())
     }
+
+    @Test
+    fun fetchUsesVersionDerivedUserAgent() {
+        var capturedUserAgent: String? = null
+        val client = OkHttpClient.Builder()
+            .addInterceptor { chain ->
+                capturedUserAgent = chain.request().header("User-Agent")
+                Response.Builder()
+                    .request(chain.request())
+                    .protocol(Protocol.HTTP_1_1)
+                    .code(200)
+                    .message("OK")
+                    .body(
+                        """<?xml version="1.0" encoding="UTF-8"?><rss version="2.0"><channel><title>ok</title></channel></rss>"""
+                            .toResponseBody("application/rss+xml; charset=UTF-8".toMediaType())
+                    )
+                    .build()
+            }
+            .build()
+
+        runBlocking { FeedFetcher(client).fetch("https://example.com/feed.xml") }
+
+        assertEquals(AppUserAgent.value, capturedUserAgent)
+        assertTrue(capturedUserAgent.orEmpty().startsWith("RSS-Reader/"))
+    }
 }

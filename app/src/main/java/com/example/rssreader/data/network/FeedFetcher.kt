@@ -25,7 +25,6 @@ class FeedFetcher(
 ) {
     companion object {
         private const val TAG = "FeedFetcher"
-        private const val USER_AGENT = "RSS-Reader/1.60 (+Android)"
         private const val MAX_FETCH_ATTEMPTS = 2
         private const val RETRY_DELAY_MS = 650L
         private const val LARGE_FEED_SOFT_LIMIT_BYTES = 5L * 1024L * 1024L
@@ -48,7 +47,7 @@ class FeedFetcher(
         val request = try {
             Request.Builder()
                 .url(url)
-                .header("User-Agent", USER_AGENT)
+                .header("User-Agent", AppUserAgent.value)
                 .get()
                 .build()
         } catch (throwable: IllegalArgumentException) {

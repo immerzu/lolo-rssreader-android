@@ -1,0 +1,6 @@
+Stability and technical hardening update.
+
+- safer refresh consistency
+- stronger FTS and migration coverage
+- improved background refresh robustness
+- conservative internal cleanup without UI changes

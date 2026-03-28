@@ -1,0 +1,44 @@
+Categories:
+  - News
+  - Reading
+License: Apache-2.0
+AuthorName: immerzu
+WebSite: https://github.com/immerzu/lolo-rssreader-android
+SourceCode: https://github.com/immerzu/lolo-rssreader-android
+IssueTracker: https://github.com/immerzu/lolo-rssreader-android/issues
+Summary: Compact RSS reader with OPML, favorites, offline reading, and dark mode.
+Description: |-
+  RSS Reader is a compact, classic feed reader for RSS and Atom feeds.
+
+  New articles are stored locally and can be read in the built-in reader view or opened in the browser.
+
+  Features:
+
+  * Subscribe to RSS and Atom feeds
+  * Import and export OPML
+  * Mark articles as read or unread
+  * Protect favorites from deletion
+  * Light and dark theme
+  * Background refresh with notifications
+  * Compact reader view with images and swipe navigation
+  * Optional article translation
+
+  Notes for F-Droid reviewers:
+
+  * The translation feature is optional and uses a Google web translation service.
+  * Because of that, this app should be marked with the `NonFreeNet` anti-feature.
+RepoType: git
+Repo: https://github.com/immerzu/lolo-rssreader-android.git
+AntiFeatures:
+  NonFreeNet:
+    en-US: Optional article translation uses a Google web translation service.
+    de-DE: Optionale Artikeluebersetzung nutzt einen Google-Webdienst.
+CurrentVersion: 1.81.00
+CurrentVersionCode: 127
+Builds:
+  - versionName: 1.81.00
+    versionCode: 127
+    # Create and push this tag before filing the MR / submission.
+    commit: v1.81.00
+    gradle:
+      - yes

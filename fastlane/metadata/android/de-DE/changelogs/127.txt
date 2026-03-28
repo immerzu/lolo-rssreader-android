@@ -1,0 +1,6 @@
+Stabilitaets- und Technik-Update.
+
+- sicherere Refresh-Konsistenz
+- staerkere FTS- und Migrations-Tests
+- robustere Hintergrundaktualisierung
+- konservative interne Bereinigung ohne UI-Aenderungen
