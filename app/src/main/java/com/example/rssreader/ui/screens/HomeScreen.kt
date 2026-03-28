@@ -121,6 +121,9 @@ fun HomeScreen(
             }
             isRefreshing = true
             runCatching { repository.refreshAll() }
+                .onSuccess { stats ->
+                    showInfoMessage(formatRefreshSummary(stats))
+                }
                 .onFailure {
                     if (it !is CancellationException) {
                         errorMessage = it.toUserMessage("Aktualisierung fehlgeschlagen.")
