@@ -4,7 +4,7 @@ Fuer die offizielle F-Droid-Einreichung ist jetzt fast alles vorbereitet.
 
 Wichtigster Restpunkt:
 
-* Der Release-Tag `v1.70.01-translate-release` sollte idealerweise auch vom Standard-Branch `main` erreichbar sein.
+* Der Release-Tag fuer die einzureichende Version sollte idealerweise auch vom Standard-Branch erreichbar sein.
 
 Danach kannst du den vorbereiteten englischen Text aus
 

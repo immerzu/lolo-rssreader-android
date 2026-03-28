@@ -10,7 +10,7 @@ Die Store-Metadaten fuer F-Droid liegen im Repo unter:
 
 Vor einer offiziellen Einreichung sollten diese Punkte noch einmal geprueft werden:
 
-* Release-Tag fuer die einzureichende Version `1.81.00 (127)` erstellen und pushen
+* Release-Tag fuer die einzureichende Version erstellen und pushen
 * `fastlane`-Metadaten aktuell
 * Icon und Screenshots passen zur aktuellen App
 * Lizenzdatei vorhanden
@@ -28,7 +28,7 @@ Nach der Vorbereitung erfolgt die offizielle Einreichung ueber GitLab/F-Droid:
 
 Empfohlener Weg:
 
-1. Git-Tag `v1.81.00` auf den einzureichenden Commit setzen und pushen.
+1. Git-Tag `vX.YY.ZZ` auf den einzureichenden Commit setzen und pushen.
 2. Die vorbereitete Metadatei unter `docs/fdroid/de.lolo.rssreader.yml` als Basis fuer `fdroiddata/metadata/de.lolo.rssreader.yml` verwenden.
 3. Den vorbereiteten englischen Einreichungstext aus `docs/FDROID_SUBMISSION_TEMPLATE_EN.md` in GitLab verwenden.
 4. Falls kein direkter Merge Request gewuenscht ist, den gleichen Inhalt in die Submission Queue einstellen.
