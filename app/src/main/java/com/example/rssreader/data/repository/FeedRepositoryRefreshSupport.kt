@@ -11,7 +11,14 @@ internal class RefreshCoordinator<T>(
     private val task: suspend (T) -> RefreshFeedOutcome,
     private val onFailure: (T, Throwable) -> RefreshFeedOutcome
 ) {
+    init {
+        require(parallelism > 0) { "parallelism must be greater than 0" }
+    }
+
     suspend fun run(items: List<T>): List<RefreshFeedOutcome> = supervisorScope {
+        if (items.isEmpty()) {
+            return@supervisorScope emptyList()
+        }
         val semaphore = Semaphore(parallelism)
         items.map { item ->
             async {
@@ -54,6 +61,7 @@ internal data class RefreshAccumulator(
     }
 
     fun toStats(skippedFeeds: Int): RefreshRunStats {
+        require(skippedFeeds >= 0) { "skippedFeeds must be greater than or equal to 0" }
         return RefreshRunStats(
             refreshedFeeds = refreshedFeeds,
             skippedFeeds = skippedFeeds,

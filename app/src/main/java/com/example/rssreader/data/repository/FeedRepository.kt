@@ -16,6 +16,7 @@ import com.example.rssreader.data.network.FeedParser
 import com.example.rssreader.data.opml.OpmlCodec
 import com.example.rssreader.data.opml.OpmlFeedEntry
 import com.example.rssreader.debug.DebugLogger
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import java.io.InputStream
 import java.io.OutputStream
@@ -401,8 +402,16 @@ class FeedRepository(
                 )
             }.onSuccess {
                 importedFeeds += 1
-            }.onFailure {
+            }.onFailure { throwable ->
+                if (throwable is CancellationException) {
+                    throw throwable
+                }
                 failedFeeds += 1
+                DebugLogger.w(
+                    TAG,
+                    "Feed-Import fehlgeschlagen: url=${entry.url}, title=${entry.title.orEmpty()}",
+                    throwable
+                )
             }
         }
 
@@ -478,15 +487,17 @@ class FeedRepository(
         var updatedArticles = 0
         var unchangedArticles = 0
         if (conflictingArticles.isNotEmpty()) {
+            val latestConflictingArticles = collapseConflictingArticlesByUniqueKey(conflictingArticles)
+            val conflictingUniqueKeys = extractConflictingUniqueKeys(latestConflictingArticles)
             val existingArticlesByUniqueKey = articleDao
                 .getByFeedAndUniqueKeys(
                     feedId = feedId,
-                    uniqueKeys = conflictingArticles.map { it.uniqueKey }
+                    uniqueKeys = conflictingUniqueKeys
                 )
                 .associateBy { it.uniqueKey }
-            val changedArticles = ArrayList<ArticleEntity>(conflictingArticles.size)
+            val changedArticles = ArrayList<ArticleEntity>(latestConflictingArticles.size)
 
-            conflictingArticles.forEach { article ->
+            latestConflictingArticles.forEach { article ->
                 val existingArticle = existingArticlesByUniqueKey[article.uniqueKey]
                 if (existingArticle != null && hasSameStoredArticleContent(existingArticle, article)) {
                     unchangedArticles += 1
@@ -753,6 +764,29 @@ internal fun collectConflictingArticles(
         }
     }
     return conflictingArticles
+}
+
+internal fun extractConflictingUniqueKeys(
+    conflictingArticles: List<ArticleEntity>
+): List<String> {
+    return conflictingArticles
+        .asSequence()
+        .map { it.uniqueKey }
+        .distinct()
+        .toList()
+}
+
+internal fun collapseConflictingArticlesByUniqueKey(
+    conflictingArticles: List<ArticleEntity>
+): List<ArticleEntity> {
+    if (conflictingArticles.size < 2) {
+        return conflictingArticles
+    }
+    val latestArticlesByUniqueKey = LinkedHashMap<String, ArticleEntity>(conflictingArticles.size)
+    conflictingArticles.forEach { article ->
+        latestArticlesByUniqueKey[article.uniqueKey] = article
+    }
+    return latestArticlesByUniqueKey.values.toList()
 }
 
 internal fun buildUpdatedArticleEntity(

@@ -43,6 +43,22 @@ class FeedRepositoryArticleContentTest {
     }
 
     @Test
+    fun hasSameStoredArticleContentReturnsFalseWhenPublishedAtChanges() {
+        val existingArticle = article()
+        val incomingArticle = article().copy(publishedAt = 1_800_000_000_000)
+
+        assertFalse(hasSameStoredArticleContent(existingArticle, incomingArticle))
+    }
+
+    @Test
+    fun hasSameStoredArticleContentReturnsFalseWhenImageUrlsChange() {
+        val existingArticle = article(imageUrls = "https://example.com/a.jpg")
+        val incomingArticle = article(imageUrls = "https://example.com/b.jpg")
+
+        assertFalse(hasSameStoredArticleContent(existingArticle, incomingArticle))
+    }
+
+    @Test
     fun shouldSyncSearchIndexByFeedSkipsUnchangedRefreshWrite() {
         assertFalse(
             shouldSyncSearchIndexByFeed(
@@ -142,6 +158,94 @@ class FeedRepositoryArticleContentTest {
         assertEquals("Neu", updated.title)
         assertEquals("Neuer Text", updated.plainText)
         assertEquals("<p>Neu</p>", updated.contentHtml)
+    }
+
+    @Test
+    fun buildUpdatedArticleEntityPreservesIdentityFields() {
+        val existing = article(
+            title = "Alt",
+            link = "https://example.com/alt"
+        ).copy(
+            id = 15,
+            feedId = 42,
+            uniqueKey = "stable-key",
+            isRead = true,
+            isFavorite = true
+        )
+        val incoming = article(
+            title = "Neu",
+            link = "https://example.com/neu",
+            plainText = "Neuer Text",
+            imageUrls = "https://example.com/neu.jpg"
+        ).copy(
+            id = 99,
+            feedId = 7,
+            uniqueKey = "incoming-key"
+        )
+
+        val updated = buildUpdatedArticleEntity(existing, incoming)
+
+        assertEquals(15, updated.id)
+        assertEquals(42, updated.feedId)
+        assertEquals("stable-key", updated.uniqueKey)
+        assertTrue(updated.isRead)
+        assertTrue(updated.isFavorite)
+        assertEquals("Neu", updated.title)
+        assertEquals("https://example.com/neu", updated.link)
+        assertEquals("Neuer Text", updated.plainText)
+        assertEquals("https://example.com/neu.jpg", updated.imageUrls)
+    }
+
+    @Test
+    fun collectConflictingArticlesIgnoresTrailingArticlesWithoutInsertResults() {
+        val first = article(title = "Erster")
+        val second = article(title = "Zweiter").copy(uniqueKey = "bangkok-2")
+        val third = article(title = "Dritter").copy(uniqueKey = "bangkok-3")
+
+        val conflicting = collectConflictingArticles(
+            articles = listOf(first, second, third),
+            insertedIds = listOf(11L, -1L)
+        )
+
+        assertEquals(listOf(second), conflicting)
+    }
+
+    @Test
+    fun extractConflictingUniqueKeysDeduplicatesWhileKeepingOrder() {
+        val first = article(title = "Erster").copy(uniqueKey = "bangkok-1")
+        val second = article(title = "Zweiter").copy(uniqueKey = "bangkok-2")
+        val third = article(title = "Dritter").copy(uniqueKey = "bangkok-1")
+        val fourth = article(title = "Vierter").copy(uniqueKey = "bangkok-3")
+
+        val uniqueKeys = extractConflictingUniqueKeys(
+            listOf(first, second, third, fourth)
+        )
+
+        assertEquals(
+            listOf("bangkok-1", "bangkok-2", "bangkok-3"),
+            uniqueKeys
+        )
+    }
+
+    @Test
+    fun collapseConflictingArticlesByUniqueKeyKeepsLatestArticlePerKey() {
+        val first = article(title = "Erster").copy(uniqueKey = "bangkok-1")
+        val second = article(title = "Zweiter").copy(uniqueKey = "bangkok-2")
+        val third = article(title = "Dritter").copy(uniqueKey = "bangkok-1")
+        val fourth = article(title = "Vierter").copy(uniqueKey = "bangkok-3")
+
+        val collapsed = collapseConflictingArticlesByUniqueKey(
+            listOf(first, second, third, fourth)
+        )
+
+        assertEquals(
+            listOf(
+                third,
+                second,
+                fourth
+            ),
+            collapsed
+        )
     }
 
     private fun article(

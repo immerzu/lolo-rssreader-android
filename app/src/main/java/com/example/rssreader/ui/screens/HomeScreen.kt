@@ -1,7 +1,6 @@
 package com.example.rssreader.ui.screens
 
 import android.content.Context
-import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Box
@@ -76,6 +75,7 @@ fun HomeScreen(
     onOpenSettings: () -> Unit
 ) {
     val context = LocalContext.current
+    val activity = findHostActivity(context)
     val feeds by repository.observeFeedSummaries().collectAsState(initial = emptyList())
     val scope = rememberCoroutineScope()
     var isRefreshing by rememberSaveable { mutableStateOf(false) }
@@ -138,9 +138,9 @@ fun HomeScreen(
         contract = ActivityResultContracts.OpenDocument()
     ) { uri ->
         if (uri != null) {
-            scope.launch {
+            launchFromUiScope(activity, scope) {
                 busy = true
-                runCatching { importOpml(context, repository, uri) }
+                runCatching { importOpmlFromUri(context, repository, uri) }
                     .onSuccess { result ->
                         showInfoMessage(formatImportSummary(result))
                     }
@@ -158,9 +158,9 @@ fun HomeScreen(
         contract = ActivityResultContracts.CreateDocument("text/xml")
     ) { uri ->
         if (uri != null) {
-            scope.launch {
+            launchFromUiScope(activity, scope) {
                 busy = true
-                runCatching { exportOpml(context, repository, uri) }
+                runCatching { exportOpmlToUri(context, repository, uri) }
                     .onSuccess { exportedFeeds ->
                         showInfoMessage(formatExportSummary(exportedFeeds))
                     }
@@ -848,35 +848,3 @@ private fun currentAppVersionLabel(context: Context): String {
     val packageInfo = context.packageManager.getPackageInfo(context.packageName, 0)
     return "${packageInfo.versionName.orEmpty()} (${packageInfo.longVersionCode})"
 }
-
-private suspend fun importOpml(
-    context: Context,
-    repository: FeedRepository,
-    uri: Uri
-) = runCatching {
-    context.contentResolver.openInputStream(uri)?.use { inputStream ->
-        repository.importOpml(inputStream)
-    } ?: throw RssReaderException.FileReadFailed()
-}.getOrElse { throwable ->
-    if (throwable is RssReaderException) {
-        throw throwable
-    }
-    throw RssReaderException.FileReadFailed(throwable)
-}
-
-private suspend fun exportOpml(
-    context: Context,
-    repository: FeedRepository,
-    uri: Uri
-) = runCatching {
-    context.contentResolver.openOutputStream(uri)?.use { outputStream ->
-        repository.exportOpml(outputStream)
-    } ?: throw RssReaderException.FileWriteFailed()
-}.getOrElse { throwable ->
-    if (throwable is RssReaderException) {
-        throw throwable
-    }
-    throw RssReaderException.FileWriteFailed(throwable)
-}
-
-

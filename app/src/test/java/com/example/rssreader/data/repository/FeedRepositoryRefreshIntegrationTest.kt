@@ -8,10 +8,14 @@ import com.example.rssreader.data.db.ArticleDao
 import com.example.rssreader.data.db.ArticleEntity
 import com.example.rssreader.data.db.FeedDao
 import com.example.rssreader.data.db.FeedEntity
+import com.example.rssreader.data.errors.RssReaderException
 import com.example.rssreader.data.network.FeedFetcher
 import com.example.rssreader.data.network.FeedParser
+import com.example.rssreader.data.opml.OpmlCodec
+import com.example.rssreader.data.opml.OpmlFeedEntry
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentLinkedQueue
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
@@ -210,6 +214,172 @@ class FeedRepositoryRefreshIntegrationTest {
     }
 
     @Test
+    fun refreshFeedKeepsFlagsAndSearchStateWhenConflictingArticleIsUnchanged() = runTest {
+        val feedUrl = "https://example.com/feed-flags-unchanged.xml"
+        val feedId = insertFeed(feedUrl)
+
+        enqueueSuccess(feedUrl, rssXml("article-same", "Konstanter Titel", "Osaka Tipps"))
+        assertEquals(1, repository.refreshFeed(feedId))
+
+        val initialArticle = articleDao.observeByFeed(feedId).first().single()
+        repository.markRead(initialArticle.id)
+        repository.setFavorite(initialArticle.id, true)
+
+        enqueueSuccess(feedUrl, rssXml("article-same", "Konstanter Titel", "Osaka Tipps"))
+        assertEquals(0, repository.refreshFeed(feedId))
+
+        val storedArticle = articleDao.observeByFeed(feedId).first().single()
+        assertEquals(initialArticle.id, storedArticle.id)
+        assertTrue(storedArticle.isRead)
+        assertTrue(storedArticle.isFavorite)
+        assertEquals("Konstanter Titel", storedArticle.title)
+        assertEquals("Osaka Tipps", storedArticle.plainText)
+        assertEquals(1, articleDao.countArticles())
+        assertEquals(1, articleDao.countSearchIndexRows())
+        assertEquals(0, articleDao.countFtsMaintenanceTriggers())
+        assertEquals(listOf("Konstanter Titel"), searchTitles("Osaka", "osaka*"))
+        assertTrue(searchTitles("Neu", "neu*").isEmpty())
+    }
+
+    @Test
+    fun refreshFeedUpdatesChangedConflictingArticleAndPreservesFlags() = runTest {
+        val feedUrl = "https://example.com/feed-flags-changed.xml"
+        val feedId = insertFeed(feedUrl)
+
+        enqueueSuccess(feedUrl, rssXml("article-change", "Alter Titel", "Bangkok Alt"))
+        assertEquals(1, repository.refreshFeed(feedId))
+
+        val initialArticle = articleDao.observeByFeed(feedId).first().single()
+        repository.markRead(initialArticle.id)
+        repository.setFavorite(initialArticle.id, true)
+
+        enqueueSuccess(feedUrl, rssXml("article-change", "Neuer Titel", "Bangkok Neu"))
+        assertEquals(0, repository.refreshFeed(feedId))
+
+        val storedArticle = articleDao.observeByFeed(feedId).first().single()
+        assertEquals(initialArticle.id, storedArticle.id)
+        assertTrue(storedArticle.isRead)
+        assertTrue(storedArticle.isFavorite)
+        assertEquals("Neuer Titel", storedArticle.title)
+        assertEquals("Bangkok Neu", storedArticle.plainText)
+        assertEquals(1, articleDao.countArticles())
+        assertEquals(1, articleDao.countSearchIndexRows())
+        assertEquals(0, articleDao.countFtsMaintenanceTriggers())
+        assertTrue(searchTitles("Alt", "alt*").isEmpty())
+        assertEquals(listOf("Neuer Titel"), searchTitles("Neu", "neu*"))
+    }
+
+    @Test
+    fun refreshFeedDoesNotBatchUpdateUnchangedConflictingArticle() = runTest {
+        val feedUrl = "https://example.com/feed-record-unchanged.xml"
+        val recordingArticleDao = RecordingUpdateArticleDao(articleDao)
+        repository = FeedRepository(
+            database = database,
+            feedDao = feedDao,
+            articleDao = recordingArticleDao,
+            fetcher = FeedFetcher(buildQueuedClient()),
+            parser = FeedParser(),
+            ioDispatcher = UnconfinedTestDispatcher()
+        )
+        val feedId = insertFeed(feedUrl)
+
+        enqueueSuccess(feedUrl, rssXml("article-same", "Konstanter Titel", "Osaka Tipps"))
+        assertEquals(1, repository.refreshFeed(feedId))
+
+        val initialArticle = articleDao.observeByFeed(feedId).first().single()
+        repository.markRead(initialArticle.id)
+        repository.setFavorite(initialArticle.id, true)
+        recordingArticleDao.reset()
+
+        enqueueSuccess(feedUrl, rssXml("article-same", "Konstanter Titel", "Osaka Tipps"))
+        assertEquals(0, repository.refreshFeed(feedId))
+
+        val storedArticle = articleDao.observeByFeed(feedId).first().single()
+        assertEquals(0, recordingArticleDao.updateAllCallCount)
+        assertTrue(recordingArticleDao.updatedBatches.isEmpty())
+        assertEquals(initialArticle.id, storedArticle.id)
+        assertTrue(storedArticle.isRead)
+        assertTrue(storedArticle.isFavorite)
+        assertEquals(1, articleDao.countArticles())
+        assertEquals(1, articleDao.countSearchIndexRows())
+        assertEquals(0, articleDao.countFtsMaintenanceTriggers())
+        assertEquals(listOf("Konstanter Titel"), searchTitles("Osaka", "osaka*"))
+    }
+
+    @Test
+    fun refreshFeedBatchesOnlyChangedConflictsAndPreservesFlags() = runTest {
+        val feedUrl = "https://example.com/feed-record-mixed.xml"
+        val recordingArticleDao = RecordingUpdateArticleDao(articleDao)
+        repository = FeedRepository(
+            database = database,
+            feedDao = feedDao,
+            articleDao = recordingArticleDao,
+            fetcher = FeedFetcher(buildQueuedClient()),
+            parser = FeedParser(),
+            ioDispatcher = UnconfinedTestDispatcher()
+        )
+        val feedId = insertFeed(feedUrl)
+
+        enqueueSuccess(
+            feedUrl,
+            rssXmlWithTwoItems(
+                firstUniqueKey = "article-stable",
+                firstTitle = "Stabiler Titel",
+                firstPlainText = "Kyoto Stabil",
+                secondUniqueKey = "article-change",
+                secondTitle = "Alter Titel",
+                secondPlainText = "Bangkok Alt"
+            )
+        )
+        assertEquals(2, repository.refreshFeed(feedId))
+
+        val initialArticles = articleDao.observeByFeed(feedId).first().associateBy { it.uniqueKey }
+        val stableArticle = checkNotNull(initialArticles["article-stable"])
+        val changedArticle = checkNotNull(initialArticles["article-change"])
+        repository.markRead(stableArticle.id)
+        repository.setFavorite(stableArticle.id, true)
+        repository.markRead(changedArticle.id)
+        repository.setFavorite(changedArticle.id, true)
+        recordingArticleDao.reset()
+
+        enqueueSuccess(
+            feedUrl,
+            rssXmlWithTwoItems(
+                firstUniqueKey = "article-stable",
+                firstTitle = "Stabiler Titel",
+                firstPlainText = "Kyoto Stabil",
+                secondUniqueKey = "article-change",
+                secondTitle = "Neuer Titel",
+                secondPlainText = "Bangkok Neu"
+            )
+        )
+        assertEquals(0, repository.refreshFeed(feedId))
+
+        val storedArticles = articleDao.observeByFeed(feedId).first().associateBy { it.uniqueKey }
+        val storedStableArticle = checkNotNull(storedArticles["article-stable"])
+        val storedChangedArticle = checkNotNull(storedArticles["article-change"])
+
+        assertEquals(1, recordingArticleDao.updateAllCallCount)
+        assertEquals(listOf("article-change"), recordingArticleDao.updatedUniqueKeys())
+        assertEquals(stableArticle.id, storedStableArticle.id)
+        assertEquals(changedArticle.id, storedChangedArticle.id)
+        assertTrue(storedStableArticle.isRead)
+        assertTrue(storedStableArticle.isFavorite)
+        assertTrue(storedChangedArticle.isRead)
+        assertTrue(storedChangedArticle.isFavorite)
+        assertEquals("Stabiler Titel", storedStableArticle.title)
+        assertEquals("Kyoto Stabil", storedStableArticle.plainText)
+        assertEquals("Neuer Titel", storedChangedArticle.title)
+        assertEquals("Bangkok Neu", storedChangedArticle.plainText)
+        assertEquals(2, articleDao.countArticles())
+        assertEquals(2, articleDao.countSearchIndexRows())
+        assertEquals(0, articleDao.countFtsMaintenanceTriggers())
+        assertEquals(listOf("Stabiler Titel"), searchTitles("Kyoto", "kyoto*"))
+        assertTrue(searchTitles("Alt", "alt*").isEmpty())
+        assertEquals(listOf("Neuer Titel"), searchTitles("Neu", "neu*"))
+    }
+
+    @Test
     fun refreshAllHandlesChangedAndUnchangedFeedsInOneRun() = runTest {
         val changedUrl = "https://example.com/feed-changed.xml"
         val unchangedUrl = "https://example.com/feed-stable.xml"
@@ -269,6 +439,278 @@ class FeedRepositoryRefreshIntegrationTest {
         assertEquals(listOf("Bleibt gleich"), searchTitles("Bern", "bern*"))
         assertEquals(listOf("Erster Stand"), searchTitles("Oslo", "oslo*"))
         assertEquals(secondStats, repository.diagnosticsSnapshot().lastRefreshRunStats)
+    }
+
+    @Test
+    fun refreshFeedKeepsLatestDuplicateUniqueKeyFromSamePayloadInSearchIndex() = runTest {
+        val feedUrl = "https://example.com/feed-duplicate-key.xml"
+        val feedId = insertFeed(feedUrl)
+
+        enqueueSuccess(
+            feedUrl,
+            rssXmlWithTwoItems(
+                firstUniqueKey = "duplicate-key",
+                firstTitle = "Alter Eintrag",
+                firstPlainText = "Hanoi Alt",
+                secondUniqueKey = "duplicate-key",
+                secondTitle = "Neuer Eintrag",
+                secondPlainText = "Hanoi Neu"
+            )
+        )
+
+        assertEquals(1, repository.refreshFeed(feedId))
+
+        val storedArticle = articleDao.observeByFeed(feedId).first().single()
+        assertEquals("duplicate-key", storedArticle.uniqueKey)
+        assertEquals("Neuer Eintrag", storedArticle.title)
+        assertEquals("Hanoi Neu", storedArticle.plainText)
+        assertEquals(1, articleDao.countArticles())
+        assertEquals(1, articleDao.countSearchIndexRows())
+        assertEquals(0, articleDao.countFtsMaintenanceTriggers())
+        assertTrue(searchTitles("Alt", "alt*").isEmpty())
+        assertEquals(listOf("Neuer Eintrag"), searchTitles("Neu", "neu*"))
+    }
+
+    @Test
+    fun refreshFeedCollapsesDuplicateChangedConflictsToSingleBatchUpdate() = runTest {
+        val feedUrl = "https://example.com/feed-duplicate-conflict.xml"
+        val recordingArticleDao = RecordingUpdateArticleDao(articleDao)
+        repository = FeedRepository(
+            database = database,
+            feedDao = feedDao,
+            articleDao = recordingArticleDao,
+            fetcher = FeedFetcher(buildQueuedClient()),
+            parser = FeedParser(),
+            ioDispatcher = UnconfinedTestDispatcher()
+        )
+        val feedId = insertFeed(feedUrl)
+
+        enqueueSuccess(feedUrl, rssXml("duplicate-key", "Alter Eintrag", "Hanoi Alt"))
+        assertEquals(1, repository.refreshFeed(feedId))
+
+        val initialArticle = articleDao.observeByFeed(feedId).first().single()
+        repository.markRead(initialArticle.id)
+        repository.setFavorite(initialArticle.id, true)
+        recordingArticleDao.reset()
+
+        enqueueSuccess(
+            feedUrl,
+            rssXmlWithTwoItems(
+                firstUniqueKey = "duplicate-key",
+                firstTitle = "Zwischenstand",
+                firstPlainText = "Hanoi Mitte",
+                secondUniqueKey = "duplicate-key",
+                secondTitle = "Endstand",
+                secondPlainText = "Hanoi Neu"
+            )
+        )
+
+        assertEquals(0, repository.refreshFeed(feedId))
+
+        val storedArticle = articleDao.observeByFeed(feedId).first().single()
+        assertEquals(1, recordingArticleDao.updateAllCallCount)
+        assertEquals(listOf("duplicate-key"), recordingArticleDao.updatedUniqueKeys())
+        assertEquals(initialArticle.id, storedArticle.id)
+        assertTrue(storedArticle.isRead)
+        assertTrue(storedArticle.isFavorite)
+        assertEquals("Endstand", storedArticle.title)
+        assertEquals("Hanoi Neu", storedArticle.plainText)
+        assertEquals(1, articleDao.countArticles())
+        assertEquals(1, articleDao.countSearchIndexRows())
+        assertEquals(0, articleDao.countFtsMaintenanceTriggers())
+        assertTrue(searchTitles("Alt", "alt*").isEmpty())
+        assertTrue(searchTitles("Mitte", "mitte*").isEmpty())
+        assertEquals(listOf("Endstand"), searchTitles("Neu", "neu*"))
+    }
+
+    @Test
+    fun importOpmlDeduplicatesDuplicateUrlsBeforeRepositoryImportLoop() = runTest {
+        val feedUrl = "https://example.com/import-duplicate.xml"
+
+        enqueueSuccess(feedUrl, rssXml("import-1", "Importierter Feed", "Singapur Tipps"))
+
+        val result = repository.importOpml(
+            OpmlCodec.build(
+                listOf(
+                    OpmlFeedEntry(url = feedUrl, title = "Importierter Feed"),
+                    OpmlFeedEntry(url = feedUrl, title = "Importierter Feed Duplikat")
+                )
+            ).byteInputStream()
+        )
+
+        assertEquals(1, result.importedFeeds)
+        assertEquals(0, result.skippedFeeds)
+        assertEquals(0, result.failedFeeds)
+        assertEquals(1, feedDao.countFeeds())
+        assertEquals(1, articleDao.countArticles())
+        assertEquals(1, articleDao.countSearchIndexRows())
+        assertEquals(listOf("Importierter Feed"), searchTitles("Singapur", "singapur*"))
+    }
+
+    @Test
+    fun importOpmlCountsExistingDuplicateUrlOnlyOnceAfterOpmlDeduplication() = runTest {
+        val feedUrl = "https://example.com/import-existing.xml"
+        insertFeed(feedUrl)
+
+        val result = repository.importOpml(
+            OpmlCodec.build(
+                listOf(
+                    OpmlFeedEntry(url = feedUrl, title = "Schon vorhanden"),
+                    OpmlFeedEntry(url = feedUrl, title = "Schon vorhanden Duplikat")
+                )
+            ).byteInputStream()
+        )
+
+        assertEquals(0, result.importedFeeds)
+        assertEquals(1, result.skippedFeeds)
+        assertEquals(0, result.failedFeeds)
+        assertEquals(1, feedDao.countFeeds())
+        assertEquals(0, articleDao.countArticles())
+        assertEquals(0, articleDao.countSearchIndexRows())
+    }
+
+    @Test
+    fun importOpmlKeepsSuccessfulFeedsWhenAnotherFeedFails() = runTest {
+        val successfulUrl = "https://example.com/import-success.xml"
+        val failingUrl = "https://example.com/import-failing.xml"
+
+        enqueueSuccess(successfulUrl, rssXml("import-success", "Erfolgreicher Import", "Wien Tipps"))
+        enqueueError(failingUrl, 503, times = 2)
+
+        val result = repository.importOpml(
+            OpmlCodec.build(
+                listOf(
+                    OpmlFeedEntry(url = successfulUrl, title = "Erfolgreicher Import"),
+                    OpmlFeedEntry(url = failingUrl, title = "Fehlgeschlagener Import")
+                )
+            ).byteInputStream()
+        )
+
+        assertEquals(1, result.importedFeeds)
+        assertEquals(0, result.skippedFeeds)
+        assertEquals(1, result.failedFeeds)
+        assertEquals(1, feedDao.countFeeds())
+        assertEquals(1, articleDao.countArticles())
+        assertEquals(1, articleDao.countSearchIndexRows())
+        assertEquals(listOf("Erfolgreicher Import"), searchTitles("Wien", "wien*"))
+        assertEquals(result, repository.diagnosticsSnapshot().lastImportResult)
+    }
+
+    @Test
+    fun importOpmlPropagatesCancellationInsteadOfCountingItAsFeedFailure() = runTest {
+        val successfulUrl = "https://example.com/import-cancel-success.xml"
+        val cancellingUrl = "https://example.com/import-cancel.xml"
+        repository = FeedRepository(
+            database = database,
+            feedDao = feedDao,
+            articleDao = CancellingInsertArticleDao(articleDao, cancelledUniqueKey = "cancelled-import"),
+            fetcher = FeedFetcher(buildQueuedClient()),
+            parser = FeedParser(),
+            ioDispatcher = UnconfinedTestDispatcher()
+        )
+
+        enqueueSuccess(successfulUrl, rssXml("successful-import", "Erfolgreicher Import", "Wien Tipps"))
+        enqueueSuccess(cancellingUrl, rssXml("cancelled-import", "Abgebrochener Import", "Prag Tipps"))
+
+        val failure = runCatching {
+            repository.importOpml(
+                OpmlCodec.build(
+                    listOf(
+                        OpmlFeedEntry(url = successfulUrl, title = "Erfolgreicher Import"),
+                        OpmlFeedEntry(url = cancellingUrl, title = "Abgebrochener Import")
+                    )
+                ).byteInputStream()
+            )
+        }.exceptionOrNull()
+
+        assertTrue(failure is CancellationException)
+        assertEquals(1, feedDao.countFeeds())
+        assertEquals(1, articleDao.countArticles())
+        assertEquals(1, articleDao.countSearchIndexRows())
+        assertEquals(listOf("Erfolgreicher Import"), searchTitles("Wien", "wien*"))
+        assertNull(repository.diagnosticsSnapshot().lastImportResult)
+    }
+
+    @Test
+    fun importSingleFeedXmlImportsFeedArticlesAndSearchIndex() = runTest {
+        val feedUrl = "https://example.com/single-import.xml"
+
+        val result = repository.importOpml(
+            importableRssXml(
+                feedUrl = feedUrl,
+                uniqueKey = "single-import",
+                title = "Einzelimport",
+                plainText = "Tallinn Tipps"
+            )
+                .byteInputStream()
+        )
+
+        assertEquals(1, result.importedFeeds)
+        assertEquals(0, result.skippedFeeds)
+        assertEquals(0, result.failedFeeds)
+        assertEquals(1, feedDao.countFeeds())
+        assertEquals(1, articleDao.countArticles())
+        assertEquals(1, articleDao.countSearchIndexRows())
+        assertEquals(0, articleDao.countFtsMaintenanceTriggers())
+        assertEquals(listOf("Einzelimport"), searchTitles("Tallinn", "tallinn*"))
+        assertEquals(result, repository.diagnosticsSnapshot().lastImportResult)
+        assertEquals(feedUrl, feedDao.getAll().single().url)
+    }
+
+    @Test
+    fun importSingleFeedXmlSkipsExistingFeedByDetectedUrl() = runTest {
+        val feedUrl = "https://example.com/single-skip.xml"
+        insertFeed(feedUrl)
+
+        val result = repository.importOpml(
+            importableRssXml(
+                feedUrl = feedUrl,
+                uniqueKey = "single-skip",
+                title = "Schon da",
+                plainText = "Vilnius Tipps"
+            )
+                .byteInputStream()
+        )
+
+        assertEquals(0, result.importedFeeds)
+        assertEquals(1, result.skippedFeeds)
+        assertEquals(0, result.failedFeeds)
+        assertEquals(1, feedDao.countFeeds())
+        assertEquals(0, articleDao.countArticles())
+        assertEquals(0, articleDao.countSearchIndexRows())
+        assertEquals(result, repository.diagnosticsSnapshot().lastImportResult)
+    }
+
+    @Test
+    fun importSingleFeedXmlWithoutDetectableFeedUrlReturnsZeroCounts() = runTest {
+        val result = repository.importOpml(
+            rssXmlWithoutFeedHint(
+                uniqueKey = "single-no-hint",
+                title = "Ohne Feed-Hinweis",
+                plainText = "Riga Tipps"
+            ).byteInputStream()
+        )
+
+        assertEquals(0, result.importedFeeds)
+        assertEquals(0, result.skippedFeeds)
+        assertEquals(0, result.failedFeeds)
+        assertEquals(0, feedDao.countFeeds())
+        assertEquals(0, articleDao.countArticles())
+        assertEquals(0, articleDao.countSearchIndexRows())
+        assertEquals(result, repository.diagnosticsSnapshot().lastImportResult)
+    }
+
+    @Test
+    fun importUnsupportedFileThrowsUnsupportedImportFileAndKeepsDiagnosticsUnset() = runTest {
+        val failure = runCatching {
+            repository.importOpml("not-an-import-file".byteInputStream())
+        }.exceptionOrNull()
+
+        assertTrue(failure is RssReaderException.UnsupportedImportFile)
+        assertEquals(0, feedDao.countFeeds())
+        assertEquals(0, articleDao.countArticles())
+        assertEquals(0, articleDao.countSearchIndexRows())
+        assertNull(repository.diagnosticsSnapshot().lastImportResult)
     }
 
     @Test
@@ -410,13 +852,95 @@ class FeedRepositoryRefreshIntegrationTest {
                 <item>
                   <guid>$uniqueKey</guid>
                   <title>$title</title>
-                  <link>https://example.com/articles/$uniqueKey</link>
+                  <link>${feedUrlFor(uniqueKey)}</link>
                   <description><![CDATA[<p>$plainText</p>]]></description>
                 </item>
               </channel>
             </rss>
         """.trimIndent()
     }
+
+    private fun importableRssXml(
+        feedUrl: String,
+        uniqueKey: String,
+        title: String,
+        plainText: String
+    ): String {
+        return """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+              <channel>
+                <title>Test Feed</title>
+                <link>https://example.com/</link>
+                <atom:link href="$feedUrl" rel="self" type="application/rss+xml" />
+                <item>
+                  <guid>$uniqueKey</guid>
+                  <title>$title</title>
+                  <link>${feedUrlFor(uniqueKey)}</link>
+                  <description><![CDATA[<p>$plainText</p>]]></description>
+                </item>
+              </channel>
+            </rss>
+        """.trimIndent()
+    }
+
+    private fun rssXmlWithoutFeedHint(
+        uniqueKey: String,
+        title: String,
+        plainText: String
+    ): String {
+        return """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <rss version="2.0">
+              <channel>
+                <title>Normale Website</title>
+                <link>https://example.com/articles/latest</link>
+                <item>
+                  <guid>$uniqueKey</guid>
+                  <title>$title</title>
+                  <link>${feedUrlFor(uniqueKey)}</link>
+                  <description><![CDATA[<p>$plainText</p>]]></description>
+                </item>
+              </channel>
+            </rss>
+        """.trimIndent()
+    }
+
+    private fun feedUrlFor(uniqueKey: String): String {
+        return "https://example.com/articles/$uniqueKey"
+    }
+
+    private fun rssXmlWithTwoItems(
+        firstUniqueKey: String,
+        firstTitle: String,
+        firstPlainText: String,
+        secondUniqueKey: String,
+        secondTitle: String,
+        secondPlainText: String
+    ): String {
+        return """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <rss version="2.0">
+              <channel>
+                <title>Test Feed</title>
+                <link>https://example.com/</link>
+                <item>
+                  <guid>$firstUniqueKey</guid>
+                  <title>$firstTitle</title>
+                  <link>https://example.com/articles/$firstUniqueKey</link>
+                  <description><![CDATA[<p>$firstPlainText</p>]]></description>
+                </item>
+                <item>
+                  <guid>$secondUniqueKey</guid>
+                  <title>$secondTitle</title>
+                  <link>https://example.com/articles/$secondUniqueKey</link>
+                  <description><![CDATA[<p>$secondPlainText</p>]]></description>
+                </item>
+              </channel>
+            </rss>
+        """.trimIndent()
+    }
+
 }
 
 private data class QueuedHttpResponse(
@@ -430,5 +954,39 @@ private class FailingInsertArticleDao(
 ) : ArticleDao by delegate {
     override suspend fun insertAll(items: List<ArticleEntity>): List<Long> {
         throw IllegalStateException("insertAll failed")
+    }
+}
+
+private class RecordingUpdateArticleDao(
+    private val delegate: ArticleDao
+) : ArticleDao by delegate {
+    val updatedBatches = mutableListOf<List<ArticleEntity>>()
+
+    val updateAllCallCount: Int
+        get() = updatedBatches.size
+
+    override suspend fun updateAll(items: List<ArticleEntity>): Int {
+        updatedBatches += items.map { it.copy() }
+        return delegate.updateAll(items)
+    }
+
+    fun updatedUniqueKeys(): List<String> {
+        return updatedBatches.flatten().map { it.uniqueKey }
+    }
+
+    fun reset() {
+        updatedBatches.clear()
+    }
+}
+
+private class CancellingInsertArticleDao(
+    private val delegate: ArticleDao,
+    private val cancelledUniqueKey: String
+) : ArticleDao by delegate {
+    override suspend fun insertAll(items: List<ArticleEntity>): List<Long> {
+        if (items.any { it.uniqueKey == cancelledUniqueKey }) {
+            throw CancellationException("cancelled during import")
+        }
+        return delegate.insertAll(items)
     }
 }

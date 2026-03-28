@@ -134,6 +134,51 @@ class ArticleFtsTriggerTest {
     }
 
     @Test
+    fun freshRoomDatabaseManualSyncKeepsBatchUpdateSearchResultsInSync() = runBlocking {
+        val feedId = insertFeed()
+        articleDao.insertAll(
+            listOf(
+                article(
+                    feedId = feedId,
+                    uniqueKey = "a-1",
+                    title = "Alter Titel",
+                    plainText = "Japan Reise"
+                )
+            )
+        )
+        articleDao.syncSearchIndexByFeed(feedId)
+
+        val existingArticle = articleDao.getByFeedAndUniqueKeys(feedId, listOf("a-1")).single()
+        articleDao.updateAll(
+            listOf(
+                existingArticle.copy(
+                    title = "Neuer Titel",
+                    publishedAt = 1_700_000_000_123,
+                    plainText = "Korea Reise",
+                    contentHtml = "<p>Korea Reise</p>",
+                    imageUrls = "https://example.com/korea.jpg",
+                    isRead = true,
+                    isFavorite = true
+                )
+            )
+        )
+        articleDao.syncSearchIndexByFeed(feedId)
+
+        val oldResults = articleDao.searchArticles(
+            query = "Japan",
+            matchQuery = "japan*"
+        ).first()
+        val newResults = articleDao.searchArticles(
+            query = "Korea",
+            matchQuery = "korea*"
+        ).first()
+
+        assertTrue(oldResults.isEmpty())
+        assertEquals(1, newResults.size)
+        assertEquals("Neuer Titel", newResults.single().articleTitle)
+    }
+
+    @Test
     fun freshRoomDatabaseRepeatedManualSyncPreservesSearchState() = runBlocking {
         val feedId = insertFeed()
         articleDao.insertAll(
@@ -302,6 +347,65 @@ class ArticleFtsTriggerTest {
                 plainText = "Bangkok Reise",
                 contentHtml = "<p>Bangkok Reise</p>",
                 imageUrls = ""
+            )
+            migratedArticleDao.syncSearchIndexByFeed(1L)
+
+            val oldResults = migratedArticleDao.searchArticles(
+                query = "Thailand",
+                matchQuery = "thailand*"
+            ).first()
+            val updatedResults = migratedArticleDao.searchArticles(
+                query = "Bangkok",
+                matchQuery = "bangkok*"
+            ).first()
+
+            assertTrue(oldResults.isEmpty())
+            assertEquals(1, updatedResults.size)
+            assertEquals("Neu Titel", updatedResults.single().articleTitle)
+        } finally {
+            migratedDatabase.close()
+            context.deleteDatabase(databaseName)
+        }
+    }
+
+    @Test
+    fun migratedDatabaseManualSyncKeepsBatchUpdatedRowsSearchable() = runBlocking {
+        database.close()
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val databaseName = "fts-migration-batch-update-${System.nanoTime()}.db"
+        val databasePath = context.getDatabasePath(databaseName)
+        databasePath.parentFile?.mkdirs()
+        if (databasePath.exists()) {
+            databasePath.delete()
+        }
+
+        createVersion6Database(databasePath.absolutePath)
+
+        val migratedDatabase = Room.databaseBuilder(context, AppDatabase::class.java, databaseName)
+            .allowMainThreadQueries()
+            .addMigrations(AppDatabase.MIGRATION_6_7)
+            .addMigrations(AppDatabase.MIGRATION_7_8)
+            .build()
+
+        try {
+            val migratedArticleDao = migratedDatabase.articleDao()
+            assertEquals(0, migratedArticleDao.countFtsMaintenanceTriggers())
+
+            val existingArticle = migratedArticleDao
+                .getByFeedAndUniqueKeys(1L, listOf("a-1"))
+                .single()
+            migratedArticleDao.updateAll(
+                listOf(
+                    existingArticle.copy(
+                        title = "Neu Titel",
+                        publishedAt = 1_700_000_000_123,
+                        plainText = "Bangkok Reise",
+                        contentHtml = "<p>Bangkok Reise</p>",
+                        imageUrls = "https://example.com/bangkok.jpg",
+                        isRead = true,
+                        isFavorite = true
+                    )
+                )
             )
             migratedArticleDao.syncSearchIndexByFeed(1L)
 
