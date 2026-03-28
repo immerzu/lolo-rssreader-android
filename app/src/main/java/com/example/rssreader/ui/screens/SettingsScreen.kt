@@ -132,6 +132,9 @@ fun SettingsScreen(
                             append(" Importiert: ${result.importedFeeds}.")
                             append(" Uebersprungen: ${result.skippedFeeds}.")
                             append(" Fehler: ${result.failedFeeds}.")
+                            if (result.failedFeeds > 0 && !result.firstFailedFeedUrl.isNullOrBlank()) {
+                                append(" Erster Fehler: ${result.firstFailedFeedUrl}.")
+                            }
                         }
                     }
                     .onFailure {

@@ -981,7 +981,7 @@ class FeedParser {
         }
 
         private fun previewTitle(value: String): String {
-            val normalized = value.replace(Regex("\\s+"), " ").trim()
+            val normalized = value.replace(whitespaceRegex, " ").trim()
             return if (normalized.length <= 48) normalized else normalized.take(45) + "..."
         }
     }

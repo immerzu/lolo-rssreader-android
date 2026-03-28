@@ -589,6 +589,7 @@ class FeedRepositoryRefreshIntegrationTest {
         assertEquals(1, result.importedFeeds)
         assertEquals(0, result.skippedFeeds)
         assertEquals(1, result.failedFeeds)
+        assertEquals(failingUrl, result.firstFailedFeedUrl)
         assertEquals(1, feedDao.countFeeds())
         assertEquals(1, articleDao.countArticles())
         assertEquals(1, articleDao.countSearchIndexRows())

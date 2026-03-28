@@ -37,7 +37,8 @@ data class RefreshRunStats(
 data class OpmlImportResult(
     val importedFeeds: Int = 0,
     val skippedFeeds: Int = 0,
-    val failedFeeds: Int = 0
+    val failedFeeds: Int = 0,
+    val firstFailedFeedUrl: String? = null
 )
 
 data class RepositoryDiagnosticsSnapshot(
@@ -326,6 +327,7 @@ class FeedRepository(
         var importedFeeds = 0
         var skippedFeeds = 0
         var failedFeeds = 0
+        var firstFailedFeedUrl: String? = null
 
         if (entries.isEmpty()) {
             val xml = importBytes.toString(StandardCharsets.UTF_8)
@@ -407,6 +409,9 @@ class FeedRepository(
                     throw throwable
                 }
                 failedFeeds += 1
+                if (firstFailedFeedUrl == null) {
+                    firstFailedFeedUrl = entry.url
+                }
                 DebugLogger.w(
                     TAG,
                     "Feed-Import fehlgeschlagen: url=${entry.url}, title=${entry.title.orEmpty()}",
@@ -418,7 +423,8 @@ class FeedRepository(
         rememberImportCounts(
             importedFeeds = importedFeeds,
             skippedFeeds = skippedFeeds,
-            failedFeeds = failedFeeds
+            failedFeeds = failedFeeds,
+            firstFailedFeedUrl = firstFailedFeedUrl
         ).let { result ->
             result.also {
             DebugLogger.i(
@@ -636,13 +642,15 @@ class FeedRepository(
     private fun rememberImportCounts(
         importedFeeds: Int,
         skippedFeeds: Int,
-        failedFeeds: Int
+        failedFeeds: Int,
+        firstFailedFeedUrl: String? = null
     ): OpmlImportResult {
         return rememberImportResult(
             OpmlImportResult(
                 importedFeeds = importedFeeds,
                 skippedFeeds = skippedFeeds,
-                failedFeeds = failedFeeds
+                failedFeeds = failedFeeds,
+                firstFailedFeedUrl = firstFailedFeedUrl
             )
         )
     }

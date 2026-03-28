@@ -780,7 +780,12 @@ internal fun formatFeedRefreshSummary(newArticles: Int): String {
 }
 
 internal fun formatImportSummary(result: com.example.rssreader.data.repository.OpmlImportResult): String {
-    return "OPML importiert: ${result.importedFeeds} importiert, ${result.skippedFeeds} uebersprungen, ${result.failedFeeds} Fehler"
+    return buildString {
+        append("OPML importiert: ${result.importedFeeds} importiert, ${result.skippedFeeds} uebersprungen, ${result.failedFeeds} Fehler")
+        if (result.failedFeeds > 0 && !result.firstFailedFeedUrl.isNullOrBlank()) {
+            append(" (zuerst: ${result.firstFailedFeedUrl})")
+        }
+    }
 }
 
 internal fun formatExportSummary(exportedFeeds: Int): String {
@@ -835,6 +840,13 @@ internal fun formatDiagnosticsSummary(
         appendLine(
             snapshot.lastImportResult?.let { result ->
                 "Letzter Import: imported=${result.importedFeeds}, skipped=${result.skippedFeeds}, failed=${result.failedFeeds}"
+                    .let { summary ->
+                        if (result.failedFeeds > 0 && !result.firstFailedFeedUrl.isNullOrBlank()) {
+                            "$summary, firstFailed=${result.firstFailedFeedUrl}"
+                        } else {
+                            summary
+                        }
+                    }
             } ?: "Letzter Import: keiner"
         )
         snapshot.debugLogFilePath?.takeIf { it.isNotBlank() }?.let { path ->
