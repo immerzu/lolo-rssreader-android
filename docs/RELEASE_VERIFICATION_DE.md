@@ -1,7 +1,9 @@
 # Release-Verifikation
 
 Stand dieser Verifikation:
-- Version `1.81.01`
+- Version `1.85.02`
+- VersionCode `130`
+- Tag `v1.85.02`
 - Datum `2026-03-28`
 
 Ausgefuehrte Befehle:

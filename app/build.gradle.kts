@@ -183,14 +183,6 @@ tasks.matching { it.name == "assembleDebug" }.configureEach {
     finalizedBy("exportDebugApk")
 }
 
-tasks.matching { it.name == "assembleRelease" }.configureEach {
-    finalizedBy("exportReleaseApk")
-}
-
-tasks.matching { it.name == "bundleRelease" }.configureEach {
-    finalizedBy("exportReleaseBundle")
-}
-
 tasks.register("bumpReleaseVersion") {
     group = "versioning"
     description = "Erhoeht VERSION_NAME und VERSION_CODE bewusst fuer den naechsten Release."
