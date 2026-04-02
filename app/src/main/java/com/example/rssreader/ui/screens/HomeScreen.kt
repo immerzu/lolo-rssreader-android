@@ -13,7 +13,6 @@ import androidx.compose.material.ExperimentalMaterialApi
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.pullrefresh.PullRefreshIndicator
 import androidx.compose.material.pullrefresh.pullRefresh
 import androidx.compose.material.pullrefresh.rememberPullRefreshState
@@ -49,6 +48,7 @@ import com.example.rssreader.data.repository.RefreshRunStats
 import com.example.rssreader.data.repository.RepositoryDiagnosticsSnapshot
 import com.example.rssreader.data.settings.AppPreferences
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 private enum class HomeAction {
@@ -61,6 +61,8 @@ private enum class FeedConfirmAction {
     DELETE_ALL,
     DELETE_FEED
 }
+
+private const val HOME_REFRESH_INDICATOR_DURATION_MS = 700L
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterialApi::class)
 @Composable
@@ -79,6 +81,8 @@ fun HomeScreen(
     val feeds by repository.observeFeedSummaries().collectAsState(initial = emptyList())
     val scope = rememberCoroutineScope()
     var isRefreshing by rememberSaveable { mutableStateOf(false) }
+    var showRefreshIndicator by rememberSaveable { mutableStateOf(false) }
+    var refreshIndicatorToken by rememberSaveable { mutableStateOf(0) }
     var initialRefreshDone by rememberSaveable { mutableStateOf(false) }
     var errorMessage by rememberSaveable { mutableStateOf<String?>(null) }
     var selectedFeedMenuId by rememberSaveable { mutableStateOf<Long?>(null) }
@@ -88,6 +92,8 @@ fun HomeScreen(
     var pendingFeedActionId by rememberSaveable { mutableStateOf<Long?>(null) }
     var isMoveMode by rememberSaveable { mutableStateOf(false) }
     var busy by rememberSaveable { mutableStateOf(false) }
+    var importInProgress by rememberSaveable { mutableStateOf(false) }
+    var importResultMessage by rememberSaveable { mutableStateOf<String?>(null) }
     var diagnosticsText by rememberSaveable { mutableStateOf<String?>(null) }
     val snackbarHostState = remember { SnackbarHostState() }
     val showInfoMessage: (String) -> Unit = { message ->
@@ -96,44 +102,55 @@ fun HomeScreen(
             snackbarHostState.showSnackbar(message)
         }
     }
-    val refreshAllFeeds: () -> Unit = {
+    fun showRefreshIndicatorBriefly() {
+        val token = refreshIndicatorToken + 1
+        refreshIndicatorToken = token
+        showRefreshIndicator = true
         scope.launch {
-            if (isRefreshing) {
-                return@launch
+            delay(HOME_REFRESH_INDICATOR_DURATION_MS)
+            if (refreshIndicatorToken == token) {
+                showRefreshIndicator = false
             }
-            isRefreshing = true
+        }
+    }
+    suspend fun runRefreshAll(showSuccessMessage: Boolean, manualTrigger: Boolean) {
+        if (isRefreshing) {
+            return
+        }
+        if (manualTrigger && isDefinitelyOffline(context)) {
+            errorMessage = NO_NETWORK_CONNECTION_MESSAGE
+            return
+        }
+        isRefreshing = true
+        showRefreshIndicatorBriefly()
+        try {
             runCatching { repository.refreshAll() }
                 .onSuccess { stats ->
-                    showInfoMessage(formatRefreshSummary(stats))
+                    if (showSuccessMessage) {
+                        showInfoMessage(formatRefreshSummary(stats))
+                    }
                 }
                 .onFailure {
                     if (it !is CancellationException) {
                         errorMessage = it.toUserMessage("Aktualisierung fehlgeschlagen.")
                     }
                 }
+        } finally {
             isRefreshing = false
+        }
+    }
+    val refreshAllFeeds: () -> Unit = {
+        scope.launch {
+            runRefreshAll(showSuccessMessage = true, manualTrigger = true)
         }
     }
     val pullToRefreshAllFeeds: () -> Unit = {
         scope.launch {
-            if (isRefreshing) {
-                return@launch
-            }
-            isRefreshing = true
-            runCatching { repository.refreshAll() }
-                .onSuccess { stats ->
-                    showInfoMessage(formatRefreshSummary(stats))
-                }
-                .onFailure {
-                    if (it !is CancellationException) {
-                        errorMessage = it.toUserMessage("Aktualisierung fehlgeschlagen.")
-                    }
-                }
-            isRefreshing = false
+            runRefreshAll(showSuccessMessage = true, manualTrigger = true)
         }
     }
     val pullRefreshState = rememberPullRefreshState(
-        refreshing = isRefreshing,
+        refreshing = showRefreshIndicator,
         onRefresh = pullToRefreshAllFeeds
     )
 
@@ -143,15 +160,17 @@ fun HomeScreen(
         if (uri != null) {
             launchFromUiScope(activity, scope) {
                 busy = true
+                importInProgress = true
                 runCatching { importOpmlFromUri(context, repository, uri) }
                     .onSuccess { result ->
-                        showInfoMessage(formatImportSummary(result))
+                        importResultMessage = formatImportResultDialogMessage(result)
                     }
                 .onFailure {
                     if (it !is CancellationException) {
                         errorMessage = it.toUserMessage("OPML konnte nicht importiert werden.")
                     }
                 }
+                importInProgress = false
                 busy = false
             }
         }
@@ -180,14 +199,7 @@ fun HomeScreen(
     LaunchedEffect(settingsLoaded, settings.refreshOnStart) {
         if (settingsLoaded && settings.refreshOnStart && !initialRefreshDone) {
             initialRefreshDone = true
-            isRefreshing = true
-            runCatching { repository.refreshAll() }
-                .onFailure {
-                    if (it !is CancellationException) {
-                        errorMessage = it.toUserMessage("Aktualisierung fehlgeschlagen.")
-                    }
-                }
-            isRefreshing = false
+            runRefreshAll(showSuccessMessage = false, manualTrigger = false)
         }
     }
 
@@ -221,7 +233,10 @@ fun HomeScreen(
                         onClick = refreshAllFeeds,
                         enabled = !isRefreshing && !busy && !isMoveMode
                     ) {
-                        Icon(Icons.Default.Refresh, contentDescription = "Alle Feeds aktualisieren")
+                        RefreshActionIcon(
+                            isRefreshing = isRefreshing,
+                            contentDescription = "Alle Feeds aktualisieren"
+                        )
                     }
                     IconButton(
                         onClick = { topMenuExpanded = true },
@@ -440,7 +455,7 @@ fun HomeScreen(
                 modifier = Modifier.fillMaxSize()
             )
             PullRefreshIndicator(
-                refreshing = isRefreshing,
+                refreshing = showRefreshIndicator,
                 state = pullRefreshState,
                 modifier = Modifier.align(androidx.compose.ui.Alignment.TopCenter)
             )
@@ -458,6 +473,13 @@ fun HomeScreen(
                         onClick = {
                             selectedFeedMenuId = null
                             scope.launch {
+                                if (isRefreshing || busy) {
+                                    return@launch
+                                }
+                                if (isDefinitelyOffline(context)) {
+                                    errorMessage = NO_NETWORK_CONNECTION_MESSAGE
+                                    return@launch
+                                }
                                 runCatching { repository.refreshFeed(feedId) }
                                     .onSuccess { newArticles ->
                                         showInfoMessage(formatFeedRefreshSummary(newArticles))
@@ -745,6 +767,17 @@ fun HomeScreen(
                     Text("OK")
                 }
             }
+        )
+    }
+
+    if (importInProgress) {
+        ImportProgressDialog()
+    }
+
+    importResultMessage?.let { message ->
+        ImportResultDialog(
+            message = message,
+            onDismiss = { importResultMessage = null }
         )
     }
 

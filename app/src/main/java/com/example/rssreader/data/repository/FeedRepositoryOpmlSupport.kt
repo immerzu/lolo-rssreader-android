@@ -6,9 +6,15 @@ import com.example.rssreader.data.opml.OpmlFeedEntry
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.InputStream
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.supervisorScope
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 
 private const val OPML_IMPORT_SOFT_MAX_BYTES = 2L * 1024L * 1024L
 private const val OPML_IMPORT_BUFFER_SIZE = 8 * 1024
+internal const val OPML_IMPORT_PARALLELISM = 3
 
 private val importableFeedSelfLinkRegex = Regex(
     """<(?:(?:\w+):)?link\b[^>]*\brel\s*=\s*["']self["'][^>]*\bhref\s*=\s*["']([^"']+)["']|<(?:(?:\w+):)?link\b[^>]*\bhref\s*=\s*["']([^"']+)["'][^>]*\brel\s*=\s*["']self["']""",
@@ -48,6 +54,24 @@ internal object OpmlImportSupport {
             importableFeedTypedLinkRegex.extractHttpUrl(xml),
             importableFeedTextLinkRegex.extractHttpUrl(xml)?.takeIf(::looksLikeFeedUrl)
         ).firstOrNull { !it.isNullOrBlank() }
+}
+
+internal suspend fun <T, R> runOpmlTasksBounded(
+    items: List<T>,
+    parallelism: Int = OPML_IMPORT_PARALLELISM,
+    task: suspend (T) -> R
+): List<R> = supervisorScope {
+    require(parallelism > 0) { "parallelism must be greater than 0" }
+    if (items.isEmpty()) {
+        return@supervisorScope emptyList()
+    }
+
+    val semaphore = Semaphore(parallelism)
+    items.map { item ->
+        async {
+            semaphore.withPermit { task(item) }
+        }
+    }.awaitAll()
 }
 
 internal fun readInputStreamBounded(

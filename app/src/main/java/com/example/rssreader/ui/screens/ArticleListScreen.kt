@@ -17,7 +17,6 @@ import androidx.compose.material.ExperimentalMaterialApi
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.DoneAll
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.StarOutline
 import androidx.compose.material.pullrefresh.PullRefreshIndicator
@@ -44,6 +43,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.geometry.Offset
@@ -74,6 +74,7 @@ fun ArticleListScreen(
     onBack: () -> Unit
 ) {
     val logTag = "ArticleListScreen"
+    val context = LocalContext.current
     val feed by repository.observeFeed(feedId).collectAsState(initial = null)
     val articles by repository.observeArticles(feedId).collectAsState(initial = emptyList())
     val sortedArticles = remember(articles, entrySortOrder) {
@@ -99,22 +100,32 @@ fun ArticleListScreen(
     var selectedArticleId by rememberSaveable { mutableStateOf<Long?>(null) }
     val refreshFeed: () -> Unit = {
         scope.launch {
+            if (isRefreshing) {
+                return@launch
+            }
+            if (isDefinitelyOffline(context)) {
+                errorMessage = NO_NETWORK_CONNECTION_MESSAGE
+                return@launch
+            }
             isRefreshing = true
             DebugLogger.i(logTag, "Feed-Refresh manuell gestartet: feedId=$feedId")
-            runCatching { repository.refreshFeed(feedId) }
-                .onSuccess { inserted ->
-                    DebugLogger.i(
-                        logTag,
-                        "Feed-Refresh erfolgreich: feedId=$feedId, inserted=$inserted"
-                    )
-                }
-                .onFailure {
-                    if (it !is CancellationException) {
-                        DebugLogger.w(logTag, "Feed-Refresh fehlgeschlagen: feedId=$feedId", it)
-                        errorMessage = it.toUserMessage("Feed konnte nicht aktualisiert werden.")
+            try {
+                runCatching { repository.refreshFeed(feedId) }
+                    .onSuccess { inserted ->
+                        DebugLogger.i(
+                            logTag,
+                            "Feed-Refresh erfolgreich: feedId=$feedId, inserted=$inserted"
+                        )
                     }
-                }
-            isRefreshing = false
+                    .onFailure {
+                        if (it !is CancellationException) {
+                            DebugLogger.w(logTag, "Feed-Refresh fehlgeschlagen: feedId=$feedId", it)
+                            errorMessage = it.toUserMessage("Feed konnte nicht aktualisiert werden.")
+                        }
+                    }
+            } finally {
+                isRefreshing = false
+            }
         }
     }
     val pullRefreshState = rememberPullRefreshState(
@@ -163,7 +174,10 @@ fun ArticleListScreen(
                         onClick = refreshFeed,
                         enabled = !isRefreshing
                     ) {
-                        Icon(Icons.Default.Refresh, contentDescription = "Feed aktualisieren")
+                        RefreshActionIcon(
+                            isRefreshing = isRefreshing,
+                            contentDescription = "Feed aktualisieren"
+                        )
                     }
                 }
             )

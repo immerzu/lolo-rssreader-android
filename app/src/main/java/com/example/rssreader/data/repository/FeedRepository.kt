@@ -1,7 +1,6 @@
 package com.example.rssreader.data.repository
 
 import android.database.sqlite.SQLiteConstraintException
-import android.util.Log
 import androidx.room.withTransaction
 import com.example.rssreader.data.db.ArticleDao
 import com.example.rssreader.data.db.ArticleEntity
@@ -39,6 +38,12 @@ data class OpmlImportResult(
     val skippedFeeds: Int = 0,
     val failedFeeds: Int = 0,
     val firstFailedFeedUrl: String? = null
+)
+
+private data class OpmlImportOutcome(
+    val imported: Boolean = false,
+    val skipped: Boolean = false,
+    val failedUrl: String? = null
 )
 
 data class RepositoryDiagnosticsSnapshot(
@@ -324,10 +329,6 @@ class FeedRepository(
         DebugLogger.i(TAG, "Import gestartet")
         val importBytes = readImportBytes(inputStream)
         val entries = OpmlImportSupport.parseEntriesOrEmpty(importBytes)
-        var importedFeeds = 0
-        var skippedFeeds = 0
-        var failedFeeds = 0
-        var firstFailedFeedUrl: String? = null
 
         if (entries.isEmpty()) {
             val xml = importBytes.toString(StandardCharsets.UTF_8)
@@ -390,35 +391,14 @@ class FeedRepository(
             )
         }
 
-        entries.forEach { entry ->
-            if (feedDao.existsByUrl(entry.url)) {
-                skippedFeeds += 1
-                return@forEach
-            }
-
-            runCatching {
-                addFeed(
-                    url = entry.url,
-                    customTitle = entry.title,
-                    wifiOnly = false
-                )
-            }.onSuccess {
-                importedFeeds += 1
-            }.onFailure { throwable ->
-                if (throwable is CancellationException) {
-                    throw throwable
-                }
-                failedFeeds += 1
-                if (firstFailedFeedUrl == null) {
-                    firstFailedFeedUrl = entry.url
-                }
-                DebugLogger.w(
-                    TAG,
-                    "Feed-Import fehlgeschlagen: url=${entry.url}, title=${entry.title.orEmpty()}",
-                    throwable
-                )
-            }
+        val outcomes = runOpmlTasksBounded(entries) { entry ->
+            importOpmlEntry(entry)
         }
+
+        val importedFeeds = outcomes.count { it.imported }
+        val skippedFeeds = outcomes.count { it.skipped }
+        val failedFeeds = outcomes.count { it.failedUrl != null }
+        val firstFailedFeedUrl = outcomes.firstNotNullOfOrNull { it.failedUrl }
 
         rememberImportCounts(
             importedFeeds = importedFeeds,
@@ -577,6 +557,40 @@ class FeedRepository(
         return parser.parse(fetcher.fetch(url), url)
     }
 
+    private suspend fun importOpmlEntry(entry: OpmlFeedEntry): OpmlImportOutcome {
+        if (feedDao.existsByUrl(entry.url)) {
+            return OpmlImportOutcome(skipped = true)
+        }
+
+        return runCatching {
+            addFeed(
+                url = entry.url,
+                customTitle = entry.title,
+                wifiOnly = false
+            )
+        }.fold(
+            onSuccess = {
+                OpmlImportOutcome(imported = true)
+            },
+            onFailure = { throwable ->
+                if (throwable is CancellationException) {
+                    throw throwable
+                }
+                if (throwable is RssReaderException.DuplicateFeed) {
+                    DebugLogger.i(TAG, "Import uebersprungen, Feed existiert bereits: ${entry.url}")
+                    OpmlImportOutcome(skipped = true)
+                } else {
+                    DebugLogger.w(
+                        TAG,
+                        "Feed-Import fehlgeschlagen: url=${entry.url}, title=${entry.title.orEmpty()}",
+                        throwable
+                    )
+                    OpmlImportOutcome(failedUrl = entry.url)
+                }
+            }
+        )
+    }
+
     private fun readImportBytes(inputStream: InputStream): ByteArray {
         return OpmlImportSupport.readImportBytes(inputStream)
     }
@@ -614,7 +628,7 @@ class FeedRepository(
         logPrefix: String,
         throwable: Throwable
     ): RefreshFeedOutcome {
-        Log.w(TAG, "$logPrefix fehlgeschlagen: ${feed.url}", throwable)
+        DebugLogger.w(TAG, "$logPrefix fehlgeschlagen: ${feed.url}", throwable)
         return RefreshFeedOutcome(
             insertedArticles = null,
             retryableFailure = throwable.isRetryableRefreshFailure()

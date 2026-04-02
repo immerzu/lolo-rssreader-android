@@ -1,6 +1,7 @@
 package com.example.rssreader.data.network
 
 import android.util.Log
+import com.example.rssreader.BuildConfig
 import com.example.rssreader.data.errors.RssReaderException
 import com.example.rssreader.debug.DebugLogger
 import java.io.ByteArrayOutputStream
@@ -285,12 +286,18 @@ class FeedFetcher(
 
     private fun logInfo(message: String) {
         DebugLogger.i(TAG, message)
+        if (!BuildConfig.DEBUG) {
+            return
+        }
         runCatching { Log.i(TAG, message) }
             .getOrElse { println("$TAG: $message") }
     }
 
     private fun logWarn(message: String, throwable: Throwable?) {
         DebugLogger.w(TAG, message, throwable)
+        if (!BuildConfig.DEBUG) {
+            return
+        }
         runCatching { Log.w(TAG, message, throwable) }
             .getOrElse {
                 System.err.println("$TAG: $message")

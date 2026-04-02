@@ -5,6 +5,7 @@ import android.net.ConnectivityManager
 import android.util.Log
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
+import com.example.rssreader.BuildConfig
 import com.example.rssreader.RssReaderApplication
 import com.example.rssreader.data.repository.RefreshRunStats
 import com.example.rssreader.data.settings.AppPreferences
@@ -29,7 +30,9 @@ class BackgroundRefreshWorker(
         val result = runCatching {
             runtime.refreshAllInBackground(isUnmeteredNetwork)
         }.getOrElse { throwable ->
-            Log.w(TAG, "Hintergrundaktualisierung komplett fehlgeschlagen", throwable)
+            if (BuildConfig.DEBUG) {
+                Log.w(TAG, "Hintergrundaktualisierung komplett fehlgeschlagen", throwable)
+            }
             return Result.retry()
         }
 
@@ -40,7 +43,9 @@ class BackgroundRefreshWorker(
         runCatching {
             maybeShowNotification(result)
         }.onFailure { throwable ->
-            Log.w(TAG, "Benachrichtigung nach Hintergrundaktualisierung fehlgeschlagen", throwable)
+            if (BuildConfig.DEBUG) {
+                Log.w(TAG, "Benachrichtigung nach Hintergrundaktualisierung fehlgeschlagen", throwable)
+            }
         }
 
         return Result.success()

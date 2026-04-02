@@ -93,6 +93,8 @@ fun SettingsScreen(
     val scope = rememberCoroutineScope()
     val scrollState = rememberScrollState()
     var busy by rememberSaveable { mutableStateOf(false) }
+    var importInProgress by rememberSaveable { mutableStateOf(false) }
+    var importResultMessage by rememberSaveable { mutableStateOf<String?>(null) }
     var message by rememberSaveable { mutableStateOf<String?>(null) }
     val refreshOptions = listOf(
         0 to "Nur manuell",
@@ -125,23 +127,17 @@ fun SettingsScreen(
         if (uri != null) {
             launchFromUiScope(activity, scope) {
                 busy = true
+                importInProgress = true
                 runCatching { importOpmlFromUri(context, repository, uri) }
                     .onSuccess { result ->
-                        message = buildString {
-                            append("Import abgeschlossen.")
-                            append(" Importiert: ${result.importedFeeds}.")
-                            append(" Uebersprungen: ${result.skippedFeeds}.")
-                            append(" Fehler: ${result.failedFeeds}.")
-                            if (result.failedFeeds > 0 && !result.firstFailedFeedUrl.isNullOrBlank()) {
-                                append(" Erster Fehler: ${result.firstFailedFeedUrl}.")
-                            }
-                        }
+                        importResultMessage = formatImportResultDialogMessage(result)
                     }
                     .onFailure {
                         if (it !is CancellationException) {
                             message = it.toUserMessage("OPML konnte nicht importiert werden.")
                         }
-                }
+                    }
+                importInProgress = false
                 busy = false
             }
         }
@@ -330,6 +326,17 @@ fun SettingsScreen(
                     Text("OK")
                 }
             }
+        )
+    }
+
+    if (importInProgress) {
+        ImportProgressDialog()
+    }
+
+    importResultMessage?.let { currentMessage ->
+        ImportResultDialog(
+            message = currentMessage,
+            onDismiss = { importResultMessage = null }
         )
     }
 }

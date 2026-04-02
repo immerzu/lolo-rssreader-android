@@ -147,13 +147,6 @@ class FeedParserTest {
         )
 
         val article = parsed.items.first()
-        println("LIVE_TITLE=${article.title}")
-        println("LIVE_AUTHOR=${article.author}")
-        println("LIVE_CONTENT_SOURCE=${article.contentSource}")
-        println("LIVE_LINK=${article.link}")
-        println("LIVE_TEXT=${article.plainText.take(180)}")
-        println("LIVE_IMAGE=${article.imageUrls.firstOrNull()}")
-
         assertEquals("(XIV) Schmidt findet Ruhe in Mangalia", article.title)
         assertEquals("Ossiblock", article.author)
         assertEquals(ParsedContentSource.DESCRIPTION, article.contentSource)

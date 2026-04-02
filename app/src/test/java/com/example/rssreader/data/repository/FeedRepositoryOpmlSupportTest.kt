@@ -4,11 +4,16 @@ import com.example.rssreader.data.errors.RssReaderException
 import com.example.rssreader.data.opml.OpmlFeedEntry
 import java.io.ByteArrayInputStream
 import java.io.InputStream
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.async
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class FeedRepositoryOpmlSupportTest {
 
     @Test
@@ -173,5 +178,41 @@ class FeedRepositoryOpmlSupportTest {
             ),
             entries
         )
+    }
+
+    @Test
+    fun runOpmlTasksBoundedLimitsConcurrencyAndPreservesInputOrder() = runTest {
+        val gates = List(4) { CompletableDeferred<Unit>() }
+        val started = mutableListOf<Int>()
+        var currentConcurrency = 0
+        var peakConcurrency = 0
+
+        val deferred = async {
+            runOpmlTasksBounded(listOf(0, 1, 2, 3), parallelism = 2) { index ->
+                started += index
+                currentConcurrency += 1
+                peakConcurrency = maxOf(peakConcurrency, currentConcurrency)
+                gates[index].await()
+                currentConcurrency -= 1
+                "done-$index"
+            }
+        }
+
+        advanceUntilIdle()
+        assertEquals(listOf(0, 1), started)
+
+        gates[0].complete(Unit)
+        advanceUntilIdle()
+        assertEquals(listOf(0, 1, 2), started)
+
+        gates[1].complete(Unit)
+        advanceUntilIdle()
+        assertEquals(listOf(0, 1, 2, 3), started)
+
+        gates[2].complete(Unit)
+        gates[3].complete(Unit)
+
+        assertEquals(listOf("done-0", "done-1", "done-2", "done-3"), deferred.await())
+        assertEquals(2, peakConcurrency)
     }
 }

@@ -3,6 +3,7 @@ package com.example.rssreader.data.network
 import android.util.Log
 import android.util.Xml
 import androidx.core.text.HtmlCompat
+import com.example.rssreader.BuildConfig
 import com.example.rssreader.data.errors.RssReaderException
 import com.example.rssreader.debug.DebugLogger
 import org.xmlpull.v1.XmlPullParser
@@ -575,7 +576,9 @@ class FeedParser {
                 base.resolve(uri).toString()
             }
         }.getOrElse { throwable ->
-            Log.w(TAG, "URL konnte nicht aufgeloest werden: base=$baseUrl, value=$candidate", throwable)
+            if (BuildConfig.DEBUG) {
+                Log.w(TAG, "URL konnte nicht aufgeloest werden: base=$baseUrl, value=$candidate", throwable)
+            }
             candidate
         }
     }

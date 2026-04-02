@@ -4,9 +4,11 @@ import android.content.ContextWrapper
 import android.os.Looper
 import androidx.activity.ComponentActivity
 import androidx.test.core.app.ApplicationProvider
+import com.example.rssreader.data.repository.OpmlImportResult
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
@@ -88,5 +90,63 @@ class DocumentImportExportSupportTest {
         shadowOf(Looper.getMainLooper()).idle()
 
         assertTrue(!executed)
+    }
+
+    @Test
+    fun formatImportResultDialogMessageUsesSuccessMessage() {
+        assertEquals(
+            "Import erfolgreich",
+            formatImportResultDialogMessage(
+                OpmlImportResult(
+                    importedFeeds = 5,
+                    skippedFeeds = 0,
+                    failedFeeds = 0
+                )
+            )
+        )
+    }
+
+    @Test
+    fun formatImportResultDialogMessageUsesPartialFailureMessageWithCount() {
+        assertEquals(
+            "Nicht alle Feeds konnten geladen werden\nFehler: 2",
+            formatImportResultDialogMessage(
+                OpmlImportResult(
+                    importedFeeds = 3,
+                    skippedFeeds = 1,
+                    failedFeeds = 2
+                )
+            )
+        )
+    }
+
+    @Test
+    fun hasRefreshTransportFlagsAcceptsWifiCellularAndEthernet() {
+        assertTrue(hasRefreshTransportFlags(hasWifi = true, hasCellular = false, hasEthernet = false))
+        assertTrue(hasRefreshTransportFlags(hasWifi = false, hasCellular = true, hasEthernet = false))
+        assertTrue(hasRefreshTransportFlags(hasWifi = false, hasCellular = false, hasEthernet = true))
+    }
+
+    @Test
+    fun hasRefreshTransportFlagsAcceptsVpnTransport() {
+        assertTrue(
+            hasRefreshTransportFlags(
+                hasWifi = false,
+                hasCellular = false,
+                hasEthernet = false,
+                hasVpn = true
+            )
+        )
+    }
+
+    @Test
+    fun hasRefreshTransportFlagsRejectsMissingTransport() {
+        assertTrue(
+            !hasRefreshTransportFlags(
+                hasWifi = false,
+                hasCellular = false,
+                hasEthernet = false
+            )
+        )
     }
 }
