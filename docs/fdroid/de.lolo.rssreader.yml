@@ -21,24 +21,13 @@ Description: |-
   * Light and dark theme
   * Background refresh with notifications
   * Compact reader view with images and swipe navigation
-  * Optional article translation
-
-  Notes for F-Droid reviewers:
-
-  * The translation feature is optional and uses a Google web translation service.
-  * Because of that, this app should be marked with the `NonFreeNet` anti-feature.
 RepoType: git
 Repo: https://github.com/immerzu/lolo-rssreader-android.git
-AntiFeatures:
-  NonFreeNet:
-    en-US: Optional article translation uses a Google web translation service.
-    de-DE: Optionale Artikeluebersetzung nutzt einen Google-Webdienst.
-CurrentVersion: 1.85.02
-CurrentVersionCode: 130
+CurrentVersion: 1.86.00
+CurrentVersionCode: 132
 Builds:
-  - versionName: 1.85.02
-    versionCode: 130
-    # Create and push this tag before filing the MR / submission.
-    commit: v1.85.02
+  - versionName: 1.86.00
+    versionCode: 132
+    commit: v1.86.00
     gradle:
       - yes

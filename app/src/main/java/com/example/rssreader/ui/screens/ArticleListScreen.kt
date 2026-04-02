@@ -17,7 +17,6 @@ import androidx.compose.material.ExperimentalMaterialApi
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.DoneAll
-import androidx.compose.material.icons.filled.GTranslate
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.StarOutline
@@ -25,7 +24,6 @@ import androidx.compose.material.pullrefresh.PullRefreshIndicator
 import androidx.compose.material.pullrefresh.pullRefresh
 import androidx.compose.material.pullrefresh.rememberPullRefreshState
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -57,15 +55,10 @@ import com.example.rssreader.data.db.ArticleEntity
 import com.example.rssreader.data.errors.toUserMessage
 import com.example.rssreader.data.repository.FeedRepository
 import com.example.rssreader.data.settings.EntrySortOrder
-import com.example.rssreader.data.translation.ArticleTranslationManager
-import com.example.rssreader.data.translation.shouldOfferTranslation
-import com.example.rssreader.data.translation.translationSourceText
 import com.example.rssreader.debug.DebugLogger
-import com.example.rssreader.ui.model.TranslationUiState
 import com.example.rssreader.ui.formatRelativeTime
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
-import java.util.Locale
 
 @OptIn(
     ExperimentalMaterial3Api::class,
@@ -76,7 +69,6 @@ import java.util.Locale
 fun ArticleListScreen(
     feedId: Long,
     repository: FeedRepository,
-    translationManager: ArticleTranslationManager,
     entrySortOrder: EntrySortOrder,
     onOpenArticle: (Long) -> Unit,
     onBack: () -> Unit
@@ -105,8 +97,6 @@ fun ArticleListScreen(
     var isRefreshing by rememberSaveable { mutableStateOf(false) }
     var errorMessage by rememberSaveable { mutableStateOf<String?>(null) }
     var selectedArticleId by rememberSaveable { mutableStateOf<Long?>(null) }
-    val previewTranslationStates by translationManager.states.collectAsState(initial = emptyMap())
-    val translationTargetLanguage = remember { defaultPreviewTranslationTargetLanguage() }
     val refreshFeed: () -> Unit = {
         scope.launch {
             isRefreshing = true
@@ -203,21 +193,6 @@ fun ArticleListScreen(
                     // ausloesen. Mit Index+ID bleibt der Key innerhalb der aktuellen Liste sicher eindeutig.
                     key = { index, item -> "article-${item.id}-$index" }
                 ) { _, item ->
-                    val previewTranslationState =
-                        previewTranslationStates[item.id] ?: TranslationUiState.Idle
-                    val translatedPreview = previewTranslationState as? TranslationUiState.Success
-                    val previewTitle = translatedPreview?.result?.translatedTitle
-                        ?.ifBlank { item.title }
-                        ?: item.title
-                    val previewBody = translatedPreview?.result?.translatedBody
-                        ?.ifBlank { item.plainText }
-                        ?: item.plainText
-                    val showTranslateButton =
-                        previewTranslationState is TranslationUiState.Success ||
-                            shouldOfferTranslation(
-                                title = item.title,
-                                body = item.translationSourceText()
-                            )
                     val titleColor = if (item.isRead) {
                         MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.62f)
                     } else {
@@ -271,7 +246,7 @@ fun ArticleListScreen(
                                 verticalArrangement = Arrangement.spacedBy(2.dp)
                             ) {
                                 Text(
-                                    text = previewTitle,
+                                    text = item.title,
                                     style = titleStyle,
                                     fontWeight = if (item.isRead) FontWeight.Normal else FontWeight.ExtraBold,
                                     color = titleColor,
@@ -285,65 +260,6 @@ fun ArticleListScreen(
                                 verticalArrangement = Arrangement.spacedBy(2.dp)
                             ) {
                                 Row(horizontalArrangement = Arrangement.spacedBy(0.dp)) {
-                                    if (showTranslateButton) {
-                                        IconButton(
-                                            onClick = {
-                                                if (previewTranslationState is TranslationUiState.Loading) {
-                                                    return@IconButton
-                                                }
-                                                if (previewTranslationState is TranslationUiState.Success) {
-                                                    DebugLogger.d(
-                                                        logTag,
-                                                        "Vorschau-Uebersetzung verworfen: articleId=${item.id}"
-                                                    )
-                                                    translationManager.clearArticle(item.id)
-                                                    return@IconButton
-                                                }
-                                                DebugLogger.i(
-                                                    logTag,
-                                                    "Vorschau-Uebersetzung angefordert: articleId=${item.id}, feedId=$feedId"
-                                                )
-                                                scope.launch {
-                                                    val translationState = translationManager.translateArticle(
-                                                        articleId = item.id,
-                                                        title = item.title,
-                                                        body = item.translationSourceText(),
-                                                        targetLanguage = translationTargetLanguage
-                                                    )
-                                                    if (translationState is TranslationUiState.Error) {
-                                                        DebugLogger.w(
-                                                            logTag,
-                                                            "Vorschau-Uebersetzung fehlgeschlagen: articleId=${item.id}"
-                                                        )
-                                                        errorMessage = translationState.message
-                                                    }
-                                                }
-                                            },
-                                            modifier = Modifier.size(28.dp)
-                                        ) {
-                                            if (previewTranslationState is TranslationUiState.Loading) {
-                                                CircularProgressIndicator(
-                                                    strokeWidth = 2.dp,
-                                                    modifier = Modifier.size(16.dp)
-                                                )
-                                            } else {
-                                                Icon(
-                                                    Icons.Default.GTranslate,
-                                                    contentDescription = if (previewTranslationState is TranslationUiState.Success) {
-                                                        "Originalvorschau anzeigen"
-                                                    } else {
-                                                        "Vorschau mit Google uebersetzen"
-                                                    },
-                                                    tint = if (previewTranslationState is TranslationUiState.Success) {
-                                                        MaterialTheme.colorScheme.primary
-                                                    } else {
-                                                        MaterialTheme.colorScheme.onSurfaceVariant
-                                                    },
-                                                    modifier = Modifier.size(18.dp)
-                                                )
-                                            }
-                                        }
-                                    }
                                     IconButton(
                                         onClick = {
                                             DebugLogger.d(
@@ -392,9 +308,9 @@ fun ArticleListScreen(
                                 )
                             }
                         }
-                        if (previewBody.isNotBlank()) {
+                        if (item.plainText.isNotBlank()) {
                             Text(
-                                text = previewBody.take(220),
+                                text = item.plainText.take(220),
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = bodyColor,
                                 maxLines = 2,
@@ -483,12 +399,6 @@ fun ArticleListScreen(
             selectedArticleId = null
         }
     }
-}
-
-private fun defaultPreviewTranslationTargetLanguage(): String {
-    return Locale.getDefault().language
-        .trim()
-        .ifBlank { "de" }
 }
 
 

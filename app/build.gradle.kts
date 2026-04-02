@@ -10,8 +10,8 @@ plugins {
 }
 
 val roomSchemaDir = projectDir.resolve("schemas")
-val appVersionCode = 131
-val appVersionName = "1.85.03"
+val appVersionCode = 132
+val appVersionName = "1.86.00"
 
 val versionPropertiesFile = rootProject.file("version.properties")
 val versionProperties = Properties().apply {
@@ -172,12 +172,14 @@ tasks.register<Copy>("exportDebugApk") {
 }
 
 tasks.register<Copy>("exportReleaseApk") {
+    dependsOn("assembleRelease")
     from(layout.buildDirectory.file("outputs/apk/release/app-release.apk"))
     into(exportedApkDir)
     rename { "RSS-Reader-v$resolvedVersionName-release.apk" }
 }
 
 tasks.register<Copy>("exportReleaseBundle") {
+    dependsOn("bundleRelease")
     from(layout.buildDirectory.file("outputs/bundle/release/app-release.aab"))
     into(exportedApkDir)
     rename { "RSS-Reader-v$resolvedVersionName-release.aab" }
@@ -205,9 +207,10 @@ tasks.register("bumpReleaseVersion") {
         val buildScriptFile = project.buildFile
         val updatedBuildScript = buildScriptFile.readText()
             .replace(Regex("""val appVersionCode = \d+"""), "val appVersionCode = $nextVersionCode")
-            .replace(Regex("""val appVersionName = "1.70.02"]+""""), """val appVersionName = "1.70.02"""")
+            .replace(
+                Regex("""val appVersionName = "[^"]+""""),
+                """val appVersionName = "$nextVersionName""""
+            )
         buildScriptFile.writeText(updatedBuildScript)
     }
 }
-
-

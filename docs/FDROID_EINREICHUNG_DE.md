@@ -17,10 +17,6 @@ Vor einer offiziellen Einreichung sollten diese Punkte noch einmal geprueft werd
 * Source-Repo oeffentlich erreichbar
 * Issue-Tracker oeffentlich erreichbar
 
-Wichtiger Hinweis:
-
-Die optionale Uebersetzungsfunktion in der aktuellen `1.81.x`-Linie nutzt einen Google-Webdienst ohne offiziellen API-Key. Fuer eine offizielle F-Droid-Aufnahme sollte diese Funktion als Anti-Feature `NonFreeNet` deklariert werden.
-
 Nach der Vorbereitung erfolgt die offizielle Einreichung ueber GitLab/F-Droid:
 
 * Submission Queue oder

@@ -1,0 +1,1 @@
+Release 1.86.00 removes the built-in Google translation feature.

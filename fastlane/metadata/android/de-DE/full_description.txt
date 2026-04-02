@@ -11,6 +11,5 @@ Funktionen:
 * Heller und dunkler Darstellungsmodus
 * Hintergrundaktualisierung mit Benachrichtigungen
 * Kompakte Leseransicht mit Bildern und Wisch-Navigation
-* Optionale Artikeluebersetzung ueber einen Google-Webdienst
 
 Die App ist auf eine schlichte, schnelle Feed-Verwaltung ausgelegt.

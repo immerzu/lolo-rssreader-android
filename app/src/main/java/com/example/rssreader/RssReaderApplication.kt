@@ -8,9 +8,6 @@ import com.example.rssreader.data.network.FeedFetcher
 import com.example.rssreader.data.network.FeedParser
 import com.example.rssreader.data.repository.FeedRepository
 import com.example.rssreader.data.settings.SettingsRepository
-import com.example.rssreader.data.translation.ArticleTranslationManager
-import com.example.rssreader.data.translation.GoogleFreeTranslationService
-import com.example.rssreader.data.translation.TranslationService
 import com.example.rssreader.sync.RefreshScheduler
 
 class RssReaderApplication : Application() {
@@ -51,14 +48,6 @@ class RssReaderApplication : Application() {
 
     val settingsRepository: SettingsRepository by lazy {
         SettingsRepository(applicationContext)
-    }
-
-    val translationService: TranslationService by lazy {
-        GoogleFreeTranslationService()
-    }
-
-    val articleTranslationManager: ArticleTranslationManager by lazy {
-        ArticleTranslationManager(translationService)
     }
 
     val refreshScheduler: RefreshScheduler by lazy {
