@@ -6,21 +6,6 @@ AuthorName: immerzu
 WebSite: https://github.com/immerzu/lolo-rssreader-android
 SourceCode: https://github.com/immerzu/lolo-rssreader-android
 IssueTracker: https://github.com/immerzu/lolo-rssreader-android/issues
-Summary: Compact RSS reader with OPML, favorites, offline reading and dark mode
-Description: |-
-  RSS Reader is a compact, classic feed reader for RSS and Atom feeds.
-
-  New articles are stored locally and can be read in the built-in reader view or opened in the browser.
-
-  Features:
-
-  * Subscribe to RSS and Atom feeds
-  * Import and export OPML
-  * Mark articles as read or unread
-  * Protect favorites from deletion
-  * Light and dark theme
-  * Background refresh with notifications
-  * Compact reader view with images and swipe navigation
 RepoType: git
 Repo: https://github.com/immerzu/lolo-rssreader-android.git
 CurrentVersion: 1.86.00
@@ -28,6 +13,6 @@ CurrentVersionCode: 132
 Builds:
   - versionName: 1.86.00
     versionCode: 132
-    commit: dd52e0daa95541cce33e108a34a5cdd9b5acc34c
+    commit: 27357f7b8d4acf2167eff05ffad4446261bcbc49
     gradle:
       - yes
