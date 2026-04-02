@@ -28,6 +28,6 @@ CurrentVersionCode: 132
 Builds:
   - versionName: 1.86.00
     versionCode: 132
-    commit: v1.86.00
+    commit: dd52e0daa95541cce33e108a34a5cdd9b5acc34c
     gradle:
       - yes
