@@ -1,10 +1,6 @@
 Categories:
   - News
   - Reading
-# NOTE:
-# The current local offline working tree is version 1.87.06 / 136.
-# This fdroiddata-style draft intentionally remains pinned to the latest clean
-# release-backed commit 1.86.00 / 132 until a final 1.87.06 release tag/commit exists.
 License: Apache-2.0
 AuthorName: immerzu
 SourceCode: https://github.com/immerzu/lolo-rssreader-android
@@ -17,12 +13,12 @@ AllowedAPKSigningKeys: 2fb2657d3215dce8bc1b5a7ad84cf083ea6f3e3cde242fdb65e21d81a
 AutoUpdateMode: Version
 UpdateCheckMode: Tags ^v[\d.]+$
 UpdateCheckData: app/build.gradle.kts|val appVersionCode = (\d+)|.|val appVersionName = "([^"]+)"
-CurrentVersion: 1.86.00
-CurrentVersionCode: 132
+CurrentVersion: 1.87.06
+CurrentVersionCode: 136
 Builds:
-  - versionName: 1.86.00
-    versionCode: 132
-    commit: 27357f7b8d4acf2167eff05ffad4446261bcbc49
+  - versionName: 1.87.06
+    versionCode: 136
+    commit: 21be442a7bf9f4d4f9106104e0de5d566625f830
     subdir: app
     gradle:
       - yes

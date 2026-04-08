@@ -4,9 +4,9 @@ Use this text as the basis for a new app submission in the official F-Droid GitL
 
 ## Recommended note before submission
 
-Before sending the official submission, create and push the final release tag that matches the release commit.
+The final release tag and GitHub release already exist for this version.
 
-Current local offline candidate:
+Current release:
 
 `1.87.06 / 136`
 
@@ -26,7 +26,7 @@ Application ID: de.lolo.rssreader
 License: Apache-2.0
 Source code: https://github.com/immerzu/lolo-rssreader-android
 Issue tracker: https://github.com/immerzu/lolo-rssreader-android/issues
-Current release tag: [set the final release tag before submission]
+Current release tag: v1.87.06
 
 Short description:
 Compact RSS reader with OPML, favorites, offline reading, and dark mode.
@@ -44,9 +44,9 @@ Build:
 - Gradle-based Android project
 - Standard release build from repository root
 - Command: ./gradlew assembleRelease
-- Current local offline candidate version: 1.87.06
-- Current local offline candidate versionCode: 136
-- Current fdroiddata draft still points to the latest clean release-backed commit until a final 1.87.06 release tag/commit exists
+- Current release version: 1.87.06
+- Current release versionCode: 136
+- Final release tag: v1.87.06
 
 Metadata:
 - Fastlane metadata is included in the upstream repository under:
