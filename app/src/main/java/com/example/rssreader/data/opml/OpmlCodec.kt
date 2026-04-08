@@ -3,6 +3,7 @@ package com.example.rssreader.data.opml
 import com.example.rssreader.data.errors.RssReaderException
 import java.io.ByteArrayInputStream
 import java.io.InputStream
+import javax.xml.XMLConstants
 import javax.xml.parsers.DocumentBuilderFactory
 
 data class OpmlFeedEntry(
@@ -39,8 +40,9 @@ object OpmlCodec {
     private fun parseDocumentSafely(inputBytes: ByteArray) = runCatching {
         val hardenedFactory = DocumentBuilderFactory.newInstance().apply {
             isNamespaceAware = false
-            isXIncludeAware = false
+            runCatching { isXIncludeAware = false }
             setExpandEntityReferences(false)
+            runCatching { setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true) }
             // Viele echte OPML-Dateien enthalten ein DOCTYPE. Das komplett zu verbieten
             // waere strenger als der frueher funktionierende Importpfad.
             runCatching { setFeature("http://xml.org/sax/features/external-general-entities", false) }
@@ -48,11 +50,6 @@ object OpmlCodec {
             runCatching { setFeature("http://apache.org/xml/features/nonvalidating/load-external-dtd", false) }
         }
         hardenedFactory.newDocumentBuilder().parse(ByteArrayInputStream(inputBytes))
-    }.recoverCatching {
-        // Rueckfall auf das alte, tolerantere Verhalten aus dem funktionierenden Referenzstand.
-        DocumentBuilderFactory.newInstance()
-            .newDocumentBuilder()
-            .parse(ByteArrayInputStream(inputBytes))
     }.getOrElse { throwable ->
         throw RssReaderException.InvalidXml(throwable)
     }

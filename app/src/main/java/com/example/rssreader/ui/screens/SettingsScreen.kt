@@ -1,8 +1,6 @@
 package com.example.rssreader.ui.screens
 
 import android.content.Context
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Arrangement
@@ -15,8 +13,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Surface
@@ -30,24 +27,32 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import com.example.rssreader.data.errors.RssReaderException
-import com.example.rssreader.data.errors.toUserMessage
+import com.example.rssreader.BuildConfig
+import com.example.rssreader.DebugLocaleManager
+import com.example.rssreader.DebugLocaleOption
+import com.example.rssreader.R
 import com.example.rssreader.data.repository.FeedRepository
 import com.example.rssreader.data.settings.AppPreferences
 import com.example.rssreader.data.settings.EntrySortOrder
 import com.example.rssreader.data.settings.SettingsRepository
 import com.example.rssreader.data.settings.ThemeMode
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
+
+private val SettingsCardContentPadding = 12.dp
+private val SettingsCardItemSpacing = 4.dp
+private val SettingsTextSpacing = 0.dp
+private val SettingsSelectableRowVerticalPadding = 0.dp
 
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
@@ -60,10 +65,13 @@ fun SettingsRouteScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Einstellungen") },
+                title = { Text(stringResource(R.string.settings_title)) },
                 navigationIcon = {
                     IconButton(onClick = onOpenOverview) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Zurueck")
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = stringResource(R.string.common_back)
+                        )
                     }
                 }
             )
@@ -76,7 +84,7 @@ fun SettingsRouteScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .padding(horizontal = 16.dp, vertical = 20.dp)
+                .padding(horizontal = 16.dp, vertical = 16.dp)
         )
     }
 }
@@ -92,26 +100,23 @@ fun SettingsScreen(
     val activity = findHostActivity(context)
     val scope = rememberCoroutineScope()
     val scrollState = rememberScrollState()
-    var busy by rememberSaveable { mutableStateOf(false) }
-    var importInProgress by rememberSaveable { mutableStateOf(false) }
-    var importResultMessage by rememberSaveable { mutableStateOf<String?>(null) }
-    var message by rememberSaveable { mutableStateOf<String?>(null) }
     val refreshOptions = listOf(
-        0 to "Nur manuell",
-        1 to "Stuendlich",
-        3 to "Alle 3 Stunden",
-        6 to "Alle 6 Stunden",
-        12 to "Alle 12 Stunden",
-        24 to "Taeglich"
+        0 to stringResource(R.string.settings_interval_manual),
+        15 to stringResource(R.string.settings_interval_15min),
+        60 to stringResource(R.string.settings_interval_hourly),
+        180 to stringResource(R.string.settings_interval_3hours),
+        360 to stringResource(R.string.settings_interval_6hours),
+        720 to stringResource(R.string.settings_interval_12hours),
+        1440 to stringResource(R.string.settings_interval_daily)
     )
     val themeOptions = listOf(
-        ThemeMode.SYSTEM to "Systemstandard",
-        ThemeMode.LIGHT to "Tagmodus",
-        ThemeMode.DARK to "Nachtmodus"
+        ThemeMode.SYSTEM to stringResource(R.string.settings_theme_system),
+        ThemeMode.LIGHT to stringResource(R.string.settings_theme_light),
+        ThemeMode.DARK to stringResource(R.string.settings_theme_dark)
     )
     val entrySortOptions = listOf(
-        EntrySortOrder.NEWEST_FIRST to "Neuste zuerst",
-        EntrySortOrder.OLDEST_FIRST to "Aelteste zuerst"
+        EntrySortOrder.NEWEST_FIRST to stringResource(R.string.settings_sort_newest),
+        EntrySortOrder.OLDEST_FIRST to stringResource(R.string.settings_sort_oldest)
     )
     val articleTextSizeOptions = listOf(
         -2 to "-2",
@@ -120,80 +125,77 @@ fun SettingsScreen(
         1 to "+1",
         2 to "+2"
     )
-
-    val importLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.OpenDocument()
-    ) { uri ->
-        if (uri != null) {
-            launchFromUiScope(activity, scope) {
-                busy = true
-                importInProgress = true
-                runCatching { importOpmlFromUri(context, repository, uri) }
-                    .onSuccess { result ->
-                        importResultMessage = formatImportResultDialogMessage(result)
-                    }
-                    .onFailure {
-                        if (it !is CancellationException) {
-                            message = it.toUserMessage("OPML konnte nicht importiert werden.")
-                        }
-                    }
-                importInProgress = false
-                busy = false
-            }
-        }
-    }
-
-    val exportLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.CreateDocument("text/xml")
-    ) { uri ->
-        if (uri != null) {
-            launchFromUiScope(activity, scope) {
-                busy = true
-                runCatching { exportOpmlToUri(context, repository, uri) }
-                    .onSuccess { exportedFeeds ->
-                        message = "OPML exportiert. Enthaltene Feeds: $exportedFeeds."
-                    }
-                    .onFailure {
-                        if (it !is CancellationException) {
-                            message = it.toUserMessage("OPML konnte nicht exportiert werden.")
-                        }
-                    }
-                busy = false
-            }
-        }
+    val appLanguageOptions = listOf(
+        DebugLocaleOption.SYSTEM to stringResource(R.string.settings_language_system),
+        DebugLocaleOption.GERMAN to stringResource(R.string.settings_language_german),
+        DebugLocaleOption.ENGLISH to stringResource(R.string.settings_language_english)
+    )
+    var selectedAppLanguage by remember {
+        mutableStateOf(DebugLocaleManager.getSelectedOption(context))
     }
 
     Column(
         modifier = modifier
             .verticalScroll(scrollState)
-            .padding(bottom = 24.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+            .padding(bottom = 20.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        SettingsCard(title = "Aktualisierung") {
+        SettingsCard(title = stringResource(R.string.settings_section_notifications)) {
             SettingsToggleRow(
-                title = "Beim Start aktualisieren",
-                subtitle = "Passt zum klassischen RSS-Reader-Verhalten.",
+                title = stringResource(R.string.settings_notifications_enable_title),
+                subtitle = stringResource(R.string.settings_notifications_enable_subtitle),
+                checked = settings.notificationsEnabled,
+                onCheckedChange = {
+                    scope.launch { settingsRepository.setNotificationsEnabled(it) }
+                }
+            )
+        }
+
+        SettingsCard(title = stringResource(R.string.settings_section_updates)) {
+            SettingsToggleRow(
+                title = stringResource(R.string.settings_refresh_on_start_title),
+                subtitle = stringResource(R.string.settings_refresh_on_start_subtitle),
                 checked = settings.refreshOnStart,
                 onCheckedChange = {
                     scope.launch { settingsRepository.setRefreshOnStart(it) }
                 }
             )
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Intervall fuer Hintergrundaktualisierung", style = MaterialTheme.typography.titleSmall)
-                refreshOptions.forEach { (hours, label) ->
+            SettingsToggleRow(
+                title = stringResource(R.string.settings_refresh_wifi_only_title),
+                subtitle = stringResource(R.string.settings_refresh_wifi_only_subtitle),
+                checked = settings.refreshOnlyOnWifi,
+                onCheckedChange = {
+                    scope.launch { settingsRepository.setRefreshOnlyOnWifi(it) }
+                }
+            )
+            HorizontalDivider(
+                modifier = Modifier.padding(top = 2.dp, bottom = 4.dp),
+                color = MaterialTheme.colorScheme.outlineVariant
+            )
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(
+                    stringResource(R.string.settings_background_interval_title),
+                    style = MaterialTheme.typography.titleSmall
+                )
+                Text(
+                    text = stringResource(R.string.settings_background_interval_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                refreshOptions.forEach { (minutes, label) ->
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clickable {
-                                scope.launch { settingsRepository.setRefreshIntervalHours(hours) }
+                                scope.launch { settingsRepository.setRefreshIntervalMinutes(minutes) }
                             }
-                            .padding(vertical = 4.dp),
+                            .padding(vertical = SettingsSelectableRowVerticalPadding),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         RadioButton(
-                            selected = settings.refreshIntervalHours == hours,
+                            selected = settings.refreshIntervalMinutes == minutes,
                             onClick = {
-                                scope.launch { settingsRepository.setRefreshIntervalHours(hours) }
+                                scope.launch { settingsRepository.setRefreshIntervalMinutes(minutes) }
                             }
                         )
                         Text(label)
@@ -202,38 +204,43 @@ fun SettingsScreen(
             }
         }
 
-        SettingsCard(title = "OPML") {
-            SettingsActionRow(
-                title = "Importiere OPML",
-                subtitle = "Waehlt eine XML-Datei mit Feeds aus und liest sie ein.",
-                actionLabel = "Datei waehlen",
-                enabled = !busy,
-                onClick = {
-                    importLauncher.launch(arrayOf("text/xml", "application/xml", "*/*"))
-                }
-            )
-            SettingsActionRow(
-                title = "Exportiere OPML",
-                subtitle = "Waehlt Speicherort und Dateinamen fuer den Export aller Feeds.",
-                actionLabel = "Speicherort waehlen",
-                enabled = !busy,
-                onClick = {
-                    exportLauncher.launch("rss-reader-feeds.xml")
-                }
-            )
-            if (busy) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.Center
-                ) {
-                    CircularProgressIndicator()
+        SettingsCard(title = stringResource(R.string.settings_section_appearance)) {
+            if (BuildConfig.DEBUG) {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(
+                        stringResource(R.string.settings_section_language_debug),
+                        style = MaterialTheme.typography.titleSmall
+                    )
+                    appLanguageOptions.forEach { (option, label) ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    selectedAppLanguage = option
+                                    DebugLocaleManager.setSelectedOption(context, option)
+                                    activity?.recreate()
+                                }
+                                .padding(vertical = SettingsSelectableRowVerticalPadding),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            RadioButton(
+                                selected = selectedAppLanguage == option,
+                                onClick = {
+                                    selectedAppLanguage = option
+                                    DebugLocaleManager.setSelectedOption(context, option)
+                                    activity?.recreate()
+                                }
+                            )
+                            Text(label)
+                        }
+                    }
                 }
             }
-        }
-
-        SettingsCard(title = "Darstellung") {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Farbschema", style = MaterialTheme.typography.titleSmall)
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(
+                    stringResource(R.string.settings_color_scheme_title),
+                    style = MaterialTheme.typography.titleSmall
+                )
                 themeOptions.forEach { (mode, label) ->
                     Row(
                         modifier = Modifier
@@ -241,7 +248,7 @@ fun SettingsScreen(
                             .clickable {
                                 scope.launch { settingsRepository.setThemeMode(mode) }
                             }
-                            .padding(vertical = 4.dp),
+                            .padding(vertical = SettingsSelectableRowVerticalPadding),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         RadioButton(
@@ -254,8 +261,11 @@ fun SettingsScreen(
                     }
                 }
             }
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Eintraege anzeigen", style = MaterialTheme.typography.titleSmall)
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(
+                    stringResource(R.string.settings_entry_sort_title),
+                    style = MaterialTheme.typography.titleSmall
+                )
                 entrySortOptions.forEach { (order, label) ->
                     Row(
                         modifier = Modifier
@@ -263,7 +273,7 @@ fun SettingsScreen(
                             .clickable {
                                 scope.launch { settingsRepository.setEntrySortOrder(order) }
                             }
-                            .padding(vertical = 4.dp),
+                            .padding(vertical = SettingsSelectableRowVerticalPadding),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         RadioButton(
@@ -276,11 +286,14 @@ fun SettingsScreen(
                     }
                 }
             }
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Textgroesse Artikel", style = MaterialTheme.typography.titleSmall)
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(
+                    stringResource(R.string.settings_article_text_size_title),
+                    style = MaterialTheme.typography.titleSmall
+                )
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     articleTextSizeOptions.forEach { (offset, label) ->
                         SettingsChoiceChip(
@@ -295,8 +308,8 @@ fun SettingsScreen(
                 }
             }
             SettingsToggleRow(
-                title = "Bilder im Reader anzeigen",
-                subtitle = "Entspricht dem klassischen Text-plus-Bild-Lesemodus.",
+                title = stringResource(R.string.settings_show_images_title),
+                subtitle = stringResource(R.string.settings_show_images_subtitle),
                 checked = settings.showImages,
                 onCheckedChange = {
                     scope.launch { settingsRepository.setShowImages(it) }
@@ -304,40 +317,6 @@ fun SettingsScreen(
             )
         }
 
-        SettingsCard(title = "Benachrichtigungen") {
-            SettingsToggleRow(
-                title = "Benachrichtigungen vormerken",
-                subtitle = "Neue Artikel werden nach Hintergrund-Aktualisierungen gemeldet.",
-                checked = settings.notificationsEnabled,
-                onCheckedChange = {
-                    scope.launch { settingsRepository.setNotificationsEnabled(it) }
-                }
-            )
-        }
-    }
-
-    message?.let { currentMessage ->
-        AlertDialog(
-            onDismissRequest = { message = null },
-            title = { Text("Hinweis") },
-            text = { Text(currentMessage) },
-            confirmButton = {
-                TextButton(onClick = { message = null }) {
-                    Text("OK")
-                }
-            }
-        )
-    }
-
-    if (importInProgress) {
-        ImportProgressDialog()
-    }
-
-    importResultMessage?.let { currentMessage ->
-        ImportResultDialog(
-            message = currentMessage,
-            onDismiss = { importResultMessage = null }
-        )
     }
 }
 
@@ -361,7 +340,7 @@ private fun SettingsChoiceChip(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 10.dp),
+                .padding(horizontal = 12.dp, vertical = 8.dp),
             horizontalArrangement = Arrangement.Center,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -391,8 +370,8 @@ private fun SettingsCard(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(18.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
+                .padding(SettingsCardContentPadding),
+            verticalArrangement = Arrangement.spacedBy(SettingsCardItemSpacing),
             content = {
                 Text(
                     text = title,
@@ -418,7 +397,7 @@ private fun SettingsToggleRow(
     ) {
         Column(
             modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(4.dp)
+            verticalArrangement = Arrangement.spacedBy(SettingsTextSpacing)
         ) {
             Text(title, style = MaterialTheme.typography.titleSmall)
             Text(
@@ -428,38 +407,6 @@ private fun SettingsToggleRow(
             )
         }
         Switch(checked = checked, onCheckedChange = onCheckedChange)
-    }
-}
-
-@Composable
-private fun SettingsActionRow(
-    title: String,
-    subtitle: String,
-    actionLabel: String,
-    enabled: Boolean,
-    onClick: () -> Unit
-) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Column(
-            modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(4.dp)
-        ) {
-            Text(title, style = MaterialTheme.typography.titleSmall)
-            Text(
-                text = subtitle,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-        TextButton(
-            onClick = onClick,
-            enabled = enabled
-        ) {
-            Text(actionLabel)
-        }
     }
 }
 

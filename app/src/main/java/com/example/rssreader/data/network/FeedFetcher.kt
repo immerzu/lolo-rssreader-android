@@ -11,6 +11,7 @@ import java.io.ByteArrayInputStream
 import java.io.InputStreamReader
 import java.net.ConnectException
 import java.net.SocketTimeoutException
+import java.net.URI
 import java.net.UnknownHostException
 import java.nio.ByteBuffer
 import java.nio.charset.Charset
@@ -45,6 +46,9 @@ class FeedFetcher(
 
     suspend fun fetch(url: String): FetchedFeedPayload {
         DebugLogger.i(TAG, "Feed-Abruf gestartet: $url")
+        if (!isSupportedFeedUrl(url)) {
+            throw RssReaderException.InvalidUrl(url)
+        }
         val request = try {
             Request.Builder()
                 .url(url)
@@ -140,6 +144,15 @@ class FeedFetcher(
         }
 
         throw RssReaderException.ConnectionFailed()
+    }
+
+    private fun isSupportedFeedUrl(url: String): Boolean {
+        val uri = runCatching { URI(url.trim()) }.getOrNull() ?: return false
+        val scheme = uri.scheme?.lowercase() ?: return false
+        if (scheme != "https") {
+            return false
+        }
+        return !uri.host.isNullOrBlank()
     }
 
     private fun readResponseBodyBounded(

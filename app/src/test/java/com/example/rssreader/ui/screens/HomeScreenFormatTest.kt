@@ -170,3 +170,4 @@ class HomeScreenFormatTest {
         assertTrue(summary.contains("Letzter Import: keiner"))
     }
 }
+

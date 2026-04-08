@@ -13,8 +13,10 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.example.rssreader.R
 import androidx.lifecycle.lifecycleScope
 import com.example.rssreader.data.errors.RssReaderException
 import com.example.rssreader.data.repository.FeedRepository
@@ -23,7 +25,13 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
-internal const val NO_NETWORK_CONNECTION_MESSAGE = "Keine Netzwerkverbindung"
+internal fun noNetworkConnectionMessage(context: Context): String {
+    return context.getString(R.string.shared_no_network_connection)
+}
+
+internal fun wifiOnlyRefreshMessage(context: Context): String {
+    return context.getString(R.string.shared_wifi_only_refresh)
+}
 
 internal suspend fun importOpmlFromUri(
     context: Context,
@@ -115,13 +123,92 @@ internal fun hasRefreshTransportFlags(
     return hasWifi || hasCellular || hasEthernet || hasVpn
 }
 
+internal fun shouldBlockRefreshForWifiOnlySetting(
+    refreshOnlyOnWifi: Boolean,
+    hasWifiConnection: Boolean
+): Boolean {
+    return refreshOnlyOnWifi && !hasWifiConnection
+}
+
+internal fun shouldBlockRefreshForWifiRequirements(
+    globalRefreshOnlyOnWifi: Boolean,
+    feedWifiOnly: Boolean,
+    hasWifiConnection: Boolean
+): Boolean {
+    return shouldBlockRefreshForWifiOnlySetting(
+        refreshOnlyOnWifi = globalRefreshOnlyOnWifi || feedWifiOnly,
+        hasWifiConnection = hasWifiConnection
+    )
+}
+
+internal fun isRefreshBlockedForWifiOnlySetting(
+    context: Context,
+    refreshOnlyOnWifi: Boolean
+): Boolean {
+    return shouldBlockRefreshForWifiOnlySetting(
+        refreshOnlyOnWifi = refreshOnlyOnWifi,
+        hasWifiConnection = hasWifiRefreshConnection(context)
+    )
+}
+
+internal fun isRefreshBlockedForWifiRequirements(
+    context: Context,
+    globalRefreshOnlyOnWifi: Boolean,
+    feedWifiOnly: Boolean
+): Boolean {
+    return shouldBlockRefreshForWifiRequirements(
+        globalRefreshOnlyOnWifi = globalRefreshOnlyOnWifi,
+        feedWifiOnly = feedWifiOnly,
+        hasWifiConnection = hasWifiRefreshConnection(context)
+    )
+}
+
+internal fun hasWifiRefreshConnection(context: Context): Boolean {
+    val connectivityManager = context.getSystemService(ConnectivityManager::class.java)
+        ?: return false
+    val activeNetwork = connectivityManager.activeNetwork
+        ?: return false
+    val capabilities = connectivityManager.getNetworkCapabilities(activeNetwork)
+
+    return hasWifiRefreshTransport(
+        capabilities = capabilities,
+        isActiveNetworkMetered = connectivityManager.isActiveNetworkMetered
+    )
+}
+
+internal fun hasWifiRefreshTransport(
+    capabilities: NetworkCapabilities?,
+    isActiveNetworkMetered: Boolean
+): Boolean {
+    if (capabilities == null) {
+        return false
+    }
+    return hasWifiRefreshTransportFlags(
+        hasWifi = capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI),
+        hasCellular = capabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR),
+        hasEthernet = capabilities.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET),
+        hasVpn = capabilities.hasTransport(NetworkCapabilities.TRANSPORT_VPN),
+        isActiveNetworkMetered = isActiveNetworkMetered
+    )
+}
+
+internal fun hasWifiRefreshTransportFlags(
+    hasWifi: Boolean,
+    hasCellular: Boolean,
+    hasEthernet: Boolean,
+    hasVpn: Boolean,
+    isActiveNetworkMetered: Boolean
+): Boolean {
+    return hasWifi || (hasVpn && !isActiveNetworkMetered && !hasCellular && !hasEthernet)
+}
+
 @Composable
 internal fun ImportProgressDialog() {
     AlertDialog(
         onDismissRequest = {},
         text = {
             Text(
-                text = "Feeds werden importiert",
+                text = stringResource(R.string.shared_import_in_progress),
                 textAlign = TextAlign.Center,
                 modifier = Modifier
                     .fillMaxWidth()
@@ -150,7 +237,7 @@ internal fun ImportResultDialog(
         },
         confirmButton = {
             TextButton(onClick = onDismiss) {
-                Text("OK")
+                Text(stringResource(R.string.common_ok))
             }
         }
     )
@@ -161,5 +248,13 @@ internal fun formatImportResultDialogMessage(result: OpmlImportResult): String {
         "Import erfolgreich"
     } else {
         "Nicht alle Feeds konnten geladen werden\nFehler: ${result.failedFeeds}"
+    }
+}
+
+internal fun formatImportResultDialogMessage(result: OpmlImportResult, context: Context): String {
+    return if (result.failedFeeds == 0) {
+        context.getString(R.string.shared_import_result_success)
+    } else {
+        context.getString(R.string.shared_import_result_partial, result.failedFeeds)
     }
 }

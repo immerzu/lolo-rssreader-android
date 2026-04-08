@@ -20,9 +20,13 @@ class SettingsRepository(context: Context) {
     val settings: Flow<AppPreferences> = appContext.dataStore.data.map { preferences ->
         AppPreferences(
             refreshOnStart = preferences[REFRESH_ON_START] ?: false,
-            notificationsEnabled = preferences[NOTIFICATIONS_ENABLED] ?: true,
+            refreshOnlyOnWifi = preferences[REFRESH_ONLY_ON_WIFI] ?: false,
+            notificationsEnabled = preferences[NOTIFICATIONS_ENABLED] ?: false,
+            notificationPermissionPromptShown = preferences[NOTIFICATION_PERMISSION_PROMPT_SHOWN] ?: false,
             showImages = preferences[SHOW_IMAGES] ?: true,
-            refreshIntervalHours = preferences[REFRESH_INTERVAL_HOURS] ?: 0,
+            refreshIntervalMinutes =
+                preferences[REFRESH_INTERVAL_MINUTES]
+                    ?: ((preferences[REFRESH_INTERVAL_HOURS] ?: 0) * 60),
             themeMode = preferences[THEME_MODE]
                 ?.let { storedValue -> ThemeMode.entries.firstOrNull { it.name == storedValue } }
                 ?: ThemeMode.DARK,
@@ -39,17 +43,31 @@ class SettingsRepository(context: Context) {
         updatePreference(REFRESH_ON_START, value)
     }
 
+    suspend fun setRefreshOnlyOnWifi(value: Boolean) {
+        updatePreference(REFRESH_ONLY_ON_WIFI, value)
+    }
+
     suspend fun setNotificationsEnabled(value: Boolean) {
-        updatePreference(NOTIFICATIONS_ENABLED, value)
+        appContext.dataStore.edit { preferences ->
+            preferences[NOTIFICATIONS_ENABLED] = value
+            if (!value) {
+                preferences[NOTIFICATION_PERMISSION_PROMPT_SHOWN] = false
+            }
+        }
+    }
+
+    suspend fun setNotificationPermissionPromptShown(value: Boolean) {
+        updatePreference(NOTIFICATION_PERMISSION_PROMPT_SHOWN, value)
     }
 
     suspend fun setShowImages(value: Boolean) {
         updatePreference(SHOW_IMAGES, value)
     }
 
-    suspend fun setRefreshIntervalHours(value: Int) {
+    suspend fun setRefreshIntervalMinutes(value: Int) {
         appContext.dataStore.edit { preferences ->
-            preferences[REFRESH_INTERVAL_HOURS] = value
+            preferences[REFRESH_INTERVAL_MINUTES] = value
+            preferences.remove(REFRESH_INTERVAL_HOURS)
         }
     }
 
@@ -81,8 +99,12 @@ class SettingsRepository(context: Context) {
 
     private companion object {
         val REFRESH_ON_START = booleanPreferencesKey("refresh_on_start")
+        val REFRESH_ONLY_ON_WIFI = booleanPreferencesKey("refresh_only_on_wifi")
         val NOTIFICATIONS_ENABLED = booleanPreferencesKey("notifications_enabled")
+        val NOTIFICATION_PERMISSION_PROMPT_SHOWN =
+            booleanPreferencesKey("notification_permission_prompt_shown")
         val SHOW_IMAGES = booleanPreferencesKey("show_images")
+        val REFRESH_INTERVAL_MINUTES = intPreferencesKey("refresh_interval_minutes")
         val REFRESH_INTERVAL_HOURS = intPreferencesKey("refresh_interval_hours")
         val THEME_MODE = stringPreferencesKey("theme_mode")
         val ENTRY_SORT_ORDER = stringPreferencesKey("entry_sort_order")

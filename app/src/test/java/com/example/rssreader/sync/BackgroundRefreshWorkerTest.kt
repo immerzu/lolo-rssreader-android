@@ -86,6 +86,28 @@ class BackgroundRefreshWorkerTest {
     }
 
     @Test
+    fun shouldSkipBackgroundRefreshWhenWifiOnlySettingIsEnabledOnMeteredNetwork() {
+        assertTrue(
+            shouldSkipBackgroundRefreshForWifiOnlySetting(
+                settings = AppPreferences(refreshOnlyOnWifi = true),
+                hasWifiConnection = false
+            )
+        )
+        assertFalse(
+            shouldSkipBackgroundRefreshForWifiOnlySetting(
+                settings = AppPreferences(refreshOnlyOnWifi = true),
+                hasWifiConnection = true
+            )
+        )
+        assertFalse(
+            shouldSkipBackgroundRefreshForWifiOnlySetting(
+                settings = AppPreferences(refreshOnlyOnWifi = false),
+                hasWifiConnection = false
+            )
+        )
+    }
+
+    @Test
     fun doWorkReturnsRetryWhenRepositoryThrows() = runTest {
         val worker = buildWorker(
             runtime = testRuntime(
@@ -211,6 +233,35 @@ class BackgroundRefreshWorkerTest {
         assertTrue(notifications.isEmpty())
     }
 
+    @Test
+    fun doWorkSkipsRefreshOnMeteredNetworkWhenWifiOnlySettingIsEnabled() = runTest {
+        val notifications = mutableListOf<Pair<Int, Int>>()
+        var refreshCalls = 0
+        val worker = buildWorker(
+            runtime = BackgroundRefreshRuntime(
+                refreshAllInBackground = { _, _ ->
+                    refreshCalls += 1
+                    RefreshRunStats(refreshedFeeds = 1, newArticles = 2)
+                },
+                getCurrentSettings = {
+                    AppPreferences(
+                        notificationsEnabled = true,
+                        refreshOnlyOnWifi = true
+                    )
+                },
+                showNewArticlesNotification = { newArticles, refreshedFeeds ->
+                    notifications += (newArticles to refreshedFeeds)
+                },
+                hasWifiConnection = { false },
+                isUnmeteredConnection = { false }
+            )
+        )
+
+        assertEquals(ListenableWorker.Result.success(), worker.doWork())
+        assertEquals(0, refreshCalls)
+        assertTrue(notifications.isEmpty())
+    }
+
     private fun buildWorker(runtime: BackgroundRefreshRuntime): BackgroundRefreshWorker {
         val context = ApplicationProvider.getApplicationContext<Context>()
         return TestListenableWorkerBuilder<BackgroundRefreshWorker>(context)
@@ -226,7 +277,7 @@ class BackgroundRefreshWorkerTest {
         notificationSink: MutableList<Pair<Int, Int>> = mutableListOf()
     ): BackgroundRefreshRuntime {
         return BackgroundRefreshRuntime(
-            refreshAllInBackground = {
+            refreshAllInBackground = { _, _ ->
                 refreshThrowable?.let { throw it }
                 checkNotNull(refreshResult)
             },
@@ -237,6 +288,7 @@ class BackgroundRefreshWorkerTest {
                 notificationThrowable?.let { throw it }
                 notificationSink += (newArticles to refreshedFeeds)
             },
+            hasWifiConnection = { true },
             isUnmeteredConnection = { true }
         )
     }
@@ -256,3 +308,4 @@ private class TestBackgroundRefreshWorkerFactory(
         return BackgroundRefreshWorker(appContext, workerParameters, runtime)
     }
 }
+

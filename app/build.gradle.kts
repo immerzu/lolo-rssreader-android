@@ -10,8 +10,8 @@ plugins {
 }
 
 val roomSchemaDir = projectDir.resolve("schemas")
-val appVersionCode = 132
-val appVersionName = "1.86.00"
+val appVersionCode = 136
+val appVersionName = "1.87.06"
 
 val versionPropertiesFile = rootProject.file("version.properties")
 val versionProperties = Properties().apply {
@@ -70,8 +70,8 @@ android {
         minSdk = 26
         targetSdk = 35
         // Keep the version directly visible for external scanners like F-Droid.
-        versionCode = appVersionCode
-        versionName = appVersionName
+        versionCode = resolvedVersionCode
+        versionName = resolvedVersionName
     }
 
     buildTypes {
@@ -206,9 +206,12 @@ tasks.register("bumpReleaseVersion") {
 
         val buildScriptFile = project.buildFile
         val updatedBuildScript = buildScriptFile.readText()
-            .replace(Regex("""val appVersionCode = \d+"""), "val appVersionCode = $nextVersionCode")
             .replace(
-                Regex("""val appVersionName = "[^"]+""""),
+                Regex("""(?m)^val appVersionCode = \d+$"""),
+                "val appVersionCode = $nextVersionCode"
+            )
+            .replace(
+                Regex("""(?m)^val appVersionName = "[^"]+"$"""),
                 """val appVersionName = "$nextVersionName""""
             )
         buildScriptFile.writeText(updatedBuildScript)

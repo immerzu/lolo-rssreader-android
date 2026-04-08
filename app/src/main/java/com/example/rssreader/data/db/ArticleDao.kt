@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Transaction
 import androidx.room.Update
 import kotlinx.coroutines.flow.Flow
 
@@ -103,15 +104,33 @@ interface ArticleDao {
     )
     suspend fun countFtsMaintenanceTriggers(): Int
 
+    @Transaction
+    suspend fun syncSearchIndexByFeed(feedId: Long) {
+        deleteSearchIndexByFeed(feedId)
+        insertSearchIndexByFeed(feedId)
+    }
+
     @Query(
         """
-        INSERT OR REPLACE INTO articles_fts(rowid, title, plainText)
+        DELETE FROM articles_fts
+        WHERE rowid IN (
+            SELECT id
+            FROM articles
+            WHERE feedId = :feedId
+        )
+        """
+    )
+    suspend fun deleteSearchIndexByFeed(feedId: Long)
+
+    @Query(
+        """
+        INSERT INTO articles_fts(rowid, title, plainText)
         SELECT id, title, plainText
         FROM articles
         WHERE feedId = :feedId
         """
     )
-    suspend fun syncSearchIndexByFeed(feedId: Long)
+    suspend fun insertSearchIndexByFeed(feedId: Long)
 
     @Query(
         """

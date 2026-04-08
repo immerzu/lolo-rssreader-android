@@ -70,8 +70,12 @@ interface FeedDao {
     @Query("DELETE FROM feeds WHERE id = :feedId")
     suspend fun deleteById(feedId: Long)
 
+    @Query("DELETE FROM feeds")
+    suspend fun deleteAll()
+
     @Query("SELECT * FROM feeds ORDER BY displayOrder ASC, id ASC")
     suspend fun getAll(): List<FeedEntity>
 }
+
 
 

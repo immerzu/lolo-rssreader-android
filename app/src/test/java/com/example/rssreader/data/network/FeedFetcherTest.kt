@@ -39,6 +39,42 @@ class FeedFetcherTest {
     }
 
     @Test
+    fun fetchRejectsUnsupportedUrlSchemeBeforeAnyNetworkCall() {
+        var callCount = 0
+        val client = OkHttpClient.Builder()
+            .addInterceptor {
+                callCount += 1
+                error("Network should not be reached for unsupported URL schemes")
+            }
+            .build()
+
+        val failure = runCatching {
+            runBlocking { FeedFetcher(client).fetch("ftp://example.com/feed.xml") }
+        }.exceptionOrNull()
+
+        assertTrue(failure is RssReaderException.InvalidUrl)
+        assertEquals(0, callCount)
+    }
+
+    @Test
+    fun fetchRejectsHttpUrlBeforeAnyNetworkCall() {
+        var callCount = 0
+        val client = OkHttpClient.Builder()
+            .addInterceptor {
+                callCount += 1
+                error("Network should not be reached for cleartext feed URLs")
+            }
+            .build()
+
+        val failure = runCatching {
+            runBlocking { FeedFetcher(client).fetch("http://example.com/feed.xml") }
+        }.exceptionOrNull()
+
+        assertTrue(failure is RssReaderException.InvalidUrl)
+        assertEquals(0, callCount)
+    }
+
+    @Test
     fun fetchRetriesOnceForTemporaryServerError() {
         var callCount = 0
         val client = OkHttpClient.Builder()

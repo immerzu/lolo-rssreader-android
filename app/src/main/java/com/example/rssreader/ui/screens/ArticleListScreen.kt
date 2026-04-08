@@ -33,6 +33,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -44,6 +45,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.geometry.Offset
@@ -51,9 +54,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.example.rssreader.R
 import com.example.rssreader.data.db.ArticleEntity
 import com.example.rssreader.data.errors.toUserMessage
 import com.example.rssreader.data.repository.FeedRepository
+import com.example.rssreader.data.settings.AppPreferences
 import com.example.rssreader.data.settings.EntrySortOrder
 import com.example.rssreader.debug.DebugLogger
 import com.example.rssreader.ui.formatRelativeTime
@@ -69,6 +74,7 @@ import kotlinx.coroutines.launch
 fun ArticleListScreen(
     feedId: Long,
     repository: FeedRepository,
+    settings: AppPreferences,
     entrySortOrder: EntrySortOrder,
     onOpenArticle: (Long) -> Unit,
     onBack: () -> Unit
@@ -104,7 +110,17 @@ fun ArticleListScreen(
                 return@launch
             }
             if (isDefinitelyOffline(context)) {
-                errorMessage = NO_NETWORK_CONNECTION_MESSAGE
+                errorMessage = noNetworkConnectionMessage(context)
+                return@launch
+            }
+            if (
+                isRefreshBlockedForWifiRequirements(
+                    context = context,
+                    globalRefreshOnlyOnWifi = settings.refreshOnlyOnWifi,
+                    feedWifiOnly = feed?.wifiOnly == true
+                )
+            ) {
+                errorMessage = wifiOnlyRefreshMessage(context)
                 return@launch
             }
             isRefreshing = true
@@ -120,7 +136,9 @@ fun ArticleListScreen(
                     .onFailure {
                         if (it !is CancellationException) {
                             DebugLogger.w(logTag, "Feed-Refresh fehlgeschlagen: feedId=$feedId", it)
-                            errorMessage = it.toUserMessage("Feed konnte nicht aktualisiert werden.")
+                            errorMessage = it.toUserMessage(
+                                context.getString(R.string.article_list_refresh_failed)
+                            )
                         }
                     }
             } finally {
@@ -138,19 +156,31 @@ fun ArticleListScreen(
         repository.markFeedOpened(feedId)
     }
 
+    DisposableEffect(feedId) {
+        DebugLogger.i(logTag, "sichtbar: feedId=$feedId")
+        onDispose {
+            DebugLogger.i(logTag, "verlassen: feedId=$feedId")
+        }
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
                 title = {
                     Text(
-                        text = feed?.customTitle?.ifBlank { null } ?: feed?.title ?: "Artikel",
+                        text = feed?.customTitle?.ifBlank { null }
+                            ?: feed?.title
+                            ?: stringResource(R.string.article_default_title),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
                 },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Zurueck")
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = stringResource(R.string.common_back)
+                        )
                     }
                 },
                 actions = {
@@ -162,13 +192,18 @@ fun ArticleListScreen(
                                     .onFailure {
                                         if (it !is CancellationException) {
                                             DebugLogger.w(logTag, "Mark all read fehlgeschlagen: feedId=$feedId", it)
-                                            errorMessage = it.toUserMessage("Artikel konnten nicht markiert werden.")
+                                            errorMessage = it.toUserMessage(
+                                                context.getString(R.string.article_list_mark_failed)
+                                            )
                                         }
                                     }
                             }
                         }
                     ) {
-                        Icon(Icons.Default.DoneAll, contentDescription = "Alle als gelesen markieren")
+                        Icon(
+                            Icons.Default.DoneAll,
+                            contentDescription = stringResource(R.string.article_list_mark_all_read_cd)
+                        )
                     }
                     IconButton(
                         onClick = refreshFeed,
@@ -176,7 +211,7 @@ fun ArticleListScreen(
                     ) {
                         RefreshActionIcon(
                             isRefreshing = isRefreshing,
-                            contentDescription = "Feed aktualisieren"
+                            contentDescription = stringResource(R.string.article_list_refresh_feed_cd)
                         )
                     }
                 }
@@ -195,7 +230,11 @@ fun ArticleListScreen(
             ) {
                 item(key = "article-list-unread-header") {
                     Text(
-                        text = "$unreadCount ungelesen",
+                        text = pluralStringResource(
+                            R.plurals.article_list_unread_count,
+                            unreadCount,
+                            unreadCount
+                        ),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
@@ -210,7 +249,7 @@ fun ArticleListScreen(
                     val titleColor = if (item.isRead) {
                         MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.62f)
                     } else {
-                        Color.White
+                        MaterialTheme.colorScheme.onSurface
                     }
                     val bodyColor = if (item.isRead) {
                         MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
@@ -290,7 +329,9 @@ fun ArticleListScreen(
                                                             "Favoritenstatus konnte nicht geaendert werden: articleId=${item.id}",
                                                             it
                                                         )
-                                                        errorMessage = it.toUserMessage("Favorit konnte nicht geaendert werden.")
+                                                        errorMessage = it.toUserMessage(
+                                                            context.getString(R.string.article_list_favorite_failed)
+                                                        )
                                                     }
                                                 }
                                             }
@@ -300,14 +341,14 @@ fun ArticleListScreen(
                                         if (item.isFavorite) {
                                             Icon(
                                                 Icons.Filled.Star,
-                                                contentDescription = "Favorit entfernen",
+                                                contentDescription = stringResource(R.string.article_list_remove_favorite_cd),
                                                 tint = MaterialTheme.colorScheme.primary,
                                                 modifier = Modifier.size(20.dp)
                                             )
                                         } else {
                                             Icon(
                                                 Icons.Outlined.StarOutline,
-                                                contentDescription = "Als Favorit markieren",
+                                                contentDescription = stringResource(R.string.article_list_add_favorite_cd),
                                                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                                 modifier = Modifier.size(20.dp)
                                             )
@@ -346,11 +387,11 @@ fun ArticleListScreen(
     errorMessage?.let { message ->
         AlertDialog(
             onDismissRequest = { errorMessage = null },
-            title = { Text("Fehler") },
+            title = { Text(stringResource(R.string.common_error)) },
             text = { Text(message) },
             confirmButton = {
                 TextButton(onClick = { errorMessage = null }) {
-                    Text("OK")
+                    Text(stringResource(R.string.common_ok))
                 }
             }
         )
@@ -361,7 +402,7 @@ fun ArticleListScreen(
         if (selectedArticle != null) {
             AlertDialog(
                 onDismissRequest = { selectedArticleId = null },
-                title = { Text("Beitrag markieren") },
+                title = { Text(stringResource(R.string.article_list_mark_dialog_title)) },
                 text = {
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Text(selectedArticle.title, maxLines = 2, overflow = TextOverflow.Ellipsis)
@@ -375,14 +416,16 @@ fun ArticleListScreen(
                                 runCatching { repository.markRead(articleId) }
                                     .onFailure {
                                         if (it !is CancellationException) {
-                                            errorMessage = it.toUserMessage("Beitrag konnte nicht als gelesen markiert werden.")
+                                            errorMessage = it.toUserMessage(
+                                                context.getString(R.string.article_list_mark_read_failed)
+                                            )
                                         }
                                     }
                             }
                         },
                         enabled = !selectedArticle.isRead
                     ) {
-                        Text("Gelesen")
+                        Text(stringResource(R.string.article_list_mark_read_action))
                     }
                 },
                 dismissButton = {
@@ -391,20 +434,22 @@ fun ArticleListScreen(
                             onClick = {
                                 selectedArticleId = null
                                 scope.launch {
-                                    runCatching { repository.markUnread(articleId) }
+                                runCatching { repository.markUnread(articleId) }
                                     .onFailure {
                                         if (it !is CancellationException) {
-                                            errorMessage = it.toUserMessage("Beitrag konnte nicht als ungelesen markiert werden.")
+                                            errorMessage = it.toUserMessage(
+                                                context.getString(R.string.article_list_mark_unread_failed)
+                                            )
                                         }
                                     }
                                 }
                             },
                             enabled = selectedArticle.isRead
                         ) {
-                            Text("Ungelesen")
+                            Text(stringResource(R.string.article_list_mark_unread_action))
                         }
                         TextButton(onClick = { selectedArticleId = null }) {
-                            Text("Abbrechen")
+                            Text(stringResource(R.string.common_cancel))
                         }
                     }
                 }

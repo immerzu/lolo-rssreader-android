@@ -182,6 +182,84 @@ class FeedParserTest {
     }
 
     @Test
+    fun rssFallbackUniqueKeyDoesNotDependOnTitleAlone() {
+        val first = parser.parse(
+            xml = """
+                <?xml version="1.0" encoding="UTF-8"?>
+                <rss version="2.0">
+                  <channel>
+                    <title>RSS Beispiel</title>
+                    <item>
+                      <title>Alter Titel</title>
+                      <dc:creator xmlns:dc="http://purl.org/dc/elements/1.1/">Autor</dc:creator>
+                      <pubDate>Fri, 04 Apr 2026 10:00:00 +0000</pubDate>
+                      <description><![CDATA[<p>Gleicher Inhalt</p>]]></description>
+                    </item>
+                  </channel>
+                </rss>
+            """.trimIndent(),
+            sourceUrl = "https://example.com/rss.xml"
+        ).items.single()
+
+        val second = parser.parse(
+            xml = """
+                <?xml version="1.0" encoding="UTF-8"?>
+                <rss version="2.0">
+                  <channel>
+                    <title>RSS Beispiel</title>
+                    <item>
+                      <title>Neuer Titel</title>
+                      <dc:creator xmlns:dc="http://purl.org/dc/elements/1.1/">Autor</dc:creator>
+                      <pubDate>Fri, 04 Apr 2026 10:00:00 +0000</pubDate>
+                      <description><![CDATA[<p>Gleicher Inhalt</p>]]></description>
+                    </item>
+                  </channel>
+                </rss>
+            """.trimIndent(),
+            sourceUrl = "https://example.com/rss.xml"
+        ).items.single()
+
+        assertEquals(first.uniqueKey, second.uniqueKey)
+    }
+
+    @Test
+    fun atomFallbackUniqueKeyDoesNotDependOnTitleAlone() {
+        val first = parser.parse(
+            xml = """
+                <?xml version="1.0" encoding="UTF-8"?>
+                <feed xmlns="http://www.w3.org/2005/Atom">
+                  <title>Atom Beispiel</title>
+                  <entry>
+                    <title>Erster Titel</title>
+                    <author><name>Autor</name></author>
+                    <updated>2026-04-04T10:00:00Z</updated>
+                    <summary type="html">&lt;p&gt;Gleicher Inhalt&lt;/p&gt;</summary>
+                  </entry>
+                </feed>
+            """.trimIndent(),
+            sourceUrl = "https://example.com/feed.atom"
+        ).items.single()
+
+        val second = parser.parse(
+            xml = """
+                <?xml version="1.0" encoding="UTF-8"?>
+                <feed xmlns="http://www.w3.org/2005/Atom">
+                  <title>Atom Beispiel</title>
+                  <entry>
+                    <title>Zweiter Titel</title>
+                    <author><name>Autor</name></author>
+                    <updated>2026-04-04T10:00:00Z</updated>
+                    <summary type="html">&lt;p&gt;Gleicher Inhalt&lt;/p&gt;</summary>
+                  </entry>
+                </feed>
+            """.trimIndent(),
+            sourceUrl = "https://example.com/feed.atom"
+        ).items.single()
+
+        assertEquals(first.uniqueKey, second.uniqueKey)
+    }
+
+    @Test
     fun atomXhtmlContentIsParsedWithoutCrashing() {
         val parsed = parser.parse(
             xml = """
@@ -410,6 +488,7 @@ class FeedParserTest {
         assertEquals(stringArticle.imageUrls, payloadArticle.imageUrls)
         assertEquals(stringArticle.contentSource, payloadArticle.contentSource)
     }
+
 }
 
 

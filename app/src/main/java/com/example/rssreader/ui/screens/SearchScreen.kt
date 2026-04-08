@@ -35,10 +35,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.example.rssreader.R
 import com.example.rssreader.data.db.ArticleSearchResult
 import com.example.rssreader.data.repository.FeedRepository
 import com.example.rssreader.ui.formatRelativeTime
@@ -61,10 +64,13 @@ fun SearchScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Suchen") },
+                title = { Text(stringResource(R.string.search_title)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Zurueck")
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = stringResource(R.string.common_back)
+                        )
                     }
                 }
             )
@@ -85,13 +91,13 @@ fun SearchScreen(
                 leadingIcon = {
                     Icon(Icons.Default.Search, contentDescription = null)
                 },
-                label = { Text("Stichwort eingeben") }
+                label = { Text(stringResource(R.string.search_keyword_label)) }
             )
 
             when {
                 trimmedQuery.isBlank() -> {
                     Text(
-                        text = "Suche in allen Feeds nach Titel, Textauszug und Feed-Namen.",
+                        text = stringResource(R.string.search_prompt_all_feeds),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
@@ -100,7 +106,7 @@ fun SearchScreen(
 
                 searchResults.isEmpty() -> {
                     Text(
-                        text = "Keine Treffer fuer \"$trimmedQuery\".",
+                        text = stringResource(R.string.search_no_results, trimmedQuery),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
@@ -114,7 +120,11 @@ fun SearchScreen(
                     ) {
                         item {
                             Text(
-                                text = "${searchResults.size} Treffer",
+                                text = pluralStringResource(
+                                    R.plurals.search_results_count,
+                                    searchResults.size,
+                                    searchResults.size
+                                ),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)

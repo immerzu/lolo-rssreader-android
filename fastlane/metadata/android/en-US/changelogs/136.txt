@@ -1,0 +1,1 @@
+Version 1.87.06 improves settings, reader hardening, and visible German UI text labels.

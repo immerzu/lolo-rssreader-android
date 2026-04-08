@@ -80,12 +80,14 @@ class FeedRepositoryOpmlSupportTest {
     }
 
     @Test
-    fun parseEntriesOrEmptyReturnsEmptyListForInvalidXml() = runTest {
-        val entries = OpmlImportSupport.parseEntriesOrEmpty(
+    fun parseEntriesOrEmptyThrowsInvalidXmlForInvalidXml() = runTest {
+        val failure = runCatching {
+            OpmlImportSupport.parseEntriesOrEmpty(
             "not-an-opml-document".toByteArray(Charsets.UTF_8)
-        )
+            )
+        }.exceptionOrNull()
 
-        assertTrue(entries.isEmpty())
+        assertTrue(failure is RssReaderException.InvalidXml)
     }
 
     @Test

@@ -28,7 +28,10 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.example.rssreader.R
 import com.example.rssreader.data.errors.toUserMessage
 import com.example.rssreader.data.repository.FeedRepository
 import kotlinx.coroutines.CancellationException
@@ -43,6 +46,7 @@ fun FeedConfigScreen(
     onDone: () -> Unit
 ) {
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
     val isEditMode = feedId != null
     var url by rememberSaveable { mutableStateOf("") }
     var title by rememberSaveable { mutableStateOf("") }
@@ -68,10 +72,21 @@ fun FeedConfigScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(if (isEditMode) "Feed bearbeiten" else "Feed anlegen") },
+                title = {
+                    Text(
+                        if (isEditMode) {
+                            stringResource(R.string.feed_config_title_edit)
+                        } else {
+                            stringResource(R.string.feed_config_title_add)
+                        }
+                    )
+                },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Zurueck")
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = stringResource(R.string.common_back)
+                        )
                     }
                 },
                 actions = {
@@ -98,7 +113,9 @@ fun FeedConfigScreen(
                                     onDone()
                                 }.onFailure {
                                     if (it !is CancellationException) {
-                                        errorMessage = it.toUserMessage("Feed konnte nicht gespeichert werden.")
+                                        errorMessage = it.toUserMessage(
+                                            context.getString(R.string.feed_config_save_failed)
+                                        )
                                     }
                                 }.also {
                                     loading = false
@@ -107,7 +124,7 @@ fun FeedConfigScreen(
                         },
                         enabled = valid && !loading
                     ) {
-                        Text("Speichern")
+                        Text(stringResource(R.string.common_save))
                     }
                 }
             )
@@ -124,7 +141,7 @@ fun FeedConfigScreen(
                 value = url,
                 onValueChange = { url = it },
                 modifier = Modifier.fillMaxWidth(),
-                label = { Text("Feed-URL") },
+                label = { Text(stringResource(R.string.feed_config_url_label)) },
                 placeholder = { Text("https://example.com/feed.xml") },
                 singleLine = true,
                 enabled = !loading
@@ -133,7 +150,7 @@ fun FeedConfigScreen(
                 value = title,
                 onValueChange = { title = it },
                 modifier = Modifier.fillMaxWidth(),
-                label = { Text("Anzeigetitel") },
+                label = { Text(stringResource(R.string.feed_config_display_title_label)) },
                 singleLine = true,
                 enabled = !loading
             )
@@ -146,14 +163,14 @@ fun FeedConfigScreen(
                     onCheckedChange = { wifiOnly = it },
                     enabled = !loading
                 )
-                Text("Nur ueber WLAN aktualisieren")
+                Text(stringResource(R.string.settings_refresh_wifi_only_title))
             }
             if (isEditMode) {
                 TextButton(
                     onClick = { showDeleteDialog = true },
                     enabled = !loading
                 ) {
-                    Text("Feed loeschen")
+                    Text(stringResource(R.string.feed_config_delete_title))
                 }
             }
         }
@@ -162,8 +179,8 @@ fun FeedConfigScreen(
     if (showDeleteDialog && feedId != null) {
         AlertDialog(
             onDismissRequest = { showDeleteDialog = false },
-            title = { Text("Feed loeschen") },
-            text = { Text("Der Feed und seine Artikel werden entfernt.") },
+            title = { Text(stringResource(R.string.feed_config_delete_title)) },
+            text = { Text(stringResource(R.string.feed_config_delete_text)) },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -176,7 +193,9 @@ fun FeedConfigScreen(
                                 onDone()
                             }.onFailure {
                                 if (it !is CancellationException) {
-                                    errorMessage = it.toUserMessage("Feed konnte nicht geloescht werden.")
+                                    errorMessage = it.toUserMessage(
+                                        context.getString(R.string.feed_config_delete_failed)
+                                    )
                                 }
                             }.also {
                                 loading = false
@@ -185,7 +204,7 @@ fun FeedConfigScreen(
                     },
                     enabled = !loading
                 ) {
-                    Text("Loeschen")
+                    Text(stringResource(R.string.common_delete))
                 }
             },
             dismissButton = {
@@ -193,7 +212,7 @@ fun FeedConfigScreen(
                     onClick = { showDeleteDialog = false },
                     enabled = !loading
                 ) {
-                    Text("Abbrechen")
+                    Text(stringResource(R.string.common_cancel))
                 }
             }
         )
@@ -202,11 +221,11 @@ fun FeedConfigScreen(
     errorMessage?.let { message ->
         AlertDialog(
             onDismissRequest = { errorMessage = null },
-            title = { Text("Fehler") },
+            title = { Text(stringResource(R.string.common_error)) },
             text = { Text(message) },
             confirmButton = {
                 TextButton(onClick = { errorMessage = null }) {
-                    Text("OK")
+                    Text(stringResource(R.string.common_ok))
                 }
             }
         )

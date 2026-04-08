@@ -267,4 +267,45 @@ class FeedRepositoryImportTest {
 
         assertEquals("HTTPS://example.com/export/COMMENTS.XML", detectImportableFeedUrl(xml))
     }
+
+    @Test
+    fun detectImportableFeedUrlRejectsHttpSelfLink() {
+        val xml = """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <feed xmlns="http://www.w3.org/2005/Atom">
+              <title>Kommentare</title>
+              <link rel="self" href="http://example.com/comments/feed/" type="application/atom+xml" />
+            </feed>
+        """.trimIndent()
+
+        assertNull(detectImportableFeedUrl(xml))
+    }
+
+    @Test
+    fun detectImportableFeedUrlRejectsHttpTypedLink() {
+        val xml = """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <feed xmlns="http://www.w3.org/2005/Atom">
+              <title>Kommentare</title>
+              <link href="http://example.com/comments/feed/" type="application/atom+xml" />
+            </feed>
+        """.trimIndent()
+
+        assertNull(detectImportableFeedUrl(xml))
+    }
+
+    @Test
+    fun detectImportableFeedUrlRejectsHttpPlainFeedLikeChannelLink() {
+        val xml = """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <rss version="2.0">
+              <channel>
+                <title>Kommentare</title>
+                <link>http://example.com/comments/feed/</link>
+              </channel>
+            </rss>
+        """.trimIndent()
+
+        assertNull(detectImportableFeedUrl(xml))
+    }
 }

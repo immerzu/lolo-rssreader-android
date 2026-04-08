@@ -8,6 +8,7 @@ import androidx.work.PeriodicWorkRequest
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import com.example.rssreader.data.settings.AppPreferences
+import com.example.rssreader.debug.DebugLogger
 import java.util.concurrent.TimeUnit
 
 class RefreshScheduler(
@@ -15,29 +16,49 @@ class RefreshScheduler(
     private val workManager: WorkManager = WorkManager.getInstance(context)
 ) {
     fun sync(settings: AppPreferences) {
-        if (settings.refreshIntervalHours <= 0) {
+        if (settings.refreshIntervalMinutes <= 0) {
+            DebugLogger.i(
+                "RefreshScheduler",
+                "Hintergrundaktualisierung deaktiviert: intervalMinutes=${settings.refreshIntervalMinutes}, wifiOnly=${settings.refreshOnlyOnWifi}"
+            )
             workManager.cancelUniqueWork(BACKGROUND_REFRESH_WORK_NAME)
             return
         }
 
+        DebugLogger.i(
+            "RefreshScheduler",
+            "Hintergrundaktualisierung geplant: intervalMinutes=${settings.refreshIntervalMinutes}, wifiOnly=${settings.refreshOnlyOnWifi}"
+        )
         workManager.enqueueUniquePeriodicWork(
             BACKGROUND_REFRESH_WORK_NAME,
             ExistingPeriodicWorkPolicy.UPDATE,
-            buildBackgroundRefreshRequest(settings.refreshIntervalHours)
+            buildBackgroundRefreshRequest(
+                refreshIntervalMinutes = settings.refreshIntervalMinutes,
+                refreshOnlyOnWifi = settings.refreshOnlyOnWifi
+            )
         )
     }
 }
 
 internal const val BACKGROUND_REFRESH_WORK_NAME = "rss_background_refresh"
 
-internal fun buildBackgroundRefreshRequest(refreshIntervalHours: Int): PeriodicWorkRequest {
+internal fun buildBackgroundRefreshRequest(
+    refreshIntervalMinutes: Int,
+    refreshOnlyOnWifi: Boolean = false
+): PeriodicWorkRequest {
     return PeriodicWorkRequestBuilder<BackgroundRefreshWorker>(
-        refreshIntervalHours.toLong(),
-        TimeUnit.HOURS
+        refreshIntervalMinutes.toLong(),
+        TimeUnit.MINUTES
     )
         .setConstraints(
             Constraints.Builder()
-                .setRequiredNetworkType(NetworkType.CONNECTED)
+                .setRequiredNetworkType(
+                    if (refreshOnlyOnWifi) {
+                        NetworkType.UNMETERED
+                    } else {
+                        NetworkType.CONNECTED
+                    }
+                )
                 .build()
         )
         .build()

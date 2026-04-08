@@ -149,4 +149,107 @@ class DocumentImportExportSupportTest {
             )
         )
     }
+
+    @Test
+    fun shouldBlockRefreshForWifiOnlySettingWhenMeteredNetworkIsUsed() {
+        assertTrue(
+            shouldBlockRefreshForWifiOnlySetting(
+                refreshOnlyOnWifi = true,
+                hasWifiConnection = false
+            )
+        )
+    }
+
+    @Test
+    fun shouldNotBlockRefreshForWifiOnlySettingWhenUnmeteredNetworkIsUsed() {
+        assertTrue(
+            !shouldBlockRefreshForWifiOnlySetting(
+                refreshOnlyOnWifi = true,
+                hasWifiConnection = true
+            )
+        )
+    }
+
+    @Test
+    fun shouldNotBlockRefreshWhenWifiOnlySettingIsDisabled() {
+        assertTrue(
+            !shouldBlockRefreshForWifiOnlySetting(
+                refreshOnlyOnWifi = false,
+                hasWifiConnection = false
+            )
+        )
+    }
+
+    @Test
+    fun shouldBlockRefreshWhenFeedWifiOnlyIsEnabledWithoutWifi() {
+        assertTrue(
+            shouldBlockRefreshForWifiRequirements(
+                globalRefreshOnlyOnWifi = false,
+                feedWifiOnly = true,
+                hasWifiConnection = false
+            )
+        )
+    }
+
+    @Test
+    fun shouldBlockRefreshWhenGlobalWifiOnlyIsEnabledWithoutWifi() {
+        assertTrue(
+            shouldBlockRefreshForWifiRequirements(
+                globalRefreshOnlyOnWifi = true,
+                feedWifiOnly = false,
+                hasWifiConnection = false
+            )
+        )
+    }
+
+    @Test
+    fun shouldAllowRefreshWhenWifiRequirementsAreSatisfied() {
+        assertTrue(
+            !shouldBlockRefreshForWifiRequirements(
+                globalRefreshOnlyOnWifi = false,
+                feedWifiOnly = true,
+                hasWifiConnection = true
+            )
+        )
+    }
+
+    @Test
+    fun hasWifiRefreshTransportRejectsEthernetWithoutWifi() {
+        assertTrue(
+            !hasWifiRefreshTransportFlags(
+                hasWifi = false,
+                hasCellular = false,
+                hasEthernet = true,
+                hasVpn = false,
+                isActiveNetworkMetered = false
+            )
+        )
+    }
+
+    @Test
+    fun hasWifiRefreshTransportAcceptsWifi() {
+        assertTrue(
+            hasWifiRefreshTransportFlags(
+                hasWifi = true,
+                hasCellular = false,
+                hasEthernet = false,
+                hasVpn = false,
+                isActiveNetworkMetered = false
+            )
+        )
+    }
+
+    @Test
+    fun hasWifiRefreshTransportAcceptsVpnOnUnmeteredConnectionWithoutCellularOrEthernet() {
+        assertTrue(
+            hasWifiRefreshTransportFlags(
+                hasWifi = false,
+                hasCellular = false,
+                hasEthernet = false,
+                hasVpn = true,
+                isActiveNetworkMetered = false
+            )
+        )
+    }
 }
+

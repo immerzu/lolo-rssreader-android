@@ -10,6 +10,7 @@ import org.xmlpull.v1.XmlPullParser
 import org.xmlpull.v1.XmlPullParserException
 import java.io.StringReader
 import java.net.URI
+import java.security.MessageDigest
 import java.time.Instant
 import java.time.LocalDateTime
 import java.time.OffsetDateTime
@@ -295,7 +296,18 @@ class FeedParser {
         )
 
         val article = ParsedArticle(
-            uniqueKey = guid.ifBlank { link.ifBlank { resolvedTitle } },
+            uniqueKey = guid.ifBlank {
+                link.ifBlank {
+                    buildFallbackUniqueKey(
+                        sourceUrl = runtime.sourceUrl,
+                        publishedAt = publishedAt,
+                        author = author,
+                        plainText = plainText,
+                        rawContent = boundedContent,
+                        title = resolvedTitle
+                    )
+                }
+            },
             title = resolvedTitle,
             link = link,
             publishedAt = publishedAt,
@@ -483,7 +495,18 @@ class FeedParser {
         )
 
         val article = ParsedArticle(
-            uniqueKey = id.ifBlank { link.ifBlank { resolvedTitle } },
+            uniqueKey = id.ifBlank {
+                link.ifBlank {
+                    buildFallbackUniqueKey(
+                        sourceUrl = runtime.sourceUrl,
+                        publishedAt = publishedAt,
+                        author = author,
+                        plainText = plainText,
+                        rawContent = boundedContent,
+                        title = resolvedTitle
+                    )
+                }
+            },
             title = resolvedTitle,
             link = link,
             publishedAt = publishedAt,
@@ -581,6 +604,50 @@ class FeedParser {
             }
             candidate
         }
+    }
+
+    private fun buildFallbackUniqueKey(
+        sourceUrl: String?,
+        publishedAt: Long?,
+        author: String?,
+        plainText: String,
+        rawContent: String,
+        title: String
+    ): String {
+        val normalizedPlainText = normalizeUniqueKeyComponent(plainText)
+        val normalizedRawContent = normalizeUniqueKeyComponent(
+            htmlToPlainText(rawContent.maybeStripPlainTextNoise())
+        )
+        val normalizedAuthor = normalizeUniqueKeyComponent(author.orEmpty())
+        val normalizedTitle = normalizeUniqueKeyComponent(title)
+        val fallbackBasis = listOfNotNull(
+            sourceUrl?.trim()?.takeIf { it.isNotBlank() },
+            publishedAt?.toString(),
+            normalizedAuthor.takeIf { it.isNotBlank() },
+            normalizedPlainText.takeIf { it.isNotBlank() },
+            normalizedRawContent.takeIf { it.isNotBlank() && it != normalizedPlainText },
+            normalizedTitle.takeIf {
+                it.isNotBlank() &&
+                    normalizedAuthor.isBlank() &&
+                    normalizedPlainText.isBlank() &&
+                    normalizedRawContent.isBlank()
+            }
+        ).joinToString("|")
+
+        val digest = MessageDigest.getInstance("SHA-256")
+            .digest(fallbackBasis.toByteArray(Charsets.UTF_8))
+            .joinToString("") { byte -> "%02x".format(Locale.US, byte) }
+        return "fallback:$digest"
+    }
+
+    private fun normalizeUniqueKeyComponent(value: String): String {
+        return value
+            .replace(invisibleFormattingRegex, "")
+            .replace(controlCharacterRegex, " ")
+            .replace(whitespaceRegex, " ")
+            .trim()
+            .lowercase(Locale.US)
+            .take(160)
     }
 
     private fun extractImageUrls(rawHtml: String, maxCount: Int = Int.MAX_VALUE): List<String> {

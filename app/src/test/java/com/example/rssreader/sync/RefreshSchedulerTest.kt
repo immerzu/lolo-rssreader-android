@@ -46,8 +46,8 @@ class RefreshSchedulerTest {
 
     @Test
     fun syncCancelsUniqueWorkWhenRefreshIsDisabled() {
-        scheduler.sync(AppPreferences(refreshIntervalHours = 6))
-        scheduler.sync(AppPreferences(refreshIntervalHours = 0))
+        scheduler.sync(AppPreferences(refreshIntervalMinutes = 360))
+        scheduler.sync(AppPreferences(refreshIntervalMinutes = 0))
 
         val workInfos = workManager.getWorkInfosForUniqueWork(BACKGROUND_REFRESH_WORK_NAME).get()
 
@@ -56,7 +56,7 @@ class RefreshSchedulerTest {
 
     @Test
     fun syncEnqueuesUniquePeriodicWorkWhenRefreshIsEnabled() {
-        scheduler.sync(AppPreferences(refreshIntervalHours = 6))
+        scheduler.sync(AppPreferences(refreshIntervalMinutes = 360))
 
         val workInfos = workManager.getWorkInfosForUniqueWork(BACKGROUND_REFRESH_WORK_NAME).get()
 
@@ -65,22 +65,38 @@ class RefreshSchedulerTest {
     }
 
     @Test
-    fun syncUsesExpectedWorkNameAndConnectedNetworkConstraint() {
-        scheduler.sync(AppPreferences(refreshIntervalHours = 12))
+    fun syncUsesConnectedNetworkConstraintWhenWifiOnlyRefreshIsDisabled() {
+        scheduler.sync(AppPreferences(refreshIntervalMinutes = 720))
 
         val workInfos = workManager.getWorkInfosForUniqueWork(BACKGROUND_REFRESH_WORK_NAME).get()
 
         assertEquals(1, workInfos.size)
         assertEquals(
             NetworkType.CONNECTED,
-            buildBackgroundRefreshRequest(12).workSpec.constraints.requiredNetworkType
+            buildBackgroundRefreshRequest(720).workSpec.constraints.requiredNetworkType
+        )
+    }
+
+    @Test
+    fun syncUsesUnmeteredNetworkConstraintWhenWifiOnlyRefreshIsEnabled() {
+        scheduler.sync(AppPreferences(refreshIntervalMinutes = 720, refreshOnlyOnWifi = true))
+
+        val workInfos = workManager.getWorkInfosForUniqueWork(BACKGROUND_REFRESH_WORK_NAME).get()
+
+        assertEquals(1, workInfos.size)
+        assertEquals(
+            NetworkType.UNMETERED,
+            buildBackgroundRefreshRequest(
+                refreshIntervalMinutes = 720,
+                refreshOnlyOnWifi = true
+            ).workSpec.constraints.requiredNetworkType
         )
     }
 
     @Test
     fun repeatedSyncDoesNotCreateMultipleActiveSchedules() {
-        scheduler.sync(AppPreferences(refreshIntervalHours = 4))
-        scheduler.sync(AppPreferences(refreshIntervalHours = 4))
+        scheduler.sync(AppPreferences(refreshIntervalMinutes = 240))
+        scheduler.sync(AppPreferences(refreshIntervalMinutes = 240))
 
         val workInfos = workManager.getWorkInfosForUniqueWork(BACKGROUND_REFRESH_WORK_NAME).get()
         val activeInfos = workInfos.count { it.state == WorkInfo.State.ENQUEUED || it.state == WorkInfo.State.RUNNING }
@@ -90,9 +106,9 @@ class RefreshSchedulerTest {
 
     @Test
     fun buildBackgroundRefreshRequestKeepsExpectedRepeatIntervalAndWorkerType() {
-        val request = buildBackgroundRefreshRequest(6)
+        val request = buildBackgroundRefreshRequest(15)
 
-        assertEquals(TimeUnit.HOURS.toMillis(6), request.workSpec.intervalDuration)
+        assertEquals(TimeUnit.MINUTES.toMillis(15), request.workSpec.intervalDuration)
         assertEquals(
             BackgroundRefreshWorker::class.java.name,
             request.workSpec.workerClassName

@@ -36,17 +36,8 @@ internal object OpmlImportSupport {
             maxBytes = OPML_IMPORT_SOFT_MAX_BYTES
         )
 
-    fun parseEntriesOrEmpty(importBytes: ByteArray): List<OpmlFeedEntry> {
-        return runCatching {
-            OpmlCodec.parse(ByteArrayInputStream(importBytes))
-        }.getOrElse { throwable ->
-            if (throwable is RssReaderException.InvalidXml) {
-                emptyList()
-            } else {
-                throw throwable
-            }
-        }
-    }
+    fun parseEntriesOrEmpty(importBytes: ByteArray): List<OpmlFeedEntry> =
+        OpmlCodec.parse(ByteArrayInputStream(importBytes))
 
     fun detectImportableFeedUrl(xml: String): String? =
         sequenceOf(
@@ -111,8 +102,7 @@ private fun Regex.extractHttpUrl(xml: String): String? =
         ?.takeIf(::isHttpUrl)
 
 private fun isHttpUrl(url: String): Boolean =
-    url.startsWith("http://", ignoreCase = true) ||
-        url.startsWith("https://", ignoreCase = true)
+    url.startsWith("https://", ignoreCase = true)
 
 private fun looksLikeFeedUrl(url: String): Boolean {
     val normalized = url.lowercase()

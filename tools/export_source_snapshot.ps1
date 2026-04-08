@@ -19,9 +19,21 @@ $rootIncludeFiles = @(
     'LICENSE'
 )
 
+$includeLeafFiles = @(
+    'build.gradle',
+    'build.gradle.kts',
+    'proguard-rules.pro',
+    'consumer-rules.pro',
+    'lint.xml'
+)
+
 $includeDirs = @(
     'app\src\main',
     'app\src\test',
+    'app\src\androidTest',
+    'app\schemas',
+    'fastlane\metadata\android',
+    'docs',
     'gradle\wrapper',
     'tools'
 )
@@ -29,6 +41,10 @@ $includeDirs = @(
 function Test-IsIncludedFile($file) {
     $relative = $file.FullName.Substring($project.Length + 1)
     if ($rootIncludeFiles -contains $relative) {
+        return $true
+    }
+
+    if ($includeLeafFiles -contains $file.Name) {
         return $true
     }
 

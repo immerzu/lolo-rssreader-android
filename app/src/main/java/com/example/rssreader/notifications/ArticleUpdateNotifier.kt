@@ -12,20 +12,31 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import com.example.rssreader.R
+import com.example.rssreader.MainActivity
+import com.example.rssreader.debug.DebugLogger
 
 class ArticleUpdateNotifier(
     private val context: Context
 ) {
+    fun ensureChannelAvailable() {
+        ensureChannel()
+    }
+
     fun showNewArticlesNotification(newArticles: Int, refreshedFeeds: Int) {
-        if (newArticles <= 0 || !canPostNotifications()) {
+        val canPost = canPostNotifications()
+        if (newArticles <= 0 || !canPost) {
+            DebugLogger.i(
+                "ArticleUpdateNotifier",
+                "Benachrichtigung uebersprungen: newArticles=$newArticles, canPost=$canPost"
+            )
             return
         }
 
         ensureChannel()
 
-        val launchIntent = context.packageManager
-            .getLaunchIntentForPackage(context.packageName)
-            ?.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+        val launchIntent = Intent(context, MainActivity::class.java).apply {
+            addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+        }
 
         val contentIntent = PendingIntent.getActivity(
             context,
@@ -56,6 +67,10 @@ class ArticleUpdateNotifier(
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .build()
 
+        DebugLogger.i(
+            "ArticleUpdateNotifier",
+            "Benachrichtigung erstellt: newArticles=$newArticles, refreshedFeeds=$refreshedFeeds, requestCode=1001, intentFlags=0x${launchIntent.flags.toString(16)}"
+        )
         NotificationManagerCompat.from(context).notify(NOTIFICATION_ID, notification)
     }
 

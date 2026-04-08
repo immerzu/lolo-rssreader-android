@@ -18,6 +18,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.UnfoldMore
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.HorizontalDivider
@@ -25,6 +26,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.Alignment
@@ -35,6 +37,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.rssreader.data.db.FeedSummary
+import com.example.rssreader.debug.DebugLogger
 import com.example.rssreader.ui.formatFeedUpdatedAt
 import coil.compose.SubcomposeAsyncImage
 import coil.compose.SubcomposeAsyncImageContent
@@ -44,6 +47,7 @@ import java.net.URI
 @Composable
 fun FeedListScreen(
     feeds: List<FeedSummary>,
+    feedsLoaded: Boolean,
     isRefreshing: Boolean,
     isMoveMode: Boolean,
     onOpenFeed: (Long) -> Unit,
@@ -52,6 +56,37 @@ fun FeedListScreen(
     onMoveFeedDown: (Long) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    LaunchedEffect(feedsLoaded, feeds.size, isRefreshing, isMoveMode) {
+        DebugLogger.d(
+            "FeedListScreen",
+            "state feedsLoaded=$feedsLoaded, feedCount=${feeds.size}, isRefreshing=$isRefreshing, isMoveMode=$isMoveMode"
+        )
+    }
+
+    if (!feedsLoaded) {
+        LaunchedEffect(Unit) {
+            DebugLogger.i("FeedListScreen", "Ladezustand gerendert, weil feedsLoaded=false")
+        }
+        Box(
+            modifier = modifier
+                .fillMaxSize()
+                .padding(24.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                CircularProgressIndicator()
+                Text(
+                    "Feeds werden geladen...",
+                    style = MaterialTheme.typography.titleMedium
+                )
+            }
+        }
+        return
+    }
+
     if (feeds.isEmpty()) {
         Box(
             modifier = modifier
@@ -93,11 +128,19 @@ fun FeedListScreen(
                     .combinedClickable(
                         onClick = {
                             if (!isMoveMode) {
+                                DebugLogger.i(
+                                    "FeedListScreen",
+                                    "Feed aus Uebersicht angeklickt: feedId=${feed.id}, title=${feed.displayTitle}"
+                                )
                                 onOpenFeed(feed.id)
                             }
                         },
                         onLongClick = {
                             if (!isMoveMode) {
+                                DebugLogger.i(
+                                    "FeedListScreen",
+                                    "Feed-Menue per Long-Click: feedId=${feed.id}, title=${feed.displayTitle}"
+                                )
                                 onOpenFeedMenu(feed.id)
                             }
                         }
@@ -126,7 +169,7 @@ fun FeedListScreen(
                     verticalArrangement = Arrangement.spacedBy(2.dp)
                 ) {
                     val feedTitleColor = if (feed.isUnreadFeed) {
-                        Color.White
+                        MaterialTheme.colorScheme.onSurface
                     } else {
                         MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.62f)
                     }

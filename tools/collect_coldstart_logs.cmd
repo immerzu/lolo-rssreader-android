@@ -1,0 +1,6 @@
+@echo off
+echo Sammle Kaltstart-Logs, bitte warten...
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "D:\Codex\RSS_Reader_Android\rss_reader_full_project\tools\coldstart_log_helper.ps1" -Mode collect
+echo.
+echo Fertig. Taste druecken zum Schliessen...
+pause >nul

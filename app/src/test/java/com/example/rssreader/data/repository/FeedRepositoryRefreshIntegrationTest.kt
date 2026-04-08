@@ -548,6 +548,35 @@ class FeedRepositoryRefreshIntegrationTest {
     }
 
     @Test
+    fun importOpmlPreservesEntryOrderInDisplayOrder() = runTest {
+        val firstUrl = "https://example.com/import-order-1.xml"
+        val secondUrl = "https://example.com/import-order-2.xml"
+        val thirdUrl = "https://example.com/import-order-3.xml"
+
+        enqueueSuccess(firstUrl, rssXml("import-order-1", "Erster Feed", "Bern Tipps"))
+        enqueueSuccess(secondUrl, rssXml("import-order-2", "Zweiter Feed", "Lyon Tipps"))
+        enqueueSuccess(thirdUrl, rssXml("import-order-3", "Dritter Feed", "Turin Tipps"))
+
+        val result = repository.importOpml(
+            OpmlCodec.build(
+                listOf(
+                    OpmlFeedEntry(url = secondUrl, title = "Zweiter Feed"),
+                    OpmlFeedEntry(url = thirdUrl, title = "Dritter Feed"),
+                    OpmlFeedEntry(url = firstUrl, title = "Erster Feed")
+                )
+            ).byteInputStream()
+        )
+
+        assertEquals(3, result.importedFeeds)
+        assertEquals(0, result.skippedFeeds)
+        assertEquals(0, result.failedFeeds)
+        assertEquals(
+            listOf(secondUrl, thirdUrl, firstUrl),
+            feedDao.getAll().map { it.url }
+        )
+    }
+
+    @Test
     fun importOpmlCountsExistingDuplicateUrlOnlyOnceAfterOpmlDeduplication() = runTest {
         val feedUrl = "https://example.com/import-existing.xml"
         insertFeed(feedUrl)
@@ -718,22 +747,22 @@ class FeedRepositoryRefreshIntegrationTest {
     }
 
     @Test
-    fun importSingleFeedXmlWithoutDetectableFeedUrlReturnsZeroCounts() = runTest {
-        val result = repository.importOpml(
+    fun importSingleFeedXmlWithoutDetectableFeedUrlThrowsUnsupportedImportFile() = runTest {
+        val failure = runCatching {
+            repository.importOpml(
             rssXmlWithoutFeedHint(
                 uniqueKey = "single-no-hint",
                 title = "Ohne Feed-Hinweis",
                 plainText = "Riga Tipps"
             ).byteInputStream()
-        )
+            )
+        }.exceptionOrNull()
 
-        assertEquals(0, result.importedFeeds)
-        assertEquals(0, result.skippedFeeds)
-        assertEquals(0, result.failedFeeds)
+        assertTrue(failure is RssReaderException.UnsupportedImportFile)
         assertEquals(0, feedDao.countFeeds())
         assertEquals(0, articleDao.countArticles())
         assertEquals(0, articleDao.countSearchIndexRows())
-        assertEquals(result, repository.diagnosticsSnapshot().lastImportResult)
+        assertNull(repository.diagnosticsSnapshot().lastImportResult)
     }
 
     @Test
@@ -747,6 +776,32 @@ class FeedRepositoryRefreshIntegrationTest {
         assertEquals(0, articleDao.countArticles())
         assertEquals(0, articleDao.countSearchIndexRows())
         assertNull(repository.diagnosticsSnapshot().lastImportResult)
+    }
+
+    @Test
+    fun deleteAllFeedsRemovesFeedsArticlesAndStaleSearchRows() = runTest {
+        val firstUrl = "https://example.com/delete-feed-1.xml"
+        val secondUrl = "https://example.com/delete-feed-2.xml"
+        insertFeed(firstUrl)
+        insertFeed(secondUrl)
+
+        enqueueSuccess(firstUrl, rssXml("delete-1", "Erster Feed", "Rom Tipps"))
+        enqueueSuccess(secondUrl, rssXml("delete-2", "Zweiter Feed", "Paris Tipps"))
+
+        assertEquals(2, repository.refreshAll().newArticles)
+        assertEquals(2, feedDao.countFeeds())
+        assertEquals(2, articleDao.countArticles())
+        assertEquals(2, articleDao.countSearchIndexRows())
+
+        val deletedFeeds = repository.deleteAllFeeds()
+
+        assertEquals(2, deletedFeeds)
+        assertEquals(0, feedDao.countFeeds())
+        assertEquals(0, articleDao.countArticles())
+        assertEquals(0, articleDao.countSearchIndexRows())
+        assertTrue(searchTitles("Rom", "rom*").isEmpty())
+        assertTrue(searchTitles("Paris", "paris*").isEmpty())
+        assertEquals(0, articleDao.countFtsMaintenanceTriggers())
     }
 
     @Test
@@ -777,13 +832,34 @@ class FeedRepositoryRefreshIntegrationTest {
 
         enqueueSuccess(normalUrl, rssXml("normal-1", "Normale Reise", "Taipei Tipps"))
 
-        val stats = repository.refreshAllInBackground(isUnmeteredNetwork = false)
+        val stats = repository.refreshAllInBackground(
+            isUnmeteredNetwork = false,
+            hasWifiConnection = false
+        )
 
         assertEquals(1, stats.refreshedFeeds)
         assertEquals(1, stats.skippedFeeds)
         assertEquals(0, stats.failedFeeds)
         assertEquals(1, stats.newArticles)
         assertEquals(listOf("Normale Reise"), searchTitles("Taipei", "taipei*"))
+    }
+
+    @Test
+    fun refreshAllSkipsWifiOnlyFeedsWhenWifiConnectionIsMissing() = runTest {
+        val wifiOnlyUrl = "https://example.com/feed-wifi-manual.xml"
+        val normalUrl = "https://example.com/feed-manual.xml"
+        insertFeed(wifiOnlyUrl, wifiOnly = true)
+        insertFeed(normalUrl, wifiOnly = false)
+
+        enqueueSuccess(normalUrl, rssXml("manual-1", "Manuelle Reise", "Lissabon Tipps"))
+
+        val stats = repository.refreshAll(hasWifiConnection = false)
+
+        assertEquals(1, stats.refreshedFeeds)
+        assertEquals(1, stats.skippedFeeds)
+        assertEquals(0, stats.failedFeeds)
+        assertEquals(1, stats.newArticles)
+        assertEquals(listOf("Manuelle Reise"), searchTitles("Lissabon", "lissabon*"))
     }
 
     @Test
@@ -798,7 +874,10 @@ class FeedRepositoryRefreshIntegrationTest {
         enqueueSuccess(successUrl, rssXml("success-1", "Erfolgreiche Reise", "Riga Tipps"))
         enqueueError(failingUrl, 503, times = 2)
 
-        val stats = repository.refreshAllInBackground(isUnmeteredNetwork = false)
+        val stats = repository.refreshAllInBackground(
+            isUnmeteredNetwork = false,
+            hasWifiConnection = false
+        )
 
         assertEquals(1, stats.refreshedFeeds)
         assertEquals(1, stats.skippedFeeds)
@@ -809,6 +888,41 @@ class FeedRepositoryRefreshIntegrationTest {
         assertEquals(0, articleDao.countFtsMaintenanceTriggers())
         assertEquals(listOf("Erfolgreiche Reise"), searchTitles("Riga", "riga*"))
         assertEquals(stats, repository.diagnosticsSnapshot().lastRefreshRunStats)
+    }
+
+    @Test
+    fun refreshAllAllowsWifiOnlyFeedsWhenWifiConnectionExists() = runTest {
+        val wifiOnlyUrl = "https://example.com/feed-wifi-manual-allowed.xml"
+        insertFeed(wifiOnlyUrl, wifiOnly = true)
+
+        enqueueSuccess(wifiOnlyUrl, rssXml("manual-wifi", "WLAN Hand", "Oslo Tipps"))
+
+        val stats = repository.refreshAll(hasWifiConnection = true)
+
+        assertEquals(1, stats.refreshedFeeds)
+        assertEquals(0, stats.skippedFeeds)
+        assertEquals(0, stats.failedFeeds)
+        assertEquals(1, stats.newArticles)
+        assertEquals(listOf("WLAN Hand"), searchTitles("Oslo", "oslo*"))
+    }
+
+    @Test
+    fun backgroundRefreshAllowsFeedWifiOnlyWhenWifiConnectionExists() = runTest {
+        val wifiOnlyUrl = "https://example.com/feed-wifi-allowed.xml"
+        insertFeed(wifiOnlyUrl, wifiOnly = true)
+
+        enqueueSuccess(wifiOnlyUrl, rssXml("wifi-allowed", "WLAN Reise", "Seoul Tipps"))
+
+        val stats = repository.refreshAllInBackground(
+            isUnmeteredNetwork = false,
+            hasWifiConnection = true
+        )
+
+        assertEquals(1, stats.refreshedFeeds)
+        assertEquals(0, stats.skippedFeeds)
+        assertEquals(0, stats.failedFeeds)
+        assertEquals(1, stats.newArticles)
+        assertEquals(listOf("WLAN Reise"), searchTitles("Seoul", "seoul*"))
     }
 
     @Test

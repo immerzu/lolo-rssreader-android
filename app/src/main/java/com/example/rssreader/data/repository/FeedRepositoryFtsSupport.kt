@@ -51,3 +51,4 @@ internal fun disableLegacyFtsMaintenanceTriggers(database: AppDatabase): Int {
     }
     return existingTriggers
 }
+

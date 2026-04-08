@@ -31,6 +31,34 @@ class OpmlCodecTest {
     }
 
     @Test
+    fun parseRejectsExternalEntityReferences() {
+        val opml = """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <!DOCTYPE opml [
+              <!ENTITY ext SYSTEM "https://example.com/external.ent">
+            ]>
+            <opml version="1.0">
+              <body>
+                <outline text="&ext;" xmlUrl="https://example.com/feed.xml" />
+              </body>
+            </opml>
+        """.trimIndent()
+
+        val result = runCatching {
+            OpmlCodec.parse(ByteArrayInputStream(opml.toByteArray(Charsets.UTF_8)))
+        }
+
+        val entries = result.getOrNull()
+        if (entries != null) {
+            assertEquals(1, entries.size)
+            assertEquals("https://example.com/feed.xml", entries.single().url)
+            assertTrue(entries.single().title.isNullOrBlank())
+        } else {
+            assertTrue(result.exceptionOrNull() != null)
+        }
+    }
+
+    @Test
     fun parseDeduplicatesTrimmedDuplicateUrlsWhileKeepingFirstTitle() {
         val opml = """
             <?xml version="1.0" encoding="UTF-8"?>

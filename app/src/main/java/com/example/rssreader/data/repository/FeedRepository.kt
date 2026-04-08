@@ -95,7 +95,12 @@ class FeedRepository(
             }
         }
 
-    suspend fun addFeed(url: String, customTitle: String?, wifiOnly: Boolean): Long =
+    suspend fun addFeed(
+        url: String,
+        customTitle: String?,
+        wifiOnly: Boolean,
+        displayOrder: Int? = null
+    ): Long =
         runOnIo {
             val parsed = fetchAndParseFeed(url)
             try {
@@ -103,17 +108,33 @@ class FeedRepository(
                     url = url,
                     customTitle = customTitle,
                     wifiOnly = wifiOnly,
-                    parsed = parsed
+                    parsed = parsed,
+                    displayOrder = displayOrder
                 )
             } catch (_: SQLiteConstraintException) {
                 throw RssReaderException.DuplicateFeed()
             }
         }
 
-    suspend fun refreshAll(): RefreshRunStats {
+    suspend fun refreshAll(hasWifiConnection: Boolean? = null): RefreshRunStats {
         return runOnIo {
             DebugLogger.i(TAG, "refreshAll gestartet")
-            refreshFeedsBounded(feedDao.getAll()).let { stats ->
+            val feeds = feedDao.getAll()
+            val refreshableFeeds = mutableListOf<FeedEntity>()
+            var skippedFeeds = 0
+
+            feeds.forEach { feed ->
+                if (hasWifiConnection != null && feed.wifiOnly && !hasWifiConnection) {
+                    skippedFeeds += 1
+                } else {
+                    refreshableFeeds += feed
+                }
+            }
+
+            refreshFeedsBounded(
+                feeds = refreshableFeeds,
+                skippedFeeds = skippedFeeds
+            ).let { stats ->
                 rememberRefreshRunStats(stats).also {
                     DebugLogger.i(
                         TAG,
@@ -151,14 +172,17 @@ class FeedRepository(
         }
     }
 
-    suspend fun refreshAllInBackground(isUnmeteredNetwork: Boolean): RefreshRunStats {
+    suspend fun refreshAllInBackground(
+        isUnmeteredNetwork: Boolean,
+        hasWifiConnection: Boolean = isUnmeteredNetwork
+    ): RefreshRunStats {
         return runOnIo {
             val feeds = feedDao.getAll()
             val refreshableFeeds = mutableListOf<FeedEntity>()
             var skippedFeeds = 0
 
             feeds.forEach { feed ->
-                if (feed.wifiOnly && !isUnmeteredNetwork) {
+                if (feed.wifiOnly && !hasWifiConnection) {
                     skippedFeeds += 1
                 } else {
                     refreshableFeeds += feed
@@ -214,6 +238,18 @@ class FeedRepository(
             database.withTransaction {
                 feedDao.deleteById(feedId)
                 articleDao.deleteStaleSearchIndexEntries()
+            }
+        }
+    }
+
+    suspend fun deleteAllFeeds(): Int {
+        return runOnIo {
+            ensureManualSearchIndexMaintenance()
+            database.withTransaction {
+                val deletedFeeds = feedDao.countFeeds()
+                feedDao.deleteAll()
+                articleDao.deleteStaleSearchIndexEntries()
+                deletedFeeds
             }
         }
     }
@@ -328,11 +364,23 @@ class FeedRepository(
     suspend fun importOpml(inputStream: InputStream): OpmlImportResult = runOnIo {
         DebugLogger.i(TAG, "Import gestartet")
         val importBytes = readImportBytes(inputStream)
-        val entries = OpmlImportSupport.parseEntriesOrEmpty(importBytes)
+        val xml = importBytes.toString(StandardCharsets.UTF_8)
+        val detectedFeedUrl = OpmlImportSupport.detectImportableFeedUrl(xml)
+        val entries = runCatching {
+            OpmlImportSupport.parseEntriesOrEmpty(importBytes)
+        }.getOrElse { throwable ->
+            if (throwable is RssReaderException.InvalidXml) {
+                if (detectedFeedUrl.isNullOrBlank()) {
+                    throw RssReaderException.UnsupportedImportFile()
+                }
+                emptyList()
+            } else {
+                throw throwable
+            }
+        }
 
         if (entries.isEmpty()) {
-            val xml = importBytes.toString(StandardCharsets.UTF_8)
-            val feedUrl = OpmlImportSupport.detectImportableFeedUrl(xml)
+            val feedUrl = detectedFeedUrl
             val parsed = runCatching { parser.parse(xml, feedUrl) }.getOrElse { throwable ->
                 if (throwable is RssReaderException.InvalidXml) {
                     throw RssReaderException.UnsupportedImportFile()
@@ -340,13 +388,8 @@ class FeedRepository(
                 throw throwable
             }
             if (feedUrl.isNullOrBlank()) {
-                return@runOnIo rememberImportCounts(
-                    importedFeeds = 0,
-                    skippedFeeds = 0,
-                    failedFeeds = 0
-                ).also {
-                    DebugLogger.w(TAG, "Importdatei enthielt keine erkennbare Feed-URL")
-                }
+                DebugLogger.w(TAG, "Importdatei enthielt keine erkennbare Feed-URL")
+                throw RssReaderException.UnsupportedImportFile()
             }
             if (feedDao.existsByUrl(feedUrl)) {
                 return@runOnIo rememberImportCounts(
@@ -391,8 +434,12 @@ class FeedRepository(
             )
         }
 
-        val outcomes = runOpmlTasksBounded(entries) { entry ->
-            importOpmlEntry(entry)
+        val baseDisplayOrder = feedDao.getMaxDisplayOrder()
+        val outcomes = entries.mapIndexed { index, entry ->
+            importOpmlEntry(
+                entry = entry,
+                displayOrder = baseDisplayOrder + index + 1
+            )
         }
 
         val importedFeeds = outcomes.count { it.imported }
@@ -557,7 +604,10 @@ class FeedRepository(
         return parser.parse(fetcher.fetch(url), url)
     }
 
-    private suspend fun importOpmlEntry(entry: OpmlFeedEntry): OpmlImportOutcome {
+    private suspend fun importOpmlEntry(
+        entry: OpmlFeedEntry,
+        displayOrder: Int
+    ): OpmlImportOutcome {
         if (feedDao.existsByUrl(entry.url)) {
             return OpmlImportOutcome(skipped = true)
         }
@@ -566,7 +616,8 @@ class FeedRepository(
             addFeed(
                 url = entry.url,
                 customTitle = entry.title,
-                wifiOnly = false
+                wifiOnly = false,
+                displayOrder = displayOrder
             )
         }.fold(
             onSuccess = {
@@ -682,7 +733,8 @@ class FeedRepository(
         url: String,
         customTitle: String?,
         wifiOnly: Boolean,
-        parsed: com.example.rssreader.data.network.ParsedFeed
+        parsed: com.example.rssreader.data.network.ParsedFeed,
+        displayOrder: Int? = null
     ): Long {
         return database.withTransaction {
             val feedId = feedDao.insert(
@@ -692,7 +744,7 @@ class FeedRepository(
                     url = url,
                     siteUrl = parsed.siteUrl,
                     iconUrl = parsed.iconUrl,
-                    displayOrder = feedDao.getMaxDisplayOrder() + 1,
+                    displayOrder = displayOrder ?: (feedDao.getMaxDisplayOrder() + 1),
                     lastFetchedAt = System.currentTimeMillis(),
                     wifiOnly = wifiOnly
                 )

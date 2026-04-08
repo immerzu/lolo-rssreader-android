@@ -20,10 +20,15 @@ private val LightRssReaderColors = lightColorScheme(
     primaryContainer = Color(0xFFD6E6F2),
     onPrimaryContainer = Color(0xFF10283B),
     secondary = Color(0xFF5B738A),
+    onSecondary = Color(0xFFFFFFFF),
     secondaryContainer = Color(0xFFDCE5EC),
+    onSecondaryContainer = Color(0xFF1B2A36),
     background = Color(0xFFF2F5F8),
+    onBackground = Color(0xFF111417),
     surface = Color(0xFFF9FBFD),
+    onSurface = Color(0xFF111417),
     surfaceVariant = Color(0xFFE3EAF1),
+    onSurfaceVariant = Color(0xFF3F4B57),
     outline = Color(0xFF9AA8B6)
 )
 

@@ -76,3 +76,4 @@ internal fun buildRefreshRunStats(
         .fold(RefreshAccumulator()) { accumulator, outcome -> accumulator.add(outcome) }
         .toStats(skippedFeeds)
 }
+
