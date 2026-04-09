@@ -10,8 +10,8 @@ plugins {
 }
 
 val roomSchemaDir = projectDir.resolve("schemas")
-val appVersionCode = 137
-val appVersionName = "1.87.07"
+val appVersionCode = 138
+val appVersionName = "1.87.08"
 
 val versionPropertiesFile = rootProject.file("version.properties")
 val versionProperties = Properties().apply {
@@ -80,6 +80,7 @@ android {
             // Fuer spaetere Release-Haertung bei Bedarf vorsichtig aktivieren:
             // isMinifyEnabled = true
             // isShrinkResources = true
+            vcsInfo.include = false
             if (keystorePropertiesFile.exists()) {
                 signingConfig = signingConfigs.getByName("release")
             }
@@ -121,6 +122,7 @@ android {
         includeInApk = false
         includeInBundle = false
     }
+
 }
 
 ksp {
