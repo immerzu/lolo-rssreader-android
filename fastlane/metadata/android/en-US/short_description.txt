@@ -1,1 +1,1 @@
-Simple RSS reader without ads or tracking.
+Compact, classic RSS reader for Android with offline storage and background updates.

@@ -1,1 +1,1 @@
-Kompakter RSS-Reader mit OPML, Favoriten, Offline-Lesen und Dunkelmodus
+Kompakter, klassischer RSS-Reader für Android mit Offline-Speicherung und Hintergrundaktualisierung.
