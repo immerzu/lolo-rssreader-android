@@ -1,1 +1,1 @@
-Compact, classic RSS reader for Android with offline storage and background updates.
+Compact RSS reader with offline storage and background updates.

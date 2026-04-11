@@ -1,1 +1,1 @@
-Kompakter, klassischer RSS-Reader für Android mit Offline-Speicherung und Hintergrundaktualisierung.
+Kompakter RSS-Reader mit Offline-Speicherung und Hintergrundaktualisierung.
