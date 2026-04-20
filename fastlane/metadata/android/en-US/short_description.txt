@@ -1,1 +1,1 @@
-Simple RSS reader without ads or tracking.
+Compact RSS reader with offline storage and background updates.
