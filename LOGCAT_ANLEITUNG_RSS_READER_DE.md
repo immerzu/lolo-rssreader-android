@@ -44,12 +44,12 @@ adb logcat -c
 Danach das Log in eine Datei schreiben:
 
 ```powershell
-adb logcat -d > D:\Codex\RSS_Reader_Android\Ausgabe_APK\rss-reader-crash-log.txt
+adb logcat -d > F:\Codex\RSS_Reader_Android\Ausgabe_APK\rss-reader-crash-log.txt
 ```
 
 Die Datei liegt dann hier:
 
-[rss-reader-crash-log.txt](D:\Codex\RSS_Reader_Android\Ausgabe_APK\rss-reader-crash-log.txt)
+[rss-reader-crash-log.txt](F:\Codex\RSS_Reader_Android\Ausgabe_APK\rss-reader-crash-log.txt)
 
 ## 5. Was fuer die Analyse wichtig ist
 
@@ -73,13 +73,13 @@ adb logcat -c
 Dann Absturz nachstellen, danach:
 
 ```powershell
-adb logcat -d > D:\Codex\RSS_Reader_Android\Ausgabe_APK\rss-reader-crash-log.txt
+adb logcat -d > F:\Codex\RSS_Reader_Android\Ausgabe_APK\rss-reader-crash-log.txt
 ```
 
 ## 7. Optional: nur relevante Zeilen ansehen
 
 ```powershell
-Get-Content D:\Codex\RSS_Reader_Android\Ausgabe_APK\rss-reader-crash-log.txt | Select-String "FATAL EXCEPTION|AndroidRuntime|com.example.rssreader|Caused by"
+Get-Content F:\Codex\RSS_Reader_Android\Ausgabe_APK\rss-reader-crash-log.txt | Select-String "FATAL EXCEPTION|AndroidRuntime|com.example.rssreader|Caused by"
 ```
 
 ## Kurzfassung
@@ -87,5 +87,5 @@ Get-Content D:\Codex\RSS_Reader_Android\Ausgabe_APK\rss-reader-crash-log.txt | S
 1. `adb devices`
 2. `adb logcat -c`
 3. Absturz nachstellen
-4. `adb logcat -d > D:\Codex\RSS_Reader_Android\Ausgabe_APK\rss-reader-crash-log.txt`
+4. `adb logcat -d > F:\Codex\RSS_Reader_Android\Ausgabe_APK\rss-reader-crash-log.txt`
 5. Datei an mich weitergeben

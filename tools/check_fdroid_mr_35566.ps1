@@ -32,7 +32,7 @@ if ([string]::IsNullOrWhiteSpace($gitlabToken)) {
     Write-Host ""
     Write-Host "Bitte in derselben PowerShell vor dem Aufruf einmal setzen:"
     Write-Host '$env:GITLAB_TOKEN = "DEIN_GITLAB_TOKEN"'
-    Write-Host 'powershell -ExecutionPolicy Bypass -File "D:\Codex\RSS_Reader_Android\rss_reader_full_project\tools\check_fdroid_mr_35566.ps1"'
+    Write-Host 'powershell -ExecutionPolicy Bypass -File "F:\Codex\RSS_Reader_Android\rss_reader_full_project\tools\check_fdroid_mr_35566.ps1"'
     exit 1
 }
 

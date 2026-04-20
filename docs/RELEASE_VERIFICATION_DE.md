@@ -7,7 +7,7 @@ Stand dieser Verifikation:
 - Status `finaler Release-Commit mit Git-Tag v1.87.06`
 - Datum `2026-04-08`
 - Lokal verifiziert im aktuellen Projektordner:
-  `D:\Codex\RSS_Reader_Android\rss_reader_full_project`
+  `F:\Codex\RSS_Reader_Android\rss_reader_full_project`
 
 Ausgefuehrte Befehle:
 
@@ -21,8 +21,8 @@ Ergebnis:
 - `testDebugUnitTest` fuer den relevanten Release-Block: erfolgreich
 
 Logdateien:
-- `D:\Codex\RSS_Reader_Android\Ausgabe_APK\release-verify-assembleRelease-v1.87.06-20260408-065108.log`
-- `D:\Codex\RSS_Reader_Android\Ausgabe_APK\release-verify-tests-v1.87.06-20260408-065108.log`
+- `F:\Codex\RSS_Reader_Android\Ausgabe_APK\release-verify-assembleRelease-v1.87.06-20260408-065108.log`
+- `F:\Codex\RSS_Reader_Android\Ausgabe_APK\release-verify-tests-v1.87.06-20260408-065108.log`
 
 Nicht durch diese Verifikation abgedeckt:
 - Instrumentation-/UI-Tests auf Emulator oder Geraet

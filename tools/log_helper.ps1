@@ -2,7 +2,7 @@ param(
     [ValidateSet("prepare", "collect")]
     [string]$Mode = "collect",
     [string]$PackageName = "de.lolo.rssreader",
-    [string]$OutputDir = "D:\Codex\RSS_Reader_Android\Ausgabe_APK",
+    [string]$OutputDir = "F:\Codex\RSS_Reader_Android\Ausgabe_APK",
     [string]$AdbCommand = "adb"
 )
 

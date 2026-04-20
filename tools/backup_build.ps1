@@ -1,6 +1,6 @@
 $apkPath = $args[0]
 $sourcePath = $args[1]
-$backupRoot = if ($args.Count -ge 3) { $args[2] } else { "D:\Codex\RSS_Reader_Android\Ausgabe_APK\Builds_Sicherungen" }
+$backupRoot = if ($args.Count -ge 3) { $args[2] } else { "F:\Codex\RSS_Reader_Android\Ausgabe_APK\Builds_Sicherungen" }
 $keepCount = if ($args.Count -ge 4) { [int]$args[3] } else { 10 }
 
 if ([string]::IsNullOrWhiteSpace($apkPath) -or [string]::IsNullOrWhiteSpace($sourcePath)) {
