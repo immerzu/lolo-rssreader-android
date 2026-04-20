@@ -1,6 +1,7 @@
 package com.example.rssreader.ui.screens
 
 import android.content.Context
+import android.os.Build
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -1152,5 +1153,11 @@ internal fun formatDiagnosticsSummary(
 
 private fun currentAppVersionLabel(context: Context): String {
     val packageInfo = context.packageManager.getPackageInfo(context.packageName, 0)
-    return "${packageInfo.versionName.orEmpty()} (${packageInfo.longVersionCode})"
+    val versionCode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+        packageInfo.longVersionCode
+    } else {
+        @Suppress("DEPRECATION")
+        packageInfo.versionCode.toLong()
+    }
+    return "${packageInfo.versionName.orEmpty()} ($versionCode)"
 }

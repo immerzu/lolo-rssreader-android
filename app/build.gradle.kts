@@ -80,6 +80,7 @@ android {
             // Fuer spaetere Release-Haertung bei Bedarf vorsichtig aktivieren:
             // isMinifyEnabled = true
             // isShrinkResources = true
+            vcsInfo.include = false
             if (keystorePropertiesFile.exists()) {
                 signingConfig = signingConfigs.getByName("release")
             }

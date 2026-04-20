@@ -2,6 +2,7 @@ package com.example.rssreader.debug
 
 import android.content.Context
 import android.content.pm.ApplicationInfo
+import android.os.Build
 import android.util.Log
 import java.io.File
 import java.text.SimpleDateFormat
@@ -37,9 +38,15 @@ object DebugLogger {
         installUncaughtExceptionHandler()
         isInitialized = true
         val packageInfo = context.packageManager.getPackageInfo(context.packageName, 0)
+        val versionCode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            packageInfo.longVersionCode
+        } else {
+            @Suppress("DEPRECATION")
+            packageInfo.versionCode.toLong()
+        }
         session(
             "Debug-Logging initialisiert: ${logFile?.absolutePath.orEmpty()} | " +
-                "version=${packageInfo.versionName.orEmpty()} (${packageInfo.longVersionCode})"
+                "version=${packageInfo.versionName.orEmpty()} ($versionCode)"
         )
         d("App", "Debug-Logging initialisiert: ${logFile?.absolutePath.orEmpty()}")
     }
