@@ -15,6 +15,13 @@ import com.example.rssreader.R
 import com.example.rssreader.MainActivity
 import com.example.rssreader.debug.DebugLogger
 
+internal const val EXTRA_OPENED_FROM_NOTIFICATION =
+    "com.example.rssreader.extra.OPENED_FROM_NOTIFICATION"
+internal const val EXTRA_NOTIFICATION_CHANNEL_ID =
+    "com.example.rssreader.extra.NOTIFICATION_CHANNEL_ID"
+internal const val EXTRA_NOTIFICATION_ARTICLE_COUNT =
+    "com.example.rssreader.extra.NOTIFICATION_ARTICLE_COUNT"
+
 class ArticleUpdateNotifier(
     private val context: Context
 ) {
@@ -23,11 +30,23 @@ class ArticleUpdateNotifier(
     }
 
     fun showNewArticlesNotification(newArticles: Int, refreshedFeeds: Int) {
-        val canPost = canPostNotifications()
-        if (newArticles <= 0 || !canPost) {
+        if (newArticles <= 0) {
             DebugLogger.i(
                 "ArticleUpdateNotifier",
-                "Benachrichtigung uebersprungen: newArticles=$newArticles, canPost=$canPost"
+                "Benachrichtigung uebersprungen: newArticles=$newArticles"
+            )
+            return
+        }
+        if (
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.POST_NOTIFICATIONS
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
+            DebugLogger.i(
+                "ArticleUpdateNotifier",
+                "Benachrichtigung uebersprungen: newArticles=$newArticles, canPost=false"
             )
             return
         }
@@ -36,6 +55,9 @@ class ArticleUpdateNotifier(
 
         val launchIntent = Intent(context, MainActivity::class.java).apply {
             addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+            putExtra(EXTRA_OPENED_FROM_NOTIFICATION, true)
+            putExtra(EXTRA_NOTIFICATION_CHANNEL_ID, CHANNEL_ID)
+            putExtra(EXTRA_NOTIFICATION_ARTICLE_COUNT, newArticles)
         }
 
         val contentIntent = PendingIntent.getActivity(
@@ -45,17 +67,9 @@ class ArticleUpdateNotifier(
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        val title = if (newArticles == 1) {
-            "1 neuer Artikel"
-        } else {
-            "$newArticles neue Artikel"
-        }
-
-        val text = if (refreshedFeeds == 1) {
-            "Aus 1 Feed im Hintergrund aktualisiert."
-        } else {
-            "Aus $refreshedFeeds Feeds im Hintergrund aktualisiert."
-        }
+        val (titleResId, textResId) = notificationTextResIds(newArticles)
+        val title = context.getString(titleResId)
+        val text = context.getString(textResId)
 
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.stat_notify_sync_noanim)
@@ -71,15 +85,15 @@ class ArticleUpdateNotifier(
             "ArticleUpdateNotifier",
             "Benachrichtigung erstellt: newArticles=$newArticles, refreshedFeeds=$refreshedFeeds, requestCode=1001, intentFlags=0x${launchIntent.flags.toString(16)}"
         )
+        DebugLogger.i(
+            "ArticleUpdateNotifier",
+            "Benachrichtigung wird an Android uebergeben: channelId=$CHANNEL_ID, notificationId=$NOTIFICATION_ID, newArticles=$newArticles, refreshedFeeds=$refreshedFeeds"
+        )
         NotificationManagerCompat.from(context).notify(NOTIFICATION_ID, notification)
-    }
-
-    private fun canPostNotifications(): Boolean {
-        return Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
-            ContextCompat.checkSelfPermission(
-                context,
-                Manifest.permission.POST_NOTIFICATIONS
-            ) == PackageManager.PERMISSION_GRANTED
+        DebugLogger.i(
+            "ArticleUpdateNotifier",
+            "Benachrichtigung an Android uebergeben: channelId=$CHANNEL_ID, notificationId=$NOTIFICATION_ID"
+        )
     }
 
     private fun ensureChannel() {
@@ -90,10 +104,10 @@ class ArticleUpdateNotifier(
         val manager = context.getSystemService(NotificationManager::class.java)
         val channel = NotificationChannel(
             CHANNEL_ID,
-            "RSS-Aktualisierungen",
+            context.getString(R.string.notification_channel_name),
             NotificationManager.IMPORTANCE_DEFAULT
         ).apply {
-            description = "Benachrichtigt ueber neue Artikel nach Hintergrund-Aktualisierungen."
+            description = context.getString(R.string.notification_channel_description)
         }
         manager.createNotificationChannel(channel)
     }
@@ -102,6 +116,18 @@ class ArticleUpdateNotifier(
         const val CHANNEL_ID = "rss_updates"
         const val NOTIFICATION_ID = 1001
     }
+}
+
+internal fun notificationTextResIds(newArticles: Int): Pair<Int, Int> {
+    return if (newArticles == 1) {
+        R.string.notification_new_message_title to R.string.notification_new_message_text
+    } else {
+        R.string.notification_new_messages_title to R.string.notification_new_messages_text
+    }
+}
+
+internal fun isNotificationOpenIntent(intent: Intent?): Boolean {
+    return intent?.getBooleanExtra(EXTRA_OPENED_FROM_NOTIFICATION, false) == true
 }
 
 

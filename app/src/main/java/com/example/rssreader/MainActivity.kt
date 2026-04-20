@@ -12,6 +12,9 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import com.example.rssreader.debug.DebugLogger
 import com.example.rssreader.notifications.ArticleUpdateNotifier
+import com.example.rssreader.notifications.EXTRA_NOTIFICATION_ARTICLE_COUNT
+import com.example.rssreader.notifications.EXTRA_NOTIFICATION_CHANNEL_ID
+import com.example.rssreader.notifications.isNotificationOpenIntent
 import com.example.rssreader.ui.RssReaderApp
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
@@ -123,6 +126,12 @@ class MainActivity : ComponentActivity() {
             "MainActivity",
             "$source: action=${intent.action}, data=${intent.dataString}, flags=0x${intent.flags.toString(16)}, extras=$extrasSummary"
         )
+        if (isNotificationOpenIntent(intent)) {
+            DebugLogger.i(
+                "MainActivity",
+                "$source: von RSS-Benachrichtigung geoeffnet: channelId=${intent.getStringExtra(EXTRA_NOTIFICATION_CHANNEL_ID)}, articleCount=${intent.getIntExtra(EXTRA_NOTIFICATION_ARTICLE_COUNT, -1)}"
+            )
+        }
     }
 }
 

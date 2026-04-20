@@ -10,6 +10,62 @@ import org.junit.Test
 class HomeScreenFormatTest {
 
     @Test
+    fun shouldShowCompletionNotificationOnlyForManualRefreshFinishedInBackground() {
+        assertTrue(
+            shouldShowCompletionNotificationForRefresh(
+                manualTrigger = true,
+                notificationsEnabled = true,
+                newArticles = 1,
+                isAppInForeground = false
+            )
+        )
+        assertTrue(
+            shouldShowCompletionNotificationForRefresh(
+                manualTrigger = true,
+                notificationsEnabled = true,
+                newArticles = 2,
+                isAppInForeground = false
+            )
+        )
+        assertEquals(
+            false,
+            shouldShowCompletionNotificationForRefresh(
+                manualTrigger = false,
+                notificationsEnabled = true,
+                newArticles = 1,
+                isAppInForeground = false
+            )
+        )
+        assertEquals(
+            false,
+            shouldShowCompletionNotificationForRefresh(
+                manualTrigger = true,
+                notificationsEnabled = true,
+                newArticles = 0,
+                isAppInForeground = false
+            )
+        )
+        assertEquals(
+            false,
+            shouldShowCompletionNotificationForRefresh(
+                manualTrigger = true,
+                notificationsEnabled = false,
+                newArticles = 1,
+                isAppInForeground = false
+            )
+        )
+        assertEquals(
+            false,
+            shouldShowCompletionNotificationForRefresh(
+                manualTrigger = true,
+                notificationsEnabled = true,
+                newArticles = 1,
+                isAppInForeground = true
+            )
+        )
+    }
+
+    @Test
     fun formatRefreshSummaryIncludesFailuresAndSkipsWhenPresent() {
         assertEquals(
             "Aktualisierung beendet: 9 aktualisiert, 3 neu, 1 Fehler, 2 uebersprungen",
@@ -170,4 +226,3 @@ class HomeScreenFormatTest {
         assertTrue(summary.contains("Letzter Import: keiner"))
     }
 }
-

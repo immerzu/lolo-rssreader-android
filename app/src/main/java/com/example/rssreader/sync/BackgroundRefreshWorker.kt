@@ -3,6 +3,8 @@ package com.example.rssreader.sync
 import android.content.Context
 import android.net.ConnectivityManager
 import android.util.Log
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.ProcessLifecycleOwner
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.example.rssreader.BuildConfig
@@ -71,10 +73,11 @@ class BackgroundRefreshWorker(
     }
 
     private fun maybeShowNotification(settings: AppPreferences, result: RefreshRunStats) {
-        if (!shouldAttemptBackgroundRefreshNotification(settings, result)) {
+        val isAppInForeground = runtime.isAppInForeground()
+        if (!shouldAttemptBackgroundRefreshNotification(settings, result, isAppInForeground)) {
             DebugLogger.i(
                 TAG,
-                "Keine Benachrichtigung: notificationsEnabled=${settings.notificationsEnabled}, newArticles=${result.newArticles}"
+                "Keine Benachrichtigung: notificationsEnabled=${settings.notificationsEnabled}, newArticles=${result.newArticles}, isAppInForeground=$isAppInForeground"
             )
             return
         }
@@ -98,7 +101,8 @@ internal data class BackgroundRefreshRuntime(
     val getCurrentSettings: suspend () -> AppPreferences,
     val showNewArticlesNotification: (Int, Int) -> Unit,
     val hasWifiConnection: () -> Boolean,
-    val isUnmeteredConnection: () -> Boolean
+    val isUnmeteredConnection: () -> Boolean,
+    val isAppInForeground: () -> Boolean
 )
 
 internal fun createBackgroundRefreshRuntime(appContext: Context): BackgroundRefreshRuntime {
@@ -124,6 +128,13 @@ internal fun createBackgroundRefreshRuntime(appContext: Context): BackgroundRefr
         },
         isUnmeteredConnection = {
             isUnmeteredConnection(appContext)
+        },
+        isAppInForeground = {
+            ProcessLifecycleOwner
+                .get()
+                .lifecycle
+                .currentState
+                .isAtLeast(Lifecycle.State.STARTED)
         }
     )
 }
@@ -134,9 +145,10 @@ internal fun shouldRetryBackgroundRefresh(result: RefreshRunStats): Boolean {
 
 internal fun shouldAttemptBackgroundRefreshNotification(
     settings: AppPreferences,
-    result: RefreshRunStats
+    result: RefreshRunStats,
+    isAppInForeground: Boolean
 ): Boolean {
-    return settings.notificationsEnabled && result.newArticles > 0
+    return settings.notificationsEnabled && result.newArticles > 0 && !isAppInForeground
 }
 
 internal fun shouldSkipBackgroundRefreshForWifiOnlySetting(

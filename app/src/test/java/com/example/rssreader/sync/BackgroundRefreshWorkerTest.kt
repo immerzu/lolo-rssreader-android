@@ -68,19 +68,29 @@ class BackgroundRefreshWorkerTest {
         assertTrue(
             shouldAttemptBackgroundRefreshNotification(
                 AppPreferences(notificationsEnabled = true),
-                RefreshRunStats(newArticles = 1)
+                RefreshRunStats(newArticles = 1),
+                isAppInForeground = false
             )
         )
         assertFalse(
             shouldAttemptBackgroundRefreshNotification(
                 AppPreferences(notificationsEnabled = false),
-                RefreshRunStats(newArticles = 1)
+                RefreshRunStats(newArticles = 1),
+                isAppInForeground = false
             )
         )
         assertFalse(
             shouldAttemptBackgroundRefreshNotification(
                 AppPreferences(notificationsEnabled = true),
-                RefreshRunStats(newArticles = 0)
+                RefreshRunStats(newArticles = 0),
+                isAppInForeground = false
+            )
+        )
+        assertFalse(
+            shouldAttemptBackgroundRefreshNotification(
+                AppPreferences(notificationsEnabled = true),
+                RefreshRunStats(newArticles = 1),
+                isAppInForeground = true
             )
         )
     }
@@ -200,6 +210,27 @@ class BackgroundRefreshWorkerTest {
     }
 
     @Test
+    fun doWorkDoesNotAttemptNotificationWhenAppIsInForeground() = runTest {
+        val notifications = mutableListOf<Pair<Int, Int>>()
+        val worker = buildWorker(
+            runtime = testRuntime(
+                refreshResult = RefreshRunStats(
+                    refreshedFeeds = 2,
+                    failedFeeds = 0,
+                    retryableFeeds = 0,
+                    newArticles = 4
+                ),
+                notificationsEnabled = true,
+                notificationSink = notifications,
+                isAppInForeground = true
+            )
+        )
+
+        assertEquals(ListenableWorker.Result.success(), worker.doWork())
+        assertTrue(notifications.isEmpty())
+    }
+
+    @Test
     fun notificationFailureDoesNotFailWorker() = runTest {
         val worker = buildWorker(
             runtime = testRuntime(
@@ -253,7 +284,8 @@ class BackgroundRefreshWorkerTest {
                     notifications += (newArticles to refreshedFeeds)
                 },
                 hasWifiConnection = { false },
-                isUnmeteredConnection = { false }
+                isUnmeteredConnection = { false },
+                isAppInForeground = { false }
             )
         )
 
@@ -274,7 +306,8 @@ class BackgroundRefreshWorkerTest {
         refreshThrowable: Throwable? = null,
         notificationsEnabled: Boolean = true,
         notificationThrowable: Throwable? = null,
-        notificationSink: MutableList<Pair<Int, Int>> = mutableListOf()
+        notificationSink: MutableList<Pair<Int, Int>> = mutableListOf(),
+        isAppInForeground: Boolean = false
     ): BackgroundRefreshRuntime {
         return BackgroundRefreshRuntime(
             refreshAllInBackground = { _, _ ->
@@ -289,7 +322,8 @@ class BackgroundRefreshWorkerTest {
                 notificationSink += (newArticles to refreshedFeeds)
             },
             hasWifiConnection = { true },
-            isUnmeteredConnection = { true }
+            isUnmeteredConnection = { true },
+            isAppInForeground = { isAppInForeground }
         )
     }
 }
@@ -308,4 +342,3 @@ private class TestBackgroundRefreshWorkerFactory(
         return BackgroundRefreshWorker(appContext, workerParameters, runtime)
     }
 }
-

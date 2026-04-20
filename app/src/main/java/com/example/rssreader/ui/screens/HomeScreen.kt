@@ -57,6 +57,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.Lifecycle
 import com.example.rssreader.R
 import com.example.rssreader.debug.DebugLogger
 import com.example.rssreader.data.db.FeedSummary
@@ -66,6 +67,7 @@ import com.example.rssreader.data.repository.FeedRepository
 import com.example.rssreader.data.repository.RefreshRunStats
 import com.example.rssreader.data.repository.RepositoryDiagnosticsSnapshot
 import com.example.rssreader.data.settings.AppPreferences
+import com.example.rssreader.notifications.ArticleUpdateNotifier
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -110,6 +112,7 @@ fun HomeScreen(
             HomeScreenFeedCache.lastFeeds = currentFeeds
         }
     }
+    val feedsObserved = feeds != null
     val loadedFeeds = feeds ?: lastVisibleFeeds
     val feedsLoadedForUi = feeds != null || lastVisibleFeeds.isNotEmpty()
     val scope = rememberCoroutineScope()
@@ -170,6 +173,27 @@ fun HomeScreen(
                 .onSuccess { stats ->
                     if (showSuccessMessage) {
                         showInfoMessage(formatRefreshSummary(context, stats))
+                    }
+                    if (
+                        shouldShowCompletionNotificationForRefresh(
+                            manualTrigger = manualTrigger,
+                            notificationsEnabled = settings.notificationsEnabled,
+                            newArticles = stats.newArticles,
+                            isAppInForeground = activity
+                                ?.lifecycle
+                                ?.currentState
+                                ?.isAtLeast(Lifecycle.State.STARTED)
+                                ?: false
+                        )
+                    ) {
+                        DebugLogger.i(
+                            logTag,
+                            "Manueller Refresh im Hintergrund abgeschlossen, Benachrichtigung wird angefragt: newArticles=${stats.newArticles}, refreshedFeeds=${stats.refreshedFeeds}"
+                        )
+                        ArticleUpdateNotifier(context).showNewArticlesNotification(
+                            newArticles = stats.newArticles,
+                            refreshedFeeds = stats.refreshedFeeds
+                        )
                     }
                 }
                 .onFailure {
@@ -270,7 +294,7 @@ fun HomeScreen(
 
     LaunchedEffect(
         settingsLoaded,
-        feeds != null,
+        feedsObserved,
         feedsLoadedForUi,
         loadedFeeds.size,
         isRefreshing,
@@ -281,7 +305,7 @@ fun HomeScreen(
     ) {
         DebugLogger.d(
             logTag,
-            "state settingsLoaded=$settingsLoaded, feedsLoaded=${feeds != null}, feedsLoadedForUi=$feedsLoadedForUi, " +
+            "state settingsLoaded=$settingsLoaded, feedsObserved=$feedsObserved, feedsLoadedForUi=$feedsLoadedForUi, " +
                 "feedCount=${loadedFeeds.size}, isRefreshing=$isRefreshing, busy=$busy, " +
                 "importInProgress=$importInProgress, isMoveMode=$isMoveMode, topMenuExpanded=$topMenuExpanded"
         )
@@ -969,6 +993,18 @@ private fun compactMenuItemPadding(): PaddingValues {
 
 private fun compactMenuItemModifier(): Modifier {
     return Modifier.heightIn(min = 30.dp)
+}
+
+internal fun shouldShowCompletionNotificationForRefresh(
+    manualTrigger: Boolean,
+    notificationsEnabled: Boolean,
+    newArticles: Int,
+    isAppInForeground: Boolean
+): Boolean {
+    return manualTrigger &&
+        notificationsEnabled &&
+        newArticles > 0 &&
+        !isAppInForeground
 }
 
 internal fun formatRefreshSummary(context: Context, stats: RefreshRunStats): String {
