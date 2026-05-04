@@ -767,7 +767,7 @@ private fun buildReaderHtml(
             }
             h1 {
               margin: 0 0 3px;
-              font-size: 17px;
+              font-size: 19px;
               line-height: 1.12;
             }
             h2, h3 {
