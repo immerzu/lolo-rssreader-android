@@ -3,7 +3,7 @@ package com.example.rssreader.ui.screens
 import android.annotation.SuppressLint
 import android.content.Intent
 import android.net.Uri
-import android.os.Build
+
 import android.text.format.DateUtils
 import android.text.TextUtils
 import android.util.Log
@@ -58,6 +58,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -90,7 +91,7 @@ import kotlinx.coroutines.withContext
 import java.net.URI
 import kotlin.math.abs
 
-@SuppressLint("SetJavaScriptEnabled")
+@SuppressLint("SetJavaScriptEnabled", "ClickableViewAccessibility")
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ArticleReaderScreen(
@@ -103,7 +104,7 @@ fun ArticleReaderScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val effectiveArticleBodyTextSizeOffset = articleBodyTextSizeOffset.coerceIn(-2, 2)
-    var currentArticleId by rememberSaveable { mutableStateOf(articleId) }
+    var currentArticleId by rememberSaveable { mutableLongStateOf(articleId) }
     var article by remember { mutableStateOf<ArticleEntity?>(null) }
     var isLoadingArticle by rememberSaveable { mutableStateOf(true) }
     var swipeDirection by remember { mutableStateOf(SwipeDirection.None) }
@@ -378,7 +379,7 @@ fun ArticleReaderScreen(
                                 if (shouldUseWebView && !webViewFailed) {
                                     Modifier
                                 } else {
-                                    createFallbackSwipeModifier(
+                                    Modifier.fallbackSwipe(
                                         newerArticleId = newerArticleId,
                                         olderArticleId = olderArticleId,
                                         onSwipeStart = { showSwipeHint = false },
@@ -397,12 +398,10 @@ fun ArticleReaderScreen(
                                             TAG,
                                             "WebView erstellt: articleId=${currentArticle?.id?.toString().orEmpty()}"
                                         )
-                                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                                            setRendererPriorityPolicy(
-                                                WebView.RENDERER_PRIORITY_BOUND,
-                                                true
-                                            )
-                                        }
+                                        setRendererPriorityPolicy(
+                                            WebView.RENDERER_PRIORITY_BOUND,
+                                            true
+                                        )
                                         configureReaderWebViewSettings(
                                             webView = this,
                                             requiresJavaScript = false
@@ -1254,6 +1253,7 @@ internal fun isReaderExternallyOpenableScheme(scheme: String?): Boolean {
 
 private fun normalizeReaderNavigationScheme(scheme: String?): String? = scheme?.lowercase()
 
+@SuppressLint("ClickableViewAccessibility")
 private fun clearWebViewForReuse(
     webView: WebView?,
     forDestroy: Boolean = false
@@ -1285,9 +1285,7 @@ private fun configureReaderWebViewSettings(
     runCatching {
         CookieManager.getInstance().apply {
             setAcceptCookie(true)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                setAcceptThirdPartyCookies(webView, false)
-            }
+            setAcceptThirdPartyCookies(webView, false)
         }
         val settings = webView.settings.apply {
             javaScriptEnabled = requiresJavaScript
@@ -1306,12 +1304,8 @@ private fun configureReaderWebViewSettings(
             displayZoomControls = false
             useWideViewPort = true
             loadWithOverviewMode = true
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
-            }
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                safeBrowsingEnabled = true
-            }
+            mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
+            safeBrowsingEnabled = true
         }
         DebugLogger.d(
             TAG,
@@ -1323,12 +1317,8 @@ private fun configureReaderWebViewSettings(
                 append(", contentAccess=").append(settings.allowContentAccess)
                 append(", multiWindow=").append(settings.supportMultipleWindows())
                 append(", jsOpenWindows=").append(settings.javaScriptCanOpenWindowsAutomatically)
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                    append(", mixedContentMode=").append(settings.mixedContentMode)
-                }
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    append(", safeBrowsing=").append(settings.safeBrowsingEnabled)
-                }
+                append(", mixedContentMode=").append(settings.mixedContentMode)
+                append(", safeBrowsing=").append(settings.safeBrowsingEnabled)
             }
         )
     }.onFailure {
@@ -1518,13 +1508,13 @@ private class WebSwipeTracker {
     }
 }
 
-private fun createFallbackSwipeModifier(
+private fun Modifier.fallbackSwipe(
     newerArticleId: Long?,
     olderArticleId: Long?,
     onSwipeStart: () -> Unit,
     onSwipeTrigger: (SwipeDirection) -> Unit
 ): Modifier {
-    return Modifier.pointerInput(newerArticleId, olderArticleId) {
+    return this.pointerInput(newerArticleId, olderArticleId) {
         var totalHorizontalDrag = 0f
         detectHorizontalDragGestures(
             onDragStart = {

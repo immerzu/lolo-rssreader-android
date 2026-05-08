@@ -5,9 +5,7 @@
     <string name="common_delete">Löschen</string>
     <string name="common_close">Schließen</string>
     <string name="common_error">Fehler</string>
-    <string name="common_hint">Hinweis</string>
     <string name="common_save">Speichern</string>
-    <string name="common_edit">Bearbeiten</string>
     <string name="common_never">nie</string>
     <string name="article_default_title">Artikel</string>
 
@@ -38,13 +36,6 @@
     <string name="settings_interval_6hours">Alle 6 Stunden</string>
     <string name="settings_interval_12hours">Alle 12 Stunden</string>
     <string name="settings_interval_daily">Täglich</string>
-    <string name="settings_section_opml">OPML</string>
-    <string name="settings_import_opml_title">Importiere OPML</string>
-    <string name="settings_import_opml_subtitle">Wählt eine XML-Datei mit Feeds aus und liest sie ein.</string>
-    <string name="settings_choose_file">Datei wählen</string>
-    <string name="settings_export_opml_title">Exportiere OPML</string>
-    <string name="settings_export_opml_subtitle">Wählt Speicherort und Dateinamen für den Export aller Feeds.</string>
-    <string name="settings_choose_location">Speicherort wählen</string>
     <string name="settings_section_appearance">Darstellung</string>
     <string name="settings_section_language_debug">App-Sprache (Debug)</string>
     <string name="settings_language_system">Systemstandard</string>
@@ -60,9 +51,6 @@
     <string name="settings_article_text_size_title">Textgröße Artikel</string>
     <string name="settings_show_images_title">Bilder im Reader anzeigen</string>
     <string name="settings_show_images_subtitle">Entspricht dem klassischen Text-plus-Bild-Lesemodus.</string>
-    <string name="settings_opml_import_failed">OPML konnte nicht importiert werden.</string>
-    <string name="settings_opml_export_success">OPML exportiert. Enthaltene Feeds: %1$d.</string>
-    <string name="settings_opml_export_failed">OPML konnte nicht exportiert werden.</string>
     <string name="notification_new_message_title">Neue Nachricht</string>
     <string name="notification_new_message_text">Neue Nachricht</string>
     <string name="notification_new_messages_title">Neue Nachrichten</string>

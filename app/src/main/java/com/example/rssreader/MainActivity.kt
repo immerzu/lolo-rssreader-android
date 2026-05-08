@@ -1,6 +1,7 @@
 package com.example.rssreader
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -27,6 +28,7 @@ class MainActivity : ComponentActivity() {
         super.attachBaseContext(DebugLocaleManager.wrap(newBase))
     }
 
+    @SuppressLint("InlinedApi")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         DebugLogger.i("MainActivity", "onCreate: savedInstanceState=${savedInstanceState != null}")

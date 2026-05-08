@@ -45,6 +45,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -118,7 +119,7 @@ fun HomeScreen(
     val scope = rememberCoroutineScope()
     var isRefreshing by rememberSaveable { mutableStateOf(false) }
     var showRefreshIndicator by rememberSaveable { mutableStateOf(false) }
-    var refreshIndicatorToken by rememberSaveable { mutableStateOf(0) }
+    var refreshIndicatorToken by rememberSaveable { mutableIntStateOf(0) }
     var initialRefreshDone by rememberSaveable { mutableStateOf(false) }
     var errorMessage by rememberSaveable { mutableStateOf<String?>(null) }
     var selectedFeedMenuId by rememberSaveable { mutableStateOf<Long?>(null) }
@@ -440,7 +441,7 @@ fun HomeScreen(
                 Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
                     DropdownMenuItem(
                         text = { Text(stringResource(R.string.home_menu_search), style = homeMenuTextStyle) },
-                        modifier = compactMenuItemModifier(),
+                        modifier = Modifier.compactMenuItem(),
                         contentPadding = compactMenuItemPadding(),
                         onClick = {
                             topMenuExpanded = false
@@ -449,7 +450,7 @@ fun HomeScreen(
                     )
                     DropdownMenuItem(
                         text = { Text(stringResource(R.string.home_menu_settings), style = homeMenuTextStyle) },
-                        modifier = compactMenuItemModifier(),
+                        modifier = Modifier.compactMenuItem(),
                         contentPadding = compactMenuItemPadding(),
                         onClick = {
                             topMenuExpanded = false
@@ -467,7 +468,7 @@ fun HomeScreen(
                                 style = homeMenuTextStyle
                             )
                         },
-                        modifier = compactMenuItemModifier(),
+                        modifier = Modifier.compactMenuItem(),
                         contentPadding = compactMenuItemPadding(),
                         onClick = {
                             topMenuExpanded = false
@@ -477,7 +478,7 @@ fun HomeScreen(
                     DropdownMenuItem(
                         text = { Text(stringResource(R.string.home_menu_refresh_all), style = homeMenuTextStyle) },
                         enabled = !isRefreshing && !busy && !isMoveMode,
-                        modifier = compactMenuItemModifier(),
+                        modifier = Modifier.compactMenuItem(),
                         contentPadding = compactMenuItemPadding(),
                         onClick = {
                             topMenuExpanded = false
@@ -487,7 +488,7 @@ fun HomeScreen(
                     DropdownMenuItem(
                         text = { Text(stringResource(R.string.home_menu_mark_all_read), style = homeMenuTextStyle) },
                         enabled = !isMoveMode,
-                        modifier = compactMenuItemModifier(),
+                        modifier = Modifier.compactMenuItem(),
                         contentPadding = compactMenuItemPadding(),
                         onClick = {
                             topMenuExpanded = false
@@ -516,7 +517,7 @@ fun HomeScreen(
                     DropdownMenuItem(
                         text = { Text(stringResource(R.string.home_menu_mark_all_unread), style = homeMenuTextStyle) },
                         enabled = !isMoveMode,
-                        modifier = compactMenuItemModifier(),
+                        modifier = Modifier.compactMenuItem(),
                         contentPadding = compactMenuItemPadding(),
                         onClick = {
                             topMenuExpanded = false
@@ -545,7 +546,7 @@ fun HomeScreen(
                     DropdownMenuItem(
                         text = { Text(stringResource(R.string.home_menu_delete_read), style = homeMenuTextStyle) },
                         enabled = !isMoveMode && !isRefreshing && !busy,
-                        modifier = compactMenuItemModifier(),
+                        modifier = Modifier.compactMenuItem(),
                         contentPadding = compactMenuItemPadding(),
                         onClick = {
                             topMenuExpanded = false
@@ -555,7 +556,7 @@ fun HomeScreen(
                     DropdownMenuItem(
                         text = { Text(stringResource(R.string.home_menu_delete_non_favorite), style = homeMenuTextStyle) },
                         enabled = !isMoveMode && !isRefreshing && !busy,
-                        modifier = compactMenuItemModifier(),
+                        modifier = Modifier.compactMenuItem(),
                         contentPadding = compactMenuItemPadding(),
                         onClick = {
                             topMenuExpanded = false
@@ -565,7 +566,7 @@ fun HomeScreen(
                     DropdownMenuItem(
                         text = { Text(stringResource(R.string.home_menu_delete_all_feeds), style = homeMenuTextStyle) },
                         enabled = !isMoveMode && loadedFeeds.isNotEmpty() && !isRefreshing && !busy,
-                        modifier = compactMenuItemModifier(),
+                        modifier = Modifier.compactMenuItem(),
                         contentPadding = compactMenuItemPadding(),
                         onClick = {
                             topMenuExpanded = false
@@ -575,7 +576,7 @@ fun HomeScreen(
                     DropdownMenuItem(
                         text = { Text(stringResource(R.string.home_menu_import_opml), style = homeMenuTextStyle) },
                         enabled = !isMoveMode,
-                        modifier = compactMenuItemModifier(),
+                        modifier = Modifier.compactMenuItem(),
                         contentPadding = compactMenuItemPadding(),
                         onClick = {
                             topMenuExpanded = false
@@ -585,7 +586,7 @@ fun HomeScreen(
                     DropdownMenuItem(
                         text = { Text(stringResource(R.string.home_menu_export_opml), style = homeMenuTextStyle) },
                         enabled = !isMoveMode,
-                        modifier = compactMenuItemModifier(),
+                        modifier = Modifier.compactMenuItem(),
                         contentPadding = compactMenuItemPadding(),
                         onClick = {
                             topMenuExpanded = false
@@ -595,7 +596,7 @@ fun HomeScreen(
                     DropdownMenuItem(
                         text = { Text(stringResource(R.string.home_menu_show_diagnostics), style = homeMenuTextStyle) },
                         enabled = !busy,
-                        modifier = compactMenuItemModifier(),
+                        modifier = Modifier.compactMenuItem(),
                         contentPadding = compactMenuItemPadding(),
                         onClick = {
                             topMenuExpanded = false
@@ -991,8 +992,8 @@ private fun compactMenuItemPadding(): PaddingValues {
     return PaddingValues(horizontal = 12.dp, vertical = 0.dp)
 }
 
-private fun compactMenuItemModifier(): Modifier {
-    return Modifier.heightIn(min = 30.dp)
+private fun Modifier.compactMenuItem(): Modifier {
+    return this.heightIn(min = 30.dp)
 }
 
 internal fun shouldShowCompletionNotificationForRefresh(

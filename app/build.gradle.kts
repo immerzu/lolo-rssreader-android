@@ -52,7 +52,7 @@ val keystoreProperties = Properties().apply {
 
 android {
     namespace = "com.example.rssreader"
-    compileSdk = 35
+    compileSdk = 36
 
     signingConfigs {
         if (keystorePropertiesFile.exists()) {
@@ -68,7 +68,7 @@ android {
     defaultConfig {
         applicationId = "de.lolo.rssreader"
         minSdk = 26
-        targetSdk = 35
+        targetSdk = 36
         // Keep the version directly visible for external scanners like F-Droid.
         versionCode = resolvedVersionCode
         versionName = resolvedVersionName
@@ -109,6 +109,12 @@ android {
         kotlinCompilerExtensionVersion = "1.5.14"
     }
 
+    bundle {
+        language {
+            enableSplit = false
+        }
+    }
+
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
@@ -133,7 +139,7 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.4")
     implementation("androidx.lifecycle:lifecycle-process:2.8.4")
     implementation("androidx.activity:activity-compose:1.9.1")
-    implementation("androidx.datastore:datastore-preferences:1.1.1")
+    implementation("androidx.datastore:datastore-preferences:1.2.1")
     implementation("androidx.work:work-runtime-ktx:2.9.1")
 
     implementation(platform("androidx.compose:compose-bom:2024.06.00"))
@@ -153,7 +159,7 @@ dependencies {
     implementation("io.coil-kt:coil-compose:2.7.0")
 
     testImplementation("junit:junit:4.13.2")
-    testImplementation("androidx.test:core:1.6.1")
+    testImplementation("androidx.test:core:1.7.0")
     testImplementation("org.robolectric:robolectric:4.15.1")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.8.1")
     testImplementation("androidx.work:work-testing:2.9.1")

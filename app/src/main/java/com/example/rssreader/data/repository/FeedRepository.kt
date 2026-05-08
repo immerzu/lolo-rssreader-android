@@ -71,6 +71,24 @@ class FeedRepository(
     private var lastRefreshRunStats: RefreshRunStats? = null
     @Volatile
     private var lastImportResult: OpmlImportResult? = null
+    private val refreshGuard = Any()
+
+    private fun startRefresh(): Boolean = synchronized(refreshGuard) {
+        if (refreshInProgress) {
+            DebugLogger.w(TAG, "refreshAll abgebrochen: paralleler Refresh läuft bereits")
+            false
+        } else {
+            refreshInProgress = true
+            true
+        }
+    }
+
+    private fun finishRefresh() {
+        refreshInProgress = false
+    }
+
+    @Volatile
+    private var refreshInProgress = false
     private val ftsMaintenance = FtsMaintenance(database) { droppedTriggers ->
         DebugLogger.i(TAG, "fts_mode mode=manual droppedTriggers=$droppedTriggers")
     }
@@ -118,29 +136,36 @@ class FeedRepository(
 
     suspend fun refreshAll(hasWifiConnection: Boolean? = null): RefreshRunStats {
         return runOnIo {
-            DebugLogger.i(TAG, "refreshAll gestartet")
-            val feeds = feedDao.getAll()
-            val refreshableFeeds = mutableListOf<FeedEntity>()
-            var skippedFeeds = 0
-
-            feeds.forEach { feed ->
-                if (hasWifiConnection != null && feed.wifiOnly && !hasWifiConnection) {
-                    skippedFeeds += 1
-                } else {
-                    refreshableFeeds += feed
-                }
+            if (!startRefresh()) {
+                return@runOnIo RefreshRunStats()
             }
+            try {
+                DebugLogger.i(TAG, "refreshAll gestartet")
+                val feeds = feedDao.getAll()
+                val refreshableFeeds = mutableListOf<FeedEntity>()
+                var skippedFeeds = 0
 
-            refreshFeedsBounded(
-                feeds = refreshableFeeds,
-                skippedFeeds = skippedFeeds
-            ).let { stats ->
-                rememberRefreshRunStats(stats).also {
-                    DebugLogger.i(
-                        TAG,
-                        "refreshAll beendet: refreshed=${stats.refreshedFeeds}, failed=${stats.failedFeeds}, skipped=${stats.skippedFeeds}, new=${stats.newArticles}"
-                    )
+                feeds.forEach { feed ->
+                    if (hasWifiConnection != null && feed.wifiOnly && !hasWifiConnection) {
+                        skippedFeeds += 1
+                    } else {
+                        refreshableFeeds += feed
+                    }
                 }
+
+                refreshFeedsBounded(
+                    feeds = refreshableFeeds,
+                    skippedFeeds = skippedFeeds
+                ).let { stats ->
+                    rememberRefreshRunStats(stats).also {
+                        DebugLogger.i(
+                            TAG,
+                            "refreshAll beendet: refreshed=${stats.refreshedFeeds}, failed=${stats.failedFeeds}, skipped=${stats.skippedFeeds}, new=${stats.newArticles}"
+                        )
+                    }
+                }
+            } finally {
+                finishRefresh()
             }
         }
     }
@@ -177,23 +202,30 @@ class FeedRepository(
         hasWifiConnection: Boolean = isUnmeteredNetwork
     ): RefreshRunStats {
         return runOnIo {
-            val feeds = feedDao.getAll()
-            val refreshableFeeds = mutableListOf<FeedEntity>()
-            var skippedFeeds = 0
-
-            feeds.forEach { feed ->
-                if (feed.wifiOnly && !hasWifiConnection) {
-                    skippedFeeds += 1
-                } else {
-                    refreshableFeeds += feed
-                }
+            if (!startRefresh()) {
+                return@runOnIo RefreshRunStats()
             }
+            try {
+                val feeds = feedDao.getAll()
+                val refreshableFeeds = mutableListOf<FeedEntity>()
+                var skippedFeeds = 0
 
-            refreshFeedsBounded(
-                feeds = refreshableFeeds,
-                skippedFeeds = skippedFeeds,
-                logPrefix = "Hintergrund-Aktualisierung"
-            ).let(::rememberRefreshRunStats)
+                feeds.forEach { feed ->
+                    if (feed.wifiOnly && !hasWifiConnection) {
+                        skippedFeeds += 1
+                    } else {
+                        refreshableFeeds += feed
+                    }
+                }
+
+                refreshFeedsBounded(
+                    feeds = refreshableFeeds,
+                    skippedFeeds = skippedFeeds,
+                    logPrefix = "Hintergrund-Aktualisierung"
+                ).let(::rememberRefreshRunStats)
+            } finally {
+                finishRefresh()
+            }
         }
     }
 

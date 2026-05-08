@@ -1,13 +1,11 @@
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
     <string name="common_back">Back</string>
     <string name="common_ok">OK</string>
     <string name="common_cancel">Cancel</string>
     <string name="common_delete">Delete</string>
     <string name="common_close">Close</string>
     <string name="common_error">Error</string>
-    <string name="common_hint">Note</string>
     <string name="common_save">Save</string>
-    <string name="common_edit">Edit</string>
     <string name="common_never">never</string>
     <string name="article_default_title">Article</string>
 
@@ -38,13 +36,6 @@
     <string name="settings_interval_6hours">Every 6 hours</string>
     <string name="settings_interval_12hours">Every 12 hours</string>
     <string name="settings_interval_daily">Daily</string>
-    <string name="settings_section_opml">OPML</string>
-    <string name="settings_import_opml_title">Import OPML</string>
-    <string name="settings_import_opml_subtitle">Choose an XML file containing feeds and import it.</string>
-    <string name="settings_choose_file">Choose file</string>
-    <string name="settings_export_opml_title">Export OPML</string>
-    <string name="settings_export_opml_subtitle">Choose a location and file name for exporting all feeds.</string>
-    <string name="settings_choose_location">Choose location</string>
     <string name="settings_section_appearance">Appearance</string>
     <string name="settings_section_language_debug">App language (debug)</string>
     <string name="settings_language_system">System default</string>
@@ -60,9 +51,6 @@
     <string name="settings_article_text_size_title">Article text size</string>
     <string name="settings_show_images_title">Show images in reader</string>
     <string name="settings_show_images_subtitle">Matches the classic text-plus-image reading mode.</string>
-    <string name="settings_opml_import_failed">OPML could not be imported.</string>
-    <string name="settings_opml_export_success">OPML exported. Included feeds: %1$d.</string>
-    <string name="settings_opml_export_failed">OPML could not be exported.</string>
     <string name="notification_new_message_title">New message</string>
     <string name="notification_new_message_text">New message</string>
     <string name="notification_new_messages_title">New messages</string>
@@ -169,11 +157,11 @@
     <string name="home_suffix_marked_unread">marked as unread</string>
     <string name="home_suffix_deleted">deleted</string>
     <string name="home_suffix_deleted_in_feed">deleted from feed</string>
-    <string name="home_refresh_summary_base">Refresh finished: %1$d refreshed, %2$d new</string>
-    <string name="home_refresh_summary_failed_part">%1$d failed</string>
-    <string name="home_refresh_summary_skipped_part">%1$d skipped</string>
-    <string name="home_feed_refresh_summary">Feed refreshed: %1$d new articles</string>
-    <string name="home_export_summary">OPML exported: %1$d feeds</string>
+    <string name="home_refresh_summary_base" tools:ignore="PluralsCandidate">Refresh finished: %1$d refreshed, %2$d new</string>
+    <string name="home_refresh_summary_failed_part" tools:ignore="PluralsCandidate">%1$d failed</string>
+    <string name="home_refresh_summary_skipped_part" tools:ignore="PluralsCandidate">%1$d skipped</string>
+    <string name="home_feed_refresh_summary" tools:ignore="PluralsCandidate">Feed refreshed: %1$d new articles</string>
+    <string name="home_export_summary" tools:ignore="PluralsCandidate">OPML exported: %1$d feeds</string>
     <string name="home_diagnostics_version">Version: %1$s</string>
     <string name="home_diagnostics_feeds">Feeds: %1$d</string>
     <string name="home_diagnostics_articles">Articles: %1$d</string>
