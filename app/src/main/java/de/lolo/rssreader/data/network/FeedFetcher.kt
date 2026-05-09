@@ -25,36 +25,29 @@ import kotlinx.coroutines.delay
 class FeedFetcher(
     private val client: OkHttpClient = defaultClient
 ) {
-    companion object {
-        private const val TAG = "FeedFetcher"
-        private const val MAX_FETCH_ATTEMPTS = 2
-        private const val RETRY_DELAY_MS = 650L
-        private const val LARGE_FEED_SOFT_LIMIT_BYTES = 5L * 1024L * 1024L
-        private const val LARGE_FEED_HARD_LIMIT_BYTES = 12L * 1024L * 1024L
-        private const val FEED_STREAM_BUFFER_SIZE = 16 * 1024
-        private val xmlEncodingRegex = Regex(
-            """<\?xml[^>]*encoding=["']([A-Za-z0-9._\-]+)["']""",
-            RegexOption.IGNORE_CASE
+    suspend fun fetch(url: String, etag: String? = null, lastModified: String? = null): FeedFetchResult {
+        val ifNoneMatchPresent = !etag.isNullOrBlank()
+        val ifModifiedSincePresent = !lastModified.isNullOrBlank()
+        DebugLogger.i(
+            TAG,
+            "feed_fetch_request url=$url ifNoneMatch=$ifNoneMatchPresent ifModifiedSince=$ifModifiedSincePresent" +
+                if (ifNoneMatchPresent) " etagPrefix=${etag.prefixHash()}" else "" +
+                if (ifModifiedSincePresent) " lastModified=$lastModified" else ""
         )
-
-        private val defaultClient: OkHttpClient = OkHttpClient.Builder()
-            .connectTimeout(15, TimeUnit.SECONDS)
-            .readTimeout(20, TimeUnit.SECONDS)
-            .callTimeout(30, TimeUnit.SECONDS)
-            .build()
-    }
-
-    suspend fun fetch(url: String): FetchedFeedPayload {
-        DebugLogger.i(TAG, "Feed-Abruf gestartet: $url")
         if (!isSupportedFeedUrl(url)) {
             throw RssReaderException.InvalidUrl(url)
         }
         val request = try {
-            Request.Builder()
+            val builder = Request.Builder()
                 .url(url)
                 .header("User-Agent", AppUserAgent.value)
-                .get()
-                .build()
+            if (ifNoneMatchPresent) {
+                builder.header("If-None-Match", etag!!)
+            }
+            if (ifModifiedSincePresent) {
+                builder.header("If-Modified-Since", lastModified!!)
+            }
+            builder.get().build()
         } catch (throwable: IllegalArgumentException) {
             throw RssReaderException.InvalidUrl(url, throwable)
         }
@@ -62,6 +55,10 @@ class FeedFetcher(
         repeat(MAX_FETCH_ATTEMPTS) { attempt ->
             try {
                 client.newCall(request).execute().use { response ->
+                    if (response.code == 304) {
+                        DebugLogger.i(TAG, "feed_fetch_304 url=$url etagSent=$ifNoneMatchPresent lastModSent=$ifModifiedSincePresent")
+                        return FeedFetchResult.NotModified
+                    }
                     if (!response.isSuccessful) {
                         throw RssReaderException.HttpError(response.code)
                     }
@@ -88,14 +85,32 @@ class FeedFetcher(
                         contentTypeHeader = response.header("Content-Type")
                     )
 
-                    return FetchedFeedPayload.fromBytes(
-                        responseBytes = responseBytes,
-                        charset = charset,
-                        defensiveMode = defensiveMode
+                    val responseEtagRaw = response.header("ETag").orEmpty()
+                        .replace("\"", "")
+                        .takeIf { it.isNotBlank() }
+                    val responseLastModified = response.header("Last-Modified")
+                        .takeIf { !it.isNullOrBlank() }
+                    DebugLogger.i(
+                        TAG,
+                        "feed_fetch_response url=$url code=200" +
+                            " etag=${responseEtagRaw.prefixHash() ?: "null"}" +
+                            " lastModified=${responseLastModified ?: "null"}" +
+                            " cacheControl=${response.header("Cache-Control").orEmpty().takeIf { it.isNotBlank() } ?: "null"}" +
+                            " age=${response.header("Age") ?: "null"}" +
+                            " date=${response.header("Date") ?: "null"}"
+                    )
+                    return FeedFetchResult.Success(
+                        payload = FetchedFeedPayload.fromBytes(
+                            responseBytes = responseBytes,
+                            charset = charset,
+                            defensiveMode = defensiveMode
+                        ),
+                        etag = responseEtagRaw,
+                        lastModified = responseLastModified
                     ).also {
                         DebugLogger.i(
                             TAG,
-                            "feed_fetch url=$url bytes=${responseBytes.size} defensive=$defensiveMode hardReject=false"
+                            "feed_fetch url=$url bytes=${responseBytes.size} defensive=$defensiveMode hardReject=false etag=${responseEtagRaw != null} lastModified=${responseLastModified != null}"
                         )
                     }
                 }
@@ -288,6 +303,39 @@ class FeedFetcher(
             .toString()
     }
 
+    companion object {
+        private const val TAG = "FeedFetcher"
+        private const val MAX_FETCH_ATTEMPTS = 2
+        private const val RETRY_DELAY_MS = 650L
+        private const val LARGE_FEED_SOFT_LIMIT_BYTES = 5L * 1024L * 1024L
+        private const val LARGE_FEED_HARD_LIMIT_BYTES = 12L * 1024L * 1024L
+        private const val FEED_STREAM_BUFFER_SIZE = 16 * 1024
+        private val xmlEncodingRegex = Regex(
+            """<\?xml[^>]*encoding=["']([A-Za-z0-9._\-]+)["']""",
+            RegexOption.IGNORE_CASE
+        )
+
+        private val defaultClient: OkHttpClient = OkHttpClient.Builder()
+            .connectTimeout(15, TimeUnit.SECONDS)
+            .readTimeout(20, TimeUnit.SECONDS)
+            .callTimeout(30, TimeUnit.SECONDS)
+            .build()
+
+        /**
+         * Kürzt einen ETag-/Header-Wert auf ersten 12 + letzten 8 Zeichen,
+         * um Änderungen zwischen zwei Abrufen zu erkennen, ohne den
+         * vollständigen Wert zu loggen.
+         */
+        private fun String?.prefixHash(): String? {
+            val value = this ?: return null
+            return if (value.length > 24) {
+                value.take(12) + "…" + value.takeLast(8)
+            } else {
+                value.take(12)
+            }
+        }
+    }
+
     private fun shouldRetry(exception: RssReaderException, attempt: Int): Boolean =
         attempt < MAX_FETCH_ATTEMPTS - 1 && when (exception) {
             is RssReaderException.Timeout,
@@ -351,4 +399,11 @@ data class FetchedFeedPayload(
     fun openReader(): InputStreamReader = InputStreamReader(openStream(), charset)
 }
 
-
+sealed class FeedFetchResult {
+    data class Success(
+        val payload: FetchedFeedPayload,
+        val etag: String?,
+        val lastModified: String?
+    ) : FeedFetchResult()
+    data object NotModified : FeedFetchResult()
+}

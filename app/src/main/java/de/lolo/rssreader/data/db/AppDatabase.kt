@@ -7,7 +7,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
     entities = [FeedEntity::class, ArticleEntity::class, ArticleFtsEntity::class],
-    version = 8,
+    version = 10,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -105,6 +105,19 @@ abstract class AppDatabase : RoomDatabase() {
                 legacyFtsTriggerNames.forEach { triggerName ->
                     db.execSQL("DROP TRIGGER IF EXISTS $triggerName")
                 }
+            }
+        }
+
+        val MIGRATION_8_9 = object : Migration(8, 9) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE feeds ADD COLUMN etag TEXT")
+                db.execSQL("ALTER TABLE feeds ADD COLUMN lastModified TEXT")
+            }
+        }
+
+        val MIGRATION_9_10 = object : Migration(9, 10) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE feeds ADD COLUMN heavy INTEGER NOT NULL DEFAULT 0")
             }
         }
     }

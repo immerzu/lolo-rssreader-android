@@ -99,7 +99,7 @@ class FeedFetcherTest {
             .build()
 
         val result = runCatching {
-            runBlocking { FeedFetcher(client).fetch("https://example.com/feed.xml") }
+            (runBlocking { FeedFetcher(client).fetch("https://example.com/feed.xml") } as FeedFetchResult.Success).payload
         }
 
         assertTrue(result.isSuccess)
@@ -123,7 +123,7 @@ class FeedFetcherTest {
             .build()
 
         val failure = runCatching {
-            runBlocking { FeedFetcher(client).fetch("https://example.com/feed.xml") }
+            (runBlocking { FeedFetcher(client).fetch("https://example.com/feed.xml") } as FeedFetchResult.Success).payload
         }.exceptionOrNull()
 
         assertTrue(failure is RssReaderException.HttpError)
@@ -148,7 +148,7 @@ class FeedFetcherTest {
             .build()
 
         val result = runCatching {
-            runBlocking { FeedFetcher(client).fetch("https://example.com/feed.xml") }
+            (runBlocking { FeedFetcher(client).fetch("https://example.com/feed.xml") } as FeedFetchResult.Success).payload
         }
 
         assertTrue(result.exceptionOrNull() is RssReaderException.HttpError)
@@ -172,7 +172,7 @@ class FeedFetcherTest {
             .build()
 
         val failure = runCatching {
-            runBlocking { FeedFetcher(client).fetch("https://example.com/feed.xml") }
+            (runBlocking { FeedFetcher(client).fetch("https://example.com/feed.xml") } as FeedFetchResult.Success).payload
         }.exceptionOrNull()
 
         assertTrue(failure is RssReaderException.HttpError)
@@ -197,7 +197,7 @@ class FeedFetcherTest {
             .build()
 
         val failure = runCatching {
-            runBlocking { FeedFetcher(client).fetch("https://example.com/feed.xml") }
+            (runBlocking { FeedFetcher(client).fetch("https://example.com/feed.xml") } as FeedFetchResult.Success).payload
         }.exceptionOrNull()
 
         assertTrue(failure is RssReaderException.EmptyResponse)
@@ -229,7 +229,7 @@ class FeedFetcherTest {
             .build()
 
         val result = runCatching {
-            runBlocking { FeedFetcher(client).fetch("https://example.com/feed.xml") }
+            (runBlocking { FeedFetcher(client).fetch("https://example.com/feed.xml") } as FeedFetchResult.Success).payload
         }
 
         assertTrue(result.isSuccess)
@@ -253,7 +253,7 @@ class FeedFetcherTest {
             .build()
 
         val failure = runCatching {
-            runBlocking { FeedFetcher(client).fetch("https://example.com/feed.xml") }
+            (runBlocking { FeedFetcher(client).fetch("https://example.com/feed.xml") } as FeedFetchResult.Success).payload
         }.exceptionOrNull()
 
         assertTrue(failure is RssReaderException.HttpError)
@@ -377,7 +377,7 @@ class FeedFetcherTest {
             }
             .build()
 
-        runBlocking { FeedFetcher(client).fetch("https://example.com/feed.xml") }
+        (runBlocking { FeedFetcher(client).fetch("https://example.com/feed.xml") } as FeedFetchResult.Success).payload
 
         assertEquals(AppUserAgent.value, capturedUserAgent)
         assertTrue(capturedUserAgent.orEmpty().startsWith("RSS-Reader/"))
@@ -410,7 +410,7 @@ class FeedFetcherTest {
             }
             .build()
 
-        val payload = runBlocking { FeedFetcher(client).fetch("https://example.com/feed.xml") }
+        val payload = (runBlocking { FeedFetcher(client).fetch("https://example.com/feed.xml") } as FeedFetchResult.Success).payload
 
         assertEquals(Charsets.ISO_8859_1, payload.charset)
         assertTrue(payload.openReader().use { it.readText() }.contains("Straße"))
@@ -443,7 +443,7 @@ class FeedFetcherTest {
             }
             .build()
 
-        val payload = runBlocking { FeedFetcher(client).fetch("https://example.com/feed.xml") }
+        val payload = (runBlocking { FeedFetcher(client).fetch("https://example.com/feed.xml") } as FeedFetchResult.Success).payload
 
         assertEquals(Charsets.ISO_8859_1, payload.charset)
         assertTrue(payload.openReader().use { it.readText() }.contains("Straße"))
@@ -476,7 +476,7 @@ class FeedFetcherTest {
             }
             .build()
 
-        val payload = runBlocking { FeedFetcher(client).fetch("https://example.com/feed.xml") }
+        val payload = (runBlocking { FeedFetcher(client).fetch("https://example.com/feed.xml") } as FeedFetchResult.Success).payload
 
         assertEquals(Charsets.ISO_8859_1, payload.charset)
         assertTrue(payload.openReader().use { it.readText() }.contains("Straße"))
@@ -507,7 +507,7 @@ class FeedFetcherTest {
             }
             .build()
 
-        val payload = runBlocking { FeedFetcher(client).fetch("https://example.com/feed.xml") }
+        val payload = (runBlocking { FeedFetcher(client).fetch("https://example.com/feed.xml") } as FeedFetchResult.Success).payload
 
         assertEquals(Charsets.ISO_8859_1, payload.charset)
         assertTrue(payload.openReader().use { it.readText() }.contains("Straße"))
@@ -540,7 +540,7 @@ class FeedFetcherTest {
             }
             .build()
 
-        val payload = runBlocking { FeedFetcher(client).fetch("https://example.com/feed.xml") }
+        val payload = (runBlocking { FeedFetcher(client).fetch("https://example.com/feed.xml") } as FeedFetchResult.Success).payload
 
         assertEquals(Charsets.ISO_8859_1, payload.charset)
         assertTrue(payload.openReader().use { it.readText() }.contains("Straße"))
@@ -569,7 +569,7 @@ class FeedFetcherTest {
             .build()
 
         val result = runCatching {
-            runBlocking { FeedFetcher(client).fetch("https://example.com/feed.xml") }
+            (runBlocking { FeedFetcher(client).fetch("https://example.com/feed.xml") } as FeedFetchResult.Success).payload
         }
 
         assertTrue(result.isSuccess)
@@ -599,7 +599,7 @@ class FeedFetcherTest {
             .build()
 
         val result = runCatching {
-            runBlocking { FeedFetcher(client).fetch("https://example.com/feed.xml") }
+            (runBlocking { FeedFetcher(client).fetch("https://example.com/feed.xml") } as FeedFetchResult.Success).payload
         }
 
         assertTrue(result.isSuccess)
@@ -629,7 +629,7 @@ class FeedFetcherTest {
             .build()
 
         val result = runCatching {
-            runBlocking { FeedFetcher(client).fetch("https://example.com/feed.xml") }
+            (runBlocking { FeedFetcher(client).fetch("https://example.com/feed.xml") } as FeedFetchResult.Success).payload
         }
 
         assertTrue(result.isSuccess)
@@ -647,7 +647,7 @@ class FeedFetcherTest {
             .build()
 
         val failure = runCatching {
-            runBlocking { FeedFetcher(client).fetch("https://example.com/feed.xml") }
+            (runBlocking { FeedFetcher(client).fetch("https://example.com/feed.xml") } as FeedFetchResult.Success).payload
         }.exceptionOrNull()
 
         assertTrue(failure is RssReaderException.NetworkUnavailable)
@@ -680,7 +680,7 @@ class FeedFetcherTest {
             }
             .build()
 
-        val payload = runBlocking { FeedFetcher(client).fetch("https://example.com/feed.xml") }
+        val payload = (runBlocking { FeedFetcher(client).fetch("https://example.com/feed.xml") } as FeedFetchResult.Success).payload
 
         assertEquals(Charsets.ISO_8859_1, payload.charset)
         assertTrue(payload.openReader().use { it.readText() }.contains("Straße"))
@@ -711,7 +711,7 @@ class FeedFetcherTest {
             .build()
 
         val failure = runCatching {
-            runBlocking { FeedFetcher(client).fetch("https://example.com/feed.xml") }
+            (runBlocking { FeedFetcher(client).fetch("https://example.com/feed.xml") } as FeedFetchResult.Success).payload
         }.exceptionOrNull()
 
         assertTrue(failure is RssReaderException.FeedTooLarge)
@@ -744,7 +744,7 @@ class FeedFetcherTest {
             .build()
 
         val failure = runCatching {
-            runBlocking { FeedFetcher(client).fetch("https://example.com/feed.xml") }
+            (runBlocking { FeedFetcher(client).fetch("https://example.com/feed.xml") } as FeedFetchResult.Success).payload
         }.exceptionOrNull()
 
         assertTrue(failure is RssReaderException.FeedTooLarge)
@@ -779,7 +779,7 @@ class FeedFetcherTest {
             .build()
 
         val failure = runCatching {
-            runBlocking { FeedFetcher(client).fetch("https://example.com/feed.xml") }
+            (runBlocking { FeedFetcher(client).fetch("https://example.com/feed.xml") } as FeedFetchResult.Success).payload
         }.getOrThrow()
 
         assertEquals(Charsets.ISO_8859_1, failure.charset)

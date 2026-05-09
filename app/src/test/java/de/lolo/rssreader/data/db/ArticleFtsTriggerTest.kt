@@ -34,6 +34,8 @@ class ArticleFtsTriggerTest {
             .addMigrations(AppDatabase.MIGRATION_5_6)
             .addMigrations(AppDatabase.MIGRATION_6_7)
             .addMigrations(AppDatabase.MIGRATION_7_8)
+            .addMigrations(AppDatabase.MIGRATION_8_9)
+            .addMigrations(AppDatabase.MIGRATION_9_10)
             .build()
         feedDao = database.feedDao()
         articleDao = database.articleDao()
@@ -241,6 +243,8 @@ class ArticleFtsTriggerTest {
             .allowMainThreadQueries()
             .addMigrations(AppDatabase.MIGRATION_6_7)
             .addMigrations(AppDatabase.MIGRATION_7_8)
+            .addMigrations(AppDatabase.MIGRATION_8_9)
+            .addMigrations(AppDatabase.MIGRATION_9_10)
             .build()
 
         try {
@@ -326,6 +330,8 @@ class ArticleFtsTriggerTest {
             .allowMainThreadQueries()
             .addMigrations(AppDatabase.MIGRATION_6_7)
             .addMigrations(AppDatabase.MIGRATION_7_8)
+            .addMigrations(AppDatabase.MIGRATION_8_9)
+            .addMigrations(AppDatabase.MIGRATION_9_10)
             .build()
 
         try {
@@ -376,6 +382,8 @@ class ArticleFtsTriggerTest {
             .allowMainThreadQueries()
             .addMigrations(AppDatabase.MIGRATION_6_7)
             .addMigrations(AppDatabase.MIGRATION_7_8)
+            .addMigrations(AppDatabase.MIGRATION_8_9)
+            .addMigrations(AppDatabase.MIGRATION_9_10)
             .build()
 
         try {
@@ -435,6 +443,8 @@ class ArticleFtsTriggerTest {
             .allowMainThreadQueries()
             .addMigrations(AppDatabase.MIGRATION_6_7)
             .addMigrations(AppDatabase.MIGRATION_7_8)
+            .addMigrations(AppDatabase.MIGRATION_8_9)
+            .addMigrations(AppDatabase.MIGRATION_9_10)
             .build()
 
         try {
@@ -473,6 +483,8 @@ class ArticleFtsTriggerTest {
         val migratedDatabase = Room.databaseBuilder(context, AppDatabase::class.java, databaseName)
             .allowMainThreadQueries()
             .addMigrations(AppDatabase.MIGRATION_7_8)
+            .addMigrations(AppDatabase.MIGRATION_8_9)
+            .addMigrations(AppDatabase.MIGRATION_9_10)
             .build()
 
         try {
@@ -556,6 +568,8 @@ class ArticleFtsTriggerTest {
         val migratedDatabase = Room.databaseBuilder(context, AppDatabase::class.java, databaseName)
             .allowMainThreadQueries()
             .addMigrations(AppDatabase.MIGRATION_7_8)
+            .addMigrations(AppDatabase.MIGRATION_8_9)
+            .addMigrations(AppDatabase.MIGRATION_9_10)
             .build()
 
         try {
@@ -594,6 +608,8 @@ class ArticleFtsTriggerTest {
         val migratedDatabase = Room.databaseBuilder(context, AppDatabase::class.java, databaseName)
             .allowMainThreadQueries()
             .addMigrations(AppDatabase.MIGRATION_7_8)
+            .addMigrations(AppDatabase.MIGRATION_8_9)
+            .addMigrations(AppDatabase.MIGRATION_9_10)
             .build()
 
         try {

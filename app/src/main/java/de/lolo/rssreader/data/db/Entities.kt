@@ -21,7 +21,10 @@ data class FeedEntity(
     val displayOrder: Int = 0,
     val lastFetchedAt: Long? = null,
     val wifiOnly: Boolean = false,
-    val lastOpenedAt: Long? = null
+    val lastOpenedAt: Long? = null,
+    val etag: String? = null,
+    val lastModified: String? = null,
+    val heavy: Boolean = false
 )
 
 @Entity(

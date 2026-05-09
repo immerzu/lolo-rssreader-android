@@ -10,8 +10,8 @@ plugins {
 }
 
 val roomSchemaDir = projectDir.resolve("schemas")
-val appVersionCode = 141
-val appVersionName = "1.87.12"
+val appVersionCode = 142
+val appVersionName = "1.87.13"
 
 val versionPropertiesFile = rootProject.file("version.properties")
 val versionProperties = Properties().apply {

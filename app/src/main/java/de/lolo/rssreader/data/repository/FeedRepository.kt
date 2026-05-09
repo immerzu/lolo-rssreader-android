@@ -120,14 +120,19 @@ class FeedRepository(
         displayOrder: Int? = null
     ): Long =
         runOnIo {
-            val parsed = fetchAndParseFeed(url)
+            val fetchResult = fetchAndParseFeed(url)
+            val success = fetchResult as de.lolo.rssreader.data.network.FeedFetchResult.Success
+            val parsed = parser.parse(success.payload, url)
             try {
                 insertParsedFeed(
                     url = url,
                     customTitle = customTitle,
                     wifiOnly = wifiOnly,
                     parsed = parsed,
-                    displayOrder = displayOrder
+                    displayOrder = displayOrder,
+                    etag = success.etag,
+                    lastModified = success.lastModified,
+                    heavy = success.payload.defensiveMode
                 )
             } catch (_: SQLiteConstraintException) {
                 throw RssReaderException.DuplicateFeed()
@@ -186,12 +191,16 @@ class FeedRepository(
     suspend fun refreshFeedIcon(feedId: Long) {
         runOnIo {
             val feed = feedDao.getById(feedId) ?: return@runOnIo
-            val parsed = fetchAndParseFeed(feed.url)
+            val fetchResult = fetchAndParseFeed(feed.url)
+            val success = fetchResult as de.lolo.rssreader.data.network.FeedFetchResult.Success
+            val parsed = parser.parse(success.payload, feed.url)
             feedDao.update(
                 feed.copy(
                     siteUrl = parsed.siteUrl ?: feed.siteUrl,
                     iconUrl = parsed.iconUrl,
-                    lastFetchedAt = feed.lastFetchedAt
+                    lastFetchedAt = feed.lastFetchedAt,
+                    etag = success.etag ?: feed.etag,
+                    lastModified = success.lastModified ?: feed.lastModified
                 )
             )
         }
@@ -232,8 +241,16 @@ class FeedRepository(
     suspend fun updateFeed(feedId: Long, url: String, customTitle: String?, wifiOnly: Boolean) {
         runOnIo {
             val existingFeed = feedDao.getById(feedId) ?: return@runOnIo
-            val parsed = fetchAndParseFeed(url)
+            val fetchResult = fetchAndParseFeed(url)
+            val success = fetchResult as de.lolo.rssreader.data.network.FeedFetchResult.Success
             val urlChanged = existingFeed.url != url
+            val becameHeavy = !existingFeed.heavy && success.payload.defensiveMode
+            val effectivePayload = if (existingFeed.heavy && !success.payload.defensiveMode) {
+                success.payload.copy(defensiveMode = true)
+            } else {
+                success.payload
+            }
+            val parsed = parser.parse(effectivePayload, url)
             ensureManualSearchIndexMaintenance()
 
             try {
@@ -246,7 +263,10 @@ class FeedRepository(
                             siteUrl = parsed.siteUrl,
                             iconUrl = parsed.iconUrl,
                             lastFetchedAt = System.currentTimeMillis(),
-                            wifiOnly = wifiOnly
+                            wifiOnly = wifiOnly,
+                            etag = if (urlChanged) success.etag else (success.etag ?: existingFeed.etag),
+                            lastModified = if (urlChanged) success.lastModified else (success.lastModified ?: existingFeed.lastModified),
+                            heavy = existingFeed.heavy || becameHeavy
                         )
                     )
                     if (urlChanged) {
@@ -255,7 +275,8 @@ class FeedRepository(
                     insertArticlesInCurrentTransaction(
                         feedId = feedId,
                         parsed = parsed,
-                        searchIndexMayContainStaleRows = urlChanged
+                        searchIndexMayContainStaleRows = urlChanged,
+                        heavy = existingFeed.heavy || becameHeavy
                     )
                 }
             } catch (_: SQLiteConstraintException) {
@@ -510,19 +531,69 @@ class FeedRepository(
     }
 
     private suspend fun refreshFeedInternal(feed: FeedEntity): Int {
-        val parsed = fetchAndParseFeed(feed.url)
+        // Heavy-Feed-Throttling: Mindestintervall zwischen Refreshes, um Bandbreite
+        // und Akku zu schonen. Gilt für automatische und manuelle Refreshes.
+        if (feed.heavy && feed.lastFetchedAt != null) {
+            val elapsed = System.currentTimeMillis() - feed.lastFetchedAt
+            if (elapsed < HEAVY_FEED_MIN_REFRESH_INTERVAL_MS) {
+                DebugLogger.i(
+                    TAG,
+                    "refreshFeedInternal: Heavy-Feed-Refresh uebersprungen (Intervall): feedId=${feed.id} elapsedMin=${elapsed / 60_000}"
+                )
+                return 0
+            }
+        }
+        val fetchResult = fetchAndParseFeed(
+            url = feed.url,
+            etag = feed.etag,
+            lastModified = feed.lastModified
+        )
+        if (fetchResult is de.lolo.rssreader.data.network.FeedFetchResult.NotModified) {
+            feedDao.update(
+                feed.copy(lastFetchedAt = System.currentTimeMillis())
+            )
+            DebugLogger.i(TAG, "refreshFeedInternal: Feed unveraendert (304): feedId=${feed.id}")
+            return 0
+        }
+        val success = fetchResult as de.lolo.rssreader.data.network.FeedFetchResult.Success
+        // ETag-Fast-Path: Wenn der Server 200 liefert, aber denselben ETag wie beim letzten
+        // Abruf, ist der Feed inhaltlich unverändert. Parsing, Artikel-Update und FTS werden
+        // übersprungen – nur lastFetchedAt wird aktualisiert.
+        if (feed.etag != null && success.etag != null && feed.etag == success.etag) {
+            feedDao.update(feed.copy(lastFetchedAt = System.currentTimeMillis()))
+            DebugLogger.i(TAG, "refreshFeedInternal: Feed inhaltlich unveraendert (200 + gleicher ETag): feedId=${feed.id}")
+            return 0
+        }
+        // Heavy-Feed-Erkennung: Wenn der Server defensiveMode ausgelöst hat (Body > 5 MB),
+        // wird der Feed dauerhaft als "heavy" markiert. Bei bereits als heavy markierten
+        // Feeds wird defensiveMode immer erzwungen, auch wenn der Body diesmal kleiner ist.
+        val becameHeavy = !feed.heavy && success.payload.defensiveMode
+        val payload = if (feed.heavy && !success.payload.defensiveMode) {
+            DebugLogger.i(TAG, "refreshFeedInternal: defensiveMode erzwungen (heavy feed): feedId=${feed.id}")
+            success.payload.copy(defensiveMode = true)
+        } else {
+            success.payload
+        }
+        val parsed = parser.parse(payload, feed.url)
         return database.withTransaction {
             feedDao.update(
                 buildRefreshedFeedEntity(
                     existingFeed = feed,
                     parsed = parsed,
-                    fetchedAt = System.currentTimeMillis()
+                    fetchedAt = System.currentTimeMillis(),
+                    etag = success.etag,
+                    lastModified = success.lastModified,
+                    heavy = feed.heavy || becameHeavy
                 )
             )
+            if (becameHeavy) {
+                DebugLogger.i(TAG, "feed_heavy_marked feedId=${feed.id} url=${feed.url} bytes=${success.payload.byteSize}")
+            }
             insertArticlesInCurrentTransaction(
                 feedId = feed.id,
                 parsed = parsed,
-                searchIndexMayContainStaleRows = false
+                searchIndexMayContainStaleRows = false,
+                heavy = feed.heavy || becameHeavy
             )
         }
     }
@@ -530,7 +601,8 @@ class FeedRepository(
     private suspend fun insertArticlesInCurrentTransaction(
         feedId: Long,
         parsed: de.lolo.rssreader.data.network.ParsedFeed,
-        searchIndexMayContainStaleRows: Boolean
+        searchIndexMayContainStaleRows: Boolean,
+        heavy: Boolean = false
     ): Int {
         ensureManualSearchIndexMaintenance()
         val articles = createArticles(feedId = feedId, parsed = parsed)
@@ -540,7 +612,7 @@ class FeedRepository(
             }
             DebugLogger.i(
                 TAG,
-                "article_write feedId=$feedId inserted=0 updated=0 unchanged=0 ftsMode=manual ftsSync=false ftsCleanup=$searchIndexMayContainStaleRows"
+                "article_write feedId=$feedId inserted=0 updated=0 unchanged=0 ftsMode=manual ftsSync=false ftsCleanup=$searchIndexMayContainStaleRows heavy=$heavy"
             )
             return 0
         }
@@ -580,7 +652,9 @@ class FeedRepository(
             }
         }
         val insertedArticles = insertedIds.count { it != -1L }
-        val shouldSyncSearchIndex = shouldSyncSearchIndexByFeed(
+        // FTS-Synchronisierung bei heavy Feeds überspringen: der Content ist
+        // bereits getruncated, und die FTS-Indizierung wäre teuer bei geringem Nutzen.
+        val shouldSyncSearchIndex = !heavy && shouldSyncSearchIndexByFeed(
             insertedArticles = insertedArticles,
             updatedArticles = updatedArticles
         )
@@ -592,7 +666,7 @@ class FeedRepository(
         }
         DebugLogger.i(
             TAG,
-            "article_write feedId=$feedId inserted=$insertedArticles updated=$updatedArticles unchanged=$unchangedArticles ftsMode=manual ftsSync=$shouldSyncSearchIndex ftsCleanup=$searchIndexMayContainStaleRows"
+            "article_write feedId=$feedId inserted=$insertedArticles updated=$updatedArticles unchanged=$unchangedArticles ftsMode=manual ftsSync=$shouldSyncSearchIndex ftsCleanup=$searchIndexMayContainStaleRows heavy=$heavy"
         )
         return insertedArticles
     }
@@ -618,13 +692,19 @@ class FeedRepository(
     private fun buildRefreshedFeedEntity(
         existingFeed: FeedEntity,
         parsed: de.lolo.rssreader.data.network.ParsedFeed,
-        fetchedAt: Long
+        fetchedAt: Long,
+        etag: String?,
+        lastModified: String?,
+        heavy: Boolean
     ): FeedEntity {
         return existingFeed.copy(
             title = parsed.title,
             siteUrl = parsed.siteUrl ?: existingFeed.siteUrl,
             iconUrl = parsed.iconUrl ?: existingFeed.iconUrl,
-            lastFetchedAt = fetchedAt
+            lastFetchedAt = fetchedAt,
+            etag = etag ?: existingFeed.etag,
+            lastModified = lastModified ?: existingFeed.lastModified,
+            heavy = heavy
         )
     }
 
@@ -632,8 +712,12 @@ class FeedRepository(
         block()
     }
 
-    private suspend fun fetchAndParseFeed(url: String): de.lolo.rssreader.data.network.ParsedFeed {
-        return parser.parse(fetcher.fetch(url), url)
+    private suspend fun fetchAndParseFeed(
+        url: String,
+        etag: String? = null,
+        lastModified: String? = null
+    ): de.lolo.rssreader.data.network.FeedFetchResult {
+        return fetcher.fetch(url, etag = etag, lastModified = lastModified)
     }
 
     private suspend fun importOpmlEntry(
@@ -766,7 +850,10 @@ class FeedRepository(
         customTitle: String?,
         wifiOnly: Boolean,
         parsed: de.lolo.rssreader.data.network.ParsedFeed,
-        displayOrder: Int? = null
+        displayOrder: Int? = null,
+        etag: String? = null,
+        lastModified: String? = null,
+        heavy: Boolean = false
     ): Long {
         return database.withTransaction {
             val feedId = feedDao.insert(
@@ -778,20 +865,31 @@ class FeedRepository(
                     iconUrl = parsed.iconUrl,
                     displayOrder = displayOrder ?: (feedDao.getMaxDisplayOrder() + 1),
                     lastFetchedAt = System.currentTimeMillis(),
-                    wifiOnly = wifiOnly
+                    wifiOnly = wifiOnly,
+                    etag = etag,
+                    lastModified = lastModified,
+                    heavy = heavy
                 )
             )
             insertArticlesInCurrentTransaction(
                 feedId = feedId,
                 parsed = parsed,
-                searchIndexMayContainStaleRows = false
+                searchIndexMayContainStaleRows = false,
+                heavy = heavy
             )
+            if (etag != null || lastModified != null) {
+                DebugLogger.i(TAG, "feed_cache_saved feedId=$feedId url=$url etag=${etag != null} lastModified=${lastModified != null}")
+            }
+            if (heavy) {
+                DebugLogger.i(TAG, "feed_heavy_marked feedId=$feedId url=$url reason=defensiveImport")
+            }
             feedId
         }
     }
 
     companion object {
         private const val TAG = "FeedRepository"
+        private const val HEAVY_FEED_MIN_REFRESH_INTERVAL_MS = 6L * 60 * 60 * 1000 // 6 Stunden
     }
 }
 
