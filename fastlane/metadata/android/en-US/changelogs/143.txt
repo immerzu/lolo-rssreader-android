@@ -1,0 +1,4 @@
+Version 1.87.14: WebView hardening and heavy feed JS deactivation.
+- WebView lifecycle: additional safety net on article switch (no leak)
+- Heavy feeds: JavaScript completely disabled in reader WebView
+- Heavy feeds: saves bandwidth and memory via disabled subresources

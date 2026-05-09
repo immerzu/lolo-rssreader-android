@@ -112,6 +112,7 @@ fun ArticleReaderScreen(
     var showSwipeHint by rememberSaveable { mutableStateOf(false) }
     var activeWebView by remember { mutableStateOf<WebView?>(null) }
     var webViewFailed by remember(currentArticleId) { mutableStateOf(false) }
+    var isFeedHeavy by remember { mutableStateOf(false) }
     val webSwipeTracker = remember { WebSwipeTracker() }
     val defaultBodyTextStyle = MaterialTheme.typography.bodyLarge
     val articleNavigationFlow = remember(repository, article?.feedId) {
@@ -176,6 +177,11 @@ fun ArticleReaderScreen(
         if (loadedArticle != null) {
             DebugLogger.i(TAG, "Artikel geladen: articleId=${loadedArticle.id}, title=${loadedArticle.title.take(80)}")
             withContext(Dispatchers.IO) { repository.markRead(currentArticleId) }
+            val feed = withContext(Dispatchers.IO) { repository.getFeed(loadedArticle.feedId) }
+            isFeedHeavy = feed?.heavy == true
+            if (isFeedHeavy) {
+                DebugLogger.i(TAG, "Heavy-Feed erkannt: feedId=${loadedArticle.feedId}, articleId=${loadedArticle.id}")
+            }
         } else {
             DebugLogger.w(TAG, "Artikel nicht gefunden: articleId=$currentArticleId")
         }
@@ -204,6 +210,18 @@ fun ArticleReaderScreen(
         onDispose {
             destroyWebView(activeWebView)
             activeWebView = null
+        }
+    }
+
+    // Zusätzliche Absicherung bei Artikelwechsel: Wenn der Artikel gewechselt wird,
+    // den noch aktiven WebView zerstören, falls AndroidView.onRelease nicht rechtzeitig feuert.
+    DisposableEffect(currentArticleId) {
+        val capturedWebView = activeWebView
+        onDispose {
+            destroyWebView(capturedWebView)
+            if (activeWebView === capturedWebView) {
+                activeWebView = null
+            }
         }
     }
 
@@ -342,12 +360,12 @@ fun ArticleReaderScreen(
                             loadProfile = readerLoadProfile
                         )
                     }
-                    val articleHtmlContent = remember(currentArticle?.link, articleHtml, readerLoadProfile) {
+                    val articleHtmlContent = remember(currentArticle?.link, articleHtml, readerLoadProfile, isFeedHeavy) {
                         articleHtml?.let {
                             ReaderHtmlContent(
                                 baseUrl = currentArticle?.link,
                                 html = it,
-                                requiresJavaScript = it.requiresReaderJavaScript(),
+                                requiresJavaScript = !isFeedHeavy && it.requiresReaderJavaScript(),
                                 loadProfile = readerLoadProfile
                             )
                         }
