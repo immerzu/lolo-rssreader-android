@@ -13,8 +13,8 @@ AllowedAPKSigningKeys: 2fb2657d3215dce8bc1b5a7ad84cf083ea6f3e3cde242fdb65e21d81a
 AutoUpdateMode: Version
 UpdateCheckMode: Tags ^v[\d.]+$
 UpdateCheckData: app/build.gradle.kts|val appVersionCode = (\d+)|.|val appVersionName = "([^"]+)"
-CurrentVersion: 1.87.13
-CurrentVersionCode: 142
+CurrentVersion: 1.87.14
+CurrentVersionCode: 143
 Builds:
   - versionName: 1.87.06
     versionCode: 136
@@ -24,7 +24,13 @@ Builds:
       - yes
   - versionName: 1.87.13
     versionCode: 142
-    commit: 140d8e654348216a0152955237b18bac0cfb0567
+    commit: 7de5e8dbc3f22387c92526cd622e284c5adb67b5
+    subdir: app
+    gradle:
+      - yes
+  - versionName: 1.87.14
+    versionCode: 143
+    commit: af1dcedff01faf13f5bbab1d1117a2b387237147
     subdir: app
     gradle:
       - yes
