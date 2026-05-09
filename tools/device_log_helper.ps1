@@ -119,9 +119,13 @@ switch ($Mode) {
         Clear-LogcatBuffers
 
         Write-Host "Loesche App-Debuglog..."
-        & $AdbCommand "shell" "run-as" $PackageName "rm" "-f" "files/debug/rss-reader-debug.log" 2>$null | Out-Null
+        try {
+            & $AdbCommand "shell" "run-as" $PackageName "rm" "-f" "files/debug/rss-reader-debug.log" 2>&1 | Out-Null
+        } catch {
+            # ignore
+        }
         if ($LASTEXITCODE -ne 0) {
-            Write-Warning "App-Debuglog konnte nicht geloescht werden. Ist der Debug-Build schon installiert?"
+            Write-Warning "App-Debuglog konnte nicht geloescht werden (run-as fehlgeschlagen). Das ist bei manchen Geraeten normal. Der Test kann trotzdem fortgesetzt werden."
         }
 
         Write-Host "Setze Log-Marker..."
@@ -138,9 +142,13 @@ switch ($Mode) {
         Trim-LogFileToMarker -LogPath $crashLogPath -MarkerPath $markerPath
 
         Write-Host "Exportiere App-Debuglog nach $debugLogPath"
-        cmd /c "$AdbCommand exec-out run-as $PackageName cat files/debug/rss-reader-debug.log > ""$debugLogPath"" 2>nul"
+        try {
+            cmd /c "$AdbCommand exec-out run-as $PackageName cat files/debug/rss-reader-debug.log > ""$debugLogPath"" 2>nul"
+        } catch {
+            # ignore
+        }
         if ($LASTEXITCODE -ne 0) {
-            Write-Warning "App-Debuglog konnte nicht gelesen werden. Pruefe, ob ein Debug-Build installiert ist."
+            Write-Warning "App-Debuglog konnte nicht gelesen werden (run-as fehlgeschlagen). Das ist bei manchen Geraeten normal."
         }
 
         Write-Host "Exportiere zusaetzlichen Systemzustand nach $stateLogPath"

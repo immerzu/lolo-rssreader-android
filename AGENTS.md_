@@ -1,0 +1,64 @@
+﻿# AGENTS.md – RSS Reader (Android)
+
+## Projekt
+- Android-App in Kotlin + Jetpack Compose, Package `com.example.rssreader`, Application-ID `de.lolo.rssreader`
+- RSS/Atom-Reader mit Feed-Verwaltung, OPML-Import/Export, Artikel-Reader, Suche, Hintergrundaktualisierung
+- Sprache: Kotlin 1.9.24, Compose BOM 2024.06, Material3
+
+## Ordnerstruktur
+- `app/src/main/java/com/example/rssreader/` – Hauptquellcode
+  - `data/` – Room-Datenbank (Entities, DAOs, AppDatabase), Netzwerk (FeedFetcher, FeedParser), OPML, Repository, Einstellungen
+  - `ui/` – Compose-UI (Screens, Navigation, Theme, UiFormatters)
+  - `sync/` – WorkManager (BackgroundRefreshWorker) und RefreshScheduler
+  - `notifications/` – ArticleUpdateNotifier
+  - `debug/` – DebugLogger
+- `app/src/test/` – Unit-Tests (JUnit 4 + Robolectric)
+- `docs/` – F-Droid-Einreichung, Release-Vorgaben
+- `tools/` – PowerShell/Cmd-Log-Helfer für Gerätetests
+- `fastlane/metadata/android/` – Store-Metadaten für F-Droid
+- `signing/` – Keystore (via `keystore.properties`)
+
+## Build & Ausführung
+- Build-Tool: Gradle 8.7 (Wrapper `gradlew.bat`)
+- Android Gradle Plugin 8.5.2, compileSdk 35, minSdk 26, Java 17
+- Debug-Build: `gradlew.bat assembleDebug` (exportiert APK nach `../Ausgabe_APK/`)
+- Release-Build: `gradlew.bat assembleRelease`
+- Tests: `gradlew.bat testDebugUnitTest`
+- Android Studio starten: `start-android-studio.ps1`
+
+## Versionierung
+- Version in `version.properties` (VERSION_CODE, VERSION_NAME) und Kopf von `app/build.gradle.kts`
+- Gradle-Task `bumpReleaseVersion` erhöht Version und aktualisiert die Gradle-Properties
+- Git-Tags für Releases: `v<major>.<minor>.<patch>` (z.B. `v1.87.12`)
+
+## Release-Prozess
+- Checkliste: `RELEASE_CHECKLIST_RSS_READER_DE.md`
+- Vor Release: Funktionstest auf Gerät, Unit-Tests, assembleDebug + assembleRelease
+- Release-APK erscheint unter `../Ausgabe_APK/RSS-Reader-v...-release.apk`
+
+## Code-Stil
+- Kotlin, kein Java-Code mehr
+- Compose-UI mit Navigation-Compose, Material3-Theming in `ui/theme/RssReaderTheme.kt`
+- Datenzugriff über Repository-Pattern: `FeedRepository` + `SettingsRepository`
+- Room-Datenbank mit KSP (Schema-Export nach `app/schemas/`)
+- Neuer Code sollte bestehende Patterns aus `data/` und `ui/` folgen
+- Bei Neuerungen Tests unter `app/src/test/` ergänzen (JUnit 4, Robolectric)
+
+## Git-Hinweise
+- Arbeitsverzeichnis: `F:\Codex\RSS_Reader_Android\rss_reader_full_project`
+- Vor Änderungen commiten, stabile Stände taggen (siehe `GIT_MERKLISTE_KURZ_DE.txt`)
+- Keine sensiblen Daten committen: `keystore.properties`, `local.properties`
+
+## Was nicht zu tun ist
+- Keine neue Gradle-, AGP- oder Kotlin-Version ohne ausdrückliche Anweisung einführen
+- Keine Library ohne Grund hinzufügen
+- `keystore.properties` / `local.properties` niemals ändern oder committen
+- Keine Build-Konfiguration ändern, ohne zu verstehen, was Versionierung, Signing und Export beeinflusst
+- ProGuard (Minify) nicht aktivieren ohne Absprache
+
+## Änderungsrichtlinie
+- **Nur minimale, gezielte Änderungen vornehmen** – keine unnötigen Refactorings, Formatierungen oder Datei-Umstrukturierungen
+- Immer den kleinstmöglichen Eingriff wählen, der das Problem löst
+- Keine Dateien anfassen, die nicht direkt mit der Aufgabe zu tun haben
+- Bestehenden Code-Stil und Patterns beibehalten, auch wenn sie nicht den persönlichen Vorlieben entsprechen
+

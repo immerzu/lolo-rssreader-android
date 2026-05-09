@@ -10,8 +10,8 @@ plugins {
 }
 
 val roomSchemaDir = projectDir.resolve("schemas")
-val appVersionCode = 140
-val appVersionName = "1.87.11"
+val appVersionCode = 141
+val appVersionName = "1.87.12"
 
 val versionPropertiesFile = rootProject.file("version.properties")
 val versionProperties = Properties().apply {
@@ -51,7 +51,7 @@ val keystoreProperties = Properties().apply {
 }
 
 android {
-    namespace = "com.example.rssreader"
+    namespace = "de.lolo.rssreader"
     compileSdk = 36
 
     signingConfigs {

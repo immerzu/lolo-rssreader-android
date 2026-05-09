@@ -1,0 +1,59 @@
+package de.lolo.rssreader
+
+import android.app.Application
+import androidx.room.Room
+import de.lolo.rssreader.data.db.AppDatabase
+import de.lolo.rssreader.debug.DebugLogger
+import de.lolo.rssreader.data.network.FeedFetcher
+import de.lolo.rssreader.data.network.FeedParser
+import de.lolo.rssreader.data.repository.FeedRepository
+import de.lolo.rssreader.data.settings.SettingsRepository
+import de.lolo.rssreader.sync.RefreshScheduler
+
+class RssReaderApplication : Application() {
+    override fun onCreate() {
+        super.onCreate()
+        DebugLogger.init(this)
+        DebugLogger.i(
+            "App",
+            "Application gestartet, debugLog=${DebugLogger.currentLogFilePath().orEmpty()}"
+        )
+    }
+
+    val database: AppDatabase by lazy {
+        Room.databaseBuilder(
+            applicationContext,
+            AppDatabase::class.java,
+            "rss_reader.db"
+        )
+            .addMigrations(AppDatabase.MIGRATION_1_2)
+            .addMigrations(AppDatabase.MIGRATION_2_3)
+            .addMigrations(AppDatabase.MIGRATION_3_4)
+            .addMigrations(AppDatabase.MIGRATION_4_5)
+            .addMigrations(AppDatabase.MIGRATION_5_6)
+            .addMigrations(AppDatabase.MIGRATION_6_7)
+            .addMigrations(AppDatabase.MIGRATION_7_8)
+            .build()
+    }
+
+    val repository: FeedRepository by lazy {
+        FeedRepository(
+            database = database,
+            feedDao = database.feedDao(),
+            articleDao = database.articleDao(),
+            fetcher = FeedFetcher(),
+            parser = FeedParser()
+        )
+    }
+
+    val settingsRepository: SettingsRepository by lazy {
+        SettingsRepository(applicationContext)
+    }
+
+    val refreshScheduler: RefreshScheduler by lazy {
+        RefreshScheduler(applicationContext)
+    }
+}
+
+
+
