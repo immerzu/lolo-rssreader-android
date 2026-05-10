@@ -10,8 +10,8 @@ plugins {
 }
 
 val roomSchemaDir = projectDir.resolve("schemas")
-val appVersionCode = 143
-val appVersionName = "1.87.14"
+val appVersionCode = 144
+val appVersionName = "1.87.15"
 
 val versionPropertiesFile = rootProject.file("version.properties")
 val versionProperties = Properties().apply {
@@ -130,8 +130,16 @@ android {
     }
 }
 
+tasks.matching { it.name == "compileReleaseArtProfile" }.configureEach {
+    enabled = false
+}
+
 ksp {
     arg("room.schemaLocation", roomSchemaDir.path)
+}
+
+configurations.all {
+    exclude(group = "androidx.profileinstaller", module = "profileinstaller")
 }
 
 dependencies {
