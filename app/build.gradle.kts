@@ -10,8 +10,8 @@ plugins {
 }
 
 val roomSchemaDir = projectDir.resolve("schemas")
-val appVersionCode = 144
-val appVersionName = "1.87.15"
+val appVersionCode = 145
+val appVersionName = "1.87.16"
 
 val versionPropertiesFile = rootProject.file("version.properties")
 val versionProperties = Properties().apply {
@@ -81,9 +81,6 @@ android {
             // isMinifyEnabled = true
             // isShrinkResources = true
             vcsInfo.include = false
-            if (keystorePropertiesFile.exists()) {
-                signingConfig = signingConfigs.getByName("release")
-            }
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
