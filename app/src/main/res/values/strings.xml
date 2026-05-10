@@ -97,6 +97,7 @@
 
     <string name="home_title_move_mode">RSS Reader - Rearrangement mode</string>
     <string name="home_add_feed_cd">Add feed</string>
+    <string name="home_refresh_running">Updating…</string>
     <string name="home_refresh_all_feeds_cd">Refresh all feeds</string>
     <string name="home_menu_cd">Menu</string>
     <string name="home_menu_search">Search</string>

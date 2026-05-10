@@ -97,6 +97,7 @@
 
     <string name="home_title_move_mode">RSS Reader - Verschiebemodus</string>
     <string name="home_add_feed_cd">Feed anlegen</string>
+    <string name="home_refresh_running">Aktualisierung läuft…</string>
     <string name="home_refresh_all_feeds_cd">Alle Feeds aktualisieren</string>
     <string name="home_menu_cd">Menü</string>
     <string name="home_menu_search">Suchen</string>

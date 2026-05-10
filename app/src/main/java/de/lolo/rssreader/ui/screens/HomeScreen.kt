@@ -130,7 +130,10 @@ fun HomeScreen(
     var isMoveMode by rememberSaveable { mutableStateOf(false) }
     var busy by rememberSaveable { mutableStateOf(false) }
     var importInProgress by rememberSaveable { mutableStateOf(false) }
+    var importStatusText by rememberSaveable { mutableStateOf<String?>(null) }
+    var importDialogToken by rememberSaveable { mutableIntStateOf(0) }
     var importResultMessage by rememberSaveable { mutableStateOf<String?>(null) }
+    var refreshStatusText by rememberSaveable { mutableStateOf<String?>(null) }
     var diagnosticsText by rememberSaveable { mutableStateOf<String?>(null) }
     val snackbarHostState = remember { SnackbarHostState() }
     val showInfoMessage: (String) -> Unit = { message ->
@@ -143,10 +146,14 @@ fun HomeScreen(
         val token = refreshIndicatorToken + 1
         refreshIndicatorToken = token
         showRefreshIndicator = true
+        refreshStatusText = null
         scope.launch {
             delay(HOME_REFRESH_INDICATOR_DURATION_MS)
             if (refreshIndicatorToken == token) {
                 showRefreshIndicator = false
+                if (isRefreshing) {
+                    refreshStatusText = context.getString(R.string.home_refresh_running)
+                }
             }
         }
     }
@@ -206,6 +213,7 @@ fun HomeScreen(
                 }
         } finally {
             isRefreshing = false
+            refreshStatusText = null
         }
     }
     fun launchRefreshAll(showSuccessMessage: Boolean, manualTrigger: Boolean) {
@@ -234,19 +242,32 @@ fun HomeScreen(
             launchFromUiScope(activity, scope) {
                 busy = true
                 importInProgress = true
-                runCatching { importOpmlFromUri(context, repository, uri) }
-                    .onSuccess { result ->
-                        importResultMessage = formatImportResultDialogMessage(result, context)
-                    }
-                .onFailure {
-                    if (it !is CancellationException) {
-                        errorMessage = it.toUserMessage(
-                            context.getString(R.string.home_opml_import_failed)
-                        )
+                importStatusText = null
+                val token = importDialogToken + 1
+                importDialogToken = token
+                scope.launch {
+                    delay(HOME_REFRESH_INDICATOR_DURATION_MS)
+                    if (importDialogToken == token) {
+                        importStatusText = context.getString(R.string.shared_import_in_progress)
                     }
                 }
-                importInProgress = false
-                busy = false
+                try {
+                    runCatching { importOpmlFromUri(context, repository, uri) }
+                        .onSuccess { result ->
+                            importResultMessage = formatImportResultDialogMessage(result, context)
+                        }
+                        .onFailure {
+                            if (it !is CancellationException) {
+                                errorMessage = it.toUserMessage(
+                                    context.getString(R.string.home_opml_import_failed)
+                                )
+                            }
+                        }
+                } finally {
+                    importStatusText = null
+                    importInProgress = false
+                    busy = false
+                }
             }
         }
     }
@@ -299,16 +320,20 @@ fun HomeScreen(
         feedsLoadedForUi,
         loadedFeeds.size,
         isRefreshing,
+        showRefreshIndicator,
         busy,
         importInProgress,
+        importStatusText,
+        refreshStatusText,
         isMoveMode,
         topMenuExpanded
     ) {
         DebugLogger.d(
             logTag,
             "state settingsLoaded=$settingsLoaded, feedsObserved=$feedsObserved, feedsLoadedForUi=$feedsLoadedForUi, " +
-                "feedCount=${loadedFeeds.size}, isRefreshing=$isRefreshing, busy=$busy, " +
-                "importInProgress=$importInProgress, isMoveMode=$isMoveMode, topMenuExpanded=$topMenuExpanded"
+                "feedCount=${loadedFeeds.size}, isRefreshing=$isRefreshing, showRefreshIndicator=$showRefreshIndicator, " +
+                "busy=$busy, importInProgress=$importInProgress, importStatusText=${importStatusText != null}, " +
+                "refreshStatusText=${refreshStatusText != null}, isMoveMode=$isMoveMode, topMenuExpanded=$topMenuExpanded"
         )
     }
 
@@ -355,7 +380,7 @@ fun HomeScreen(
                             enabled = !isRefreshing && !busy && !isMoveMode
                         ) {
                             RefreshActionIcon(
-                                isRefreshing = isRefreshing,
+                                isRefreshing = showRefreshIndicator,
                                 contentDescription = stringResource(R.string.home_refresh_all_feeds_cd)
                             )
                         }
@@ -378,7 +403,7 @@ fun HomeScreen(
                 FeedListScreen(
                     feeds = loadedFeeds,
                     feedsLoaded = feedsLoadedForUi,
-                    isRefreshing = isRefreshing,
+                    isRefreshing = isRefreshing || showRefreshIndicator,
                     isMoveMode = isMoveMode,
                     onOpenFeed = onOpenFeed,
                     onOpenFeedMenu = { feedId ->
@@ -413,8 +438,28 @@ fun HomeScreen(
                 PullRefreshIndicator(
                     refreshing = showRefreshIndicator,
                     state = pullRefreshState,
-                    modifier = Modifier.align(androidx.compose.ui.Alignment.TopCenter)
+                    modifier = Modifier.align(Alignment.TopCenter)
                 )
+                if (refreshStatusText != null && !showRefreshIndicator) {
+                    Text(
+                        text = refreshStatusText!!,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier
+                            .align(Alignment.TopCenter)
+                            .padding(top = 8.dp)
+                    )
+                }
+                if (importStatusText != null && !showRefreshIndicator) {
+                    Text(
+                        text = importStatusText!!,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier
+                            .align(Alignment.TopCenter)
+                            .padding(top = 8.dp)
+                    )
+                }
             }
         }
 
@@ -973,10 +1018,6 @@ fun HomeScreen(
                 }
             }
         )
-    }
-
-    if (importInProgress) {
-        ImportProgressDialog()
     }
 
     importResultMessage?.let { message ->

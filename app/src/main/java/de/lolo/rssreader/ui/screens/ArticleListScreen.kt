@@ -108,14 +108,19 @@ fun ArticleListScreen(
     var refreshIndicatorToken by rememberSaveable { mutableIntStateOf(0) }
     var errorMessage by rememberSaveable { mutableStateOf<String?>(null) }
     var selectedArticleId by rememberSaveable { mutableStateOf<Long?>(null) }
+    var refreshStatusText by rememberSaveable { mutableStateOf<String?>(null) }
     fun showRefreshIndicatorBriefly() {
         val token = refreshIndicatorToken + 1
         refreshIndicatorToken = token
         showRefreshIndicator = true
+        refreshStatusText = null
         scope.launch {
             delay(ARTICLE_LIST_REFRESH_INDICATOR_DURATION_MS)
             if (refreshIndicatorToken == token) {
                 showRefreshIndicator = false
+                if (isRefreshing) {
+                    refreshStatusText = context.getString(R.string.home_refresh_running)
+                }
             }
         }
     }
@@ -159,6 +164,7 @@ fun ArticleListScreen(
                     }
             } finally {
                 isRefreshing = false
+                refreshStatusText = null
             }
         }
     }
@@ -166,6 +172,14 @@ fun ArticleListScreen(
         refreshing = showRefreshIndicator,
         onRefresh = refreshFeed
     )
+
+    LaunchedEffect(feedId, isRefreshing, showRefreshIndicator, refreshStatusText) {
+        DebugLogger.d(
+            logTag,
+            "state feedId=$feedId, isRefreshing=$isRefreshing, showRefreshIndicator=$showRefreshIndicator, " +
+                "refreshStatusText=${refreshStatusText != null}"
+        )
+    }
 
     LaunchedEffect(feedId) {
         DebugLogger.i(logTag, "Artikelliste geoeffnet: feedId=$feedId")
@@ -226,7 +240,7 @@ fun ArticleListScreen(
                         enabled = !isRefreshing
                     ) {
                         RefreshActionIcon(
-                            isRefreshing = isRefreshing,
+                            isRefreshing = showRefreshIndicator,
                             contentDescription = stringResource(R.string.article_list_refresh_feed_cd)
                         )
                     }
@@ -397,6 +411,16 @@ fun ArticleListScreen(
                 state = pullRefreshState,
                 modifier = Modifier.align(Alignment.TopCenter)
             )
+            if (refreshStatusText != null && !showRefreshIndicator) {
+                Text(
+                    text = refreshStatusText!!,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .padding(top = 8.dp)
+                )
+            }
         }
     }
 
