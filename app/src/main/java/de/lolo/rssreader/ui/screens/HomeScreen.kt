@@ -223,7 +223,7 @@ fun HomeScreen(
         launchRefreshAll(showSuccessMessage = true, manualTrigger = true)
     }
     val pullRefreshState = rememberPullRefreshState(
-        refreshing = isRefreshing || showRefreshIndicator,
+        refreshing = showRefreshIndicator,
         onRefresh = pullToRefreshAllFeeds
     )
 
@@ -411,7 +411,7 @@ fun HomeScreen(
                     modifier = Modifier.fillMaxSize()
                 )
                 PullRefreshIndicator(
-                    refreshing = isRefreshing || showRefreshIndicator,
+                    refreshing = showRefreshIndicator,
                     state = pullRefreshState,
                     modifier = Modifier.align(androidx.compose.ui.Alignment.TopCenter)
                 )

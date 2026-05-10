@@ -37,6 +37,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -63,6 +64,7 @@ import de.lolo.rssreader.data.settings.EntrySortOrder
 import de.lolo.rssreader.debug.DebugLogger
 import de.lolo.rssreader.ui.formatRelativeTime
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @OptIn(
@@ -102,8 +104,21 @@ fun ArticleListScreen(
     val unreadCount = remember(articles) { articles.count { !it.isRead } }
     val scope = rememberCoroutineScope()
     var isRefreshing by rememberSaveable { mutableStateOf(false) }
+    var showRefreshIndicator by rememberSaveable { mutableStateOf(false) }
+    var refreshIndicatorToken by rememberSaveable { mutableIntStateOf(0) }
     var errorMessage by rememberSaveable { mutableStateOf<String?>(null) }
     var selectedArticleId by rememberSaveable { mutableStateOf<Long?>(null) }
+    fun showRefreshIndicatorBriefly() {
+        val token = refreshIndicatorToken + 1
+        refreshIndicatorToken = token
+        showRefreshIndicator = true
+        scope.launch {
+            delay(ARTICLE_LIST_REFRESH_INDICATOR_DURATION_MS)
+            if (refreshIndicatorToken == token) {
+                showRefreshIndicator = false
+            }
+        }
+    }
     val refreshFeed: () -> Unit = {
         scope.launch {
             if (isRefreshing) {
@@ -124,6 +139,7 @@ fun ArticleListScreen(
                 return@launch
             }
             isRefreshing = true
+            showRefreshIndicatorBriefly()
             DebugLogger.i(logTag, "Feed-Refresh manuell gestartet: feedId=$feedId")
             try {
                 runCatching { repository.refreshFeed(feedId) }
@@ -147,7 +163,7 @@ fun ArticleListScreen(
         }
     }
     val pullRefreshState = rememberPullRefreshState(
-        refreshing = isRefreshing,
+        refreshing = showRefreshIndicator,
         onRefresh = refreshFeed
     )
 
@@ -377,7 +393,7 @@ fun ArticleListScreen(
                 }
             }
             PullRefreshIndicator(
-                refreshing = isRefreshing,
+                refreshing = showRefreshIndicator,
                 state = pullRefreshState,
                 modifier = Modifier.align(Alignment.TopCenter)
             )
@@ -460,4 +476,5 @@ fun ArticleListScreen(
     }
 }
 
+private const val ARTICLE_LIST_REFRESH_INDICATOR_DURATION_MS = 700L
 
