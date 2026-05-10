@@ -30,7 +30,7 @@ Builds:
       - yes
   - versionName: 1.87.14
     versionCode: 143
-    commit: af1dcedff01faf13f5bbab1d1117a2b387237147
+    commit: 87362b46b25a275df3210a5bbbeeef65144a8e78
     subdir: app
     gradle:
       - yes
