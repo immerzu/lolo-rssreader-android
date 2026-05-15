@@ -1,6 +1,6 @@
 pluginManagement {
     repositories {
-        google()
+        maven(url = "https://maven.google.com")
         mavenCentral()
         gradlePluginPortal()
     }
@@ -8,13 +8,12 @@ pluginManagement {
 dependencyResolutionManagement {
     repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
     repositories {
-        google()
+        maven(url = "https://maven.google.com")
         mavenCentral()
     }
 }
 
 rootProject.name = "RSSReader"
 include(":app")
-
 
 
