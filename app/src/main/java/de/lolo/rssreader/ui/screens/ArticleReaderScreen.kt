@@ -1308,7 +1308,7 @@ private fun configureReaderWebViewSettings(
         }
         val settings = webView.settings.apply {
             javaScriptEnabled = requiresJavaScript
-            domStorageEnabled = true
+            domStorageEnabled = requiresJavaScript
             cacheMode = WebSettings.LOAD_DEFAULT
             loadsImagesAutomatically = true
             mediaPlaybackRequiresUserGesture = true

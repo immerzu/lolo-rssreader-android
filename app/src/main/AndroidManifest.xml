@@ -10,6 +10,7 @@
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"
         android:enableOnBackInvokedCallback="true"
+        android:usesCleartextTraffic="false"
         tools:targetApi="33"
         android:icon="@mipmap/ic_launcher"
         android:label="RSS Reader"

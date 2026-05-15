@@ -349,20 +349,36 @@ fun HomeScreen(
             topBar = {
                 TopAppBar(
                     title = {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                painter = painterResource(R.drawable.toolbar_logo_lolosoft),
-                                contentDescription = null,
-                                modifier = Modifier.size(24.dp)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                if (isMoveMode) {
-                                    stringResource(R.string.home_title_move_mode)
-                                } else {
-                                    "RSS Reader"
-                                }
-                            )
+                        Column {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    painter = painterResource(R.drawable.toolbar_logo_lolosoft),
+                                    contentDescription = null,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    if (isMoveMode) {
+                                        stringResource(R.string.home_title_move_mode)
+                                    } else {
+                                        "RSS Reader"
+                                    }
+                                )
+                            }
+                            if (importStatusText != null && !showRefreshIndicator) {
+                                Text(
+                                    text = importStatusText!!,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            if (refreshStatusText != null && !showRefreshIndicator) {
+                                Text(
+                                    text = refreshStatusText!!,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
                         }
                     },
                     actions = {
@@ -440,26 +456,6 @@ fun HomeScreen(
                     state = pullRefreshState,
                     modifier = Modifier.align(Alignment.TopCenter)
                 )
-                if (refreshStatusText != null && !showRefreshIndicator) {
-                    Text(
-                        text = refreshStatusText!!,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier
-                            .align(Alignment.TopCenter)
-                            .padding(top = 8.dp)
-                    )
-                }
-                if (importStatusText != null && !showRefreshIndicator) {
-                    Text(
-                        text = importStatusText!!,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier
-                            .align(Alignment.TopCenter)
-                            .padding(top = 8.dp)
-                    )
-                }
             }
         }
 

@@ -1,6 +1,5 @@
 package de.lolo.rssreader.ui.screens
 
-import android.util.Patterns
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -34,6 +33,7 @@ import androidx.compose.ui.unit.dp
 import de.lolo.rssreader.R
 import de.lolo.rssreader.data.errors.toUserMessage
 import de.lolo.rssreader.data.repository.FeedRepository
+import java.net.URI
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
@@ -67,7 +67,7 @@ fun FeedConfigScreen(
         }
     }
 
-    val valid = Patterns.WEB_URL.matcher(url.trim()).matches()
+    val valid = isValidFeedUrl(url.trim())
 
     Scaffold(
         topBar = {
@@ -232,4 +232,7 @@ fun FeedConfigScreen(
     }
 }
 
-
+private fun isValidFeedUrl(input: String): Boolean {
+    val uri = runCatching { URI(input) }.getOrNull() ?: return false
+    return uri.scheme?.lowercase() == "https" && !uri.host.isNullOrBlank()
+}
