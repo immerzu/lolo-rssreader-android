@@ -66,6 +66,7 @@
     <string name="feed_config_delete_title">Delete feed</string>
     <string name="feed_config_delete_text">The feed and its articles will be removed.</string>
     <string name="feed_config_delete_failed">Feed could not be deleted.</string>
+    <string name="feed_config_http_not_allowed">This feed uses unencrypted HTTP. For security reasons, the app only allows HTTPS connections.</string>
 
     <string name="article_list_refresh_failed">Feed could not be refreshed.</string>
     <string name="article_list_mark_failed">Articles could not be updated.</string>

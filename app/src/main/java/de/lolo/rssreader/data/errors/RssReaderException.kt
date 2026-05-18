@@ -11,6 +11,12 @@ sealed class RssReaderException(
         val originalUrl: String = url
     }
 
+    class HttpNotAllowed(url: String) : RssReaderException(
+        userMessage = "Dieser Feed nutzt unverschluesseltes HTTP. Die App erlaubt aus Sicherheitsgruenden nur HTTPS-Verbindungen."
+    ) {
+        val originalUrl: String = url
+    }
+
     class Timeout(cause: Throwable? = null) : RssReaderException(
         userMessage = "Der Feed hat nicht rechtzeitig geantwortet.",
         cause = cause

@@ -68,6 +68,7 @@ fun FeedConfigScreen(
     }
 
     val valid = isValidFeedUrl(url.trim())
+    val isHttpWarning = url.trim().lowercase().startsWith("http://")
 
     Scaffold(
         topBar = {
@@ -144,7 +145,11 @@ fun FeedConfigScreen(
                 label = { Text(stringResource(R.string.feed_config_url_label)) },
                 placeholder = { Text("https://example.com/feed.xml") },
                 singleLine = true,
-                enabled = !loading
+                enabled = !loading,
+                isError = isHttpWarning,
+                supportingText = if (isHttpWarning) {
+                    { Text(stringResource(R.string.feed_config_http_not_allowed)) }
+                } else null
             )
             OutlinedTextField(
                 value = title,

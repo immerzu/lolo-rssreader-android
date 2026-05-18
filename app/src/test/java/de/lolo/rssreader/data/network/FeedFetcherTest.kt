@@ -70,8 +70,27 @@ class FeedFetcherTest {
             runBlocking { FeedFetcher(client).fetch("http://example.com/feed.xml") }
         }.exceptionOrNull()
 
-        assertTrue(failure is RssReaderException.InvalidUrl)
+        assertTrue(failure is RssReaderException.HttpNotAllowed)
         assertEquals(0, callCount)
+    }
+
+    @Test
+    fun fetchRejectsHttpUrlWithClearErrorMessage() {
+        var callCount = 0
+        val client = OkHttpClient.Builder()
+            .addInterceptor {
+                callCount += 1
+                error("Network should not be reached for cleartext feed URLs")
+            }
+            .build()
+
+        val failure = runCatching {
+            runBlocking { FeedFetcher(client).fetch("http://example.com/feed.xml") }
+        }.exceptionOrNull()
+
+        assertTrue(failure is RssReaderException.HttpNotAllowed)
+        assertTrue((failure as RssReaderException.HttpNotAllowed).userMessage.contains("HTTP"))
+        assertEquals("http://example.com/feed.xml", failure.originalUrl)
     }
 
     @Test

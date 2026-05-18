@@ -56,6 +56,9 @@ data class RepositoryDiagnosticsSnapshot(
     val debugLogFilePath: String?
 )
 
+// Refresh/Import/Export-Lebenszyklus delegiert an Support-Dateien:
+// FTS → FeedRepositoryFtsSupport, OPML → FeedRepositoryOpmlSupport, Refresh → FeedRepositoryRefreshSupport.
+// Artikel-Hilfsfunktionen am Dateiende bleiben hier – zu eng mit Room-Entity-Lifecycle gekoppelt.
 class FeedRepository(
     private val database: AppDatabase,
     private val feedDao: FeedDao,

@@ -10,8 +10,8 @@ plugins {
 }
 
 val roomSchemaDir = projectDir.resolve("schemas")
-val appVersionCode = 145
-val appVersionName = "1.87.16"
+val appVersionCode = 146
+val appVersionName = "1.87.17"
 
 val versionPropertiesFile = rootProject.file("version.properties")
 val versionProperties = Properties().apply {
@@ -76,6 +76,9 @@ android {
 
     buildTypes {
         release {
+            if (keystorePropertiesFile.exists()) {
+                signingConfig = signingConfigs.getByName("release")
+            }
             isMinifyEnabled = false
             // Fuer spaetere Release-Haertung bei Bedarf vorsichtig aktivieren:
             // isMinifyEnabled = true

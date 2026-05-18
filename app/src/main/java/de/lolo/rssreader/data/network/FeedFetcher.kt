@@ -164,6 +164,9 @@ class FeedFetcher(
     private fun isSupportedFeedUrl(url: String): Boolean {
         val uri = runCatching { URI(url.trim()) }.getOrNull() ?: return false
         val scheme = uri.scheme?.lowercase() ?: return false
+        if (scheme == "http") {
+            throw RssReaderException.HttpNotAllowed(url)
+        }
         if (scheme != "https") {
             return false
         }
