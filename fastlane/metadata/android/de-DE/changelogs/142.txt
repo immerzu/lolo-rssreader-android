@@ -1,0 +1,7 @@
+Version 1.87.13: Caching, Heavy-Feed-Schutz und Bandbreiten-Optimierung.
+- ETag/Last-Modified-Validatoren fuer alle Feeds gespeichert und gesendet
+- HTTP 304 wird korrekt als "unveraendert" erkannt
+- HTTP 200 + gleicher ETag als "unveraendert" behandelt (Fast-Path ohne Parsing)
+- Extreme Feeds (>5 MB) werden defensiv geparst und als "heavy" markiert
+- Heavy-Feeds: 6-Stunden-Mindestintervall spart Bandbreite und Akku
+- Heavy-Feeds: Volltextsuche (FTS) wird fuer getruncated Content uebersprungen

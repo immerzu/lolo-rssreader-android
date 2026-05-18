@@ -1,0 +1,2 @@
+Stabiler Release-Stand fuer 1.85.02.
+Technisch verifiziert, inklusive Release-Build und Geraetetest.

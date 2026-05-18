@@ -1,0 +1,2 @@
+Stable release baseline for 1.85.02.
+Technically verified, including release build and device test.

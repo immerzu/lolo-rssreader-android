@@ -1,0 +1,4 @@
+Version 1.87.14: WebView-Absicherung und Heavy-Feed-JS-Deaktivierung.
+- WebView-Lifecycle: zusaetzliche Absicherung bei Artikelwechsel (kein Leak)
+- Heavy-Feeds: JavaScript im Reader-WebView komplett deaktiviert
+- Heavy-Feeds: spart Bandbreite und Speicher durch deaktivierte Subresources

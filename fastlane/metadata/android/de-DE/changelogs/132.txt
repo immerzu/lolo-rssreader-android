@@ -1,0 +1,1 @@
+Version 1.86.00 entfernt die eingebaute Google-Uebersetzungsfunktion.

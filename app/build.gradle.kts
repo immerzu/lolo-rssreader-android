@@ -10,8 +10,8 @@ plugins {
 }
 
 val roomSchemaDir = projectDir.resolve("schemas")
-val appVersionCode = 123
-val appVersionName = "1.70.01"
+val appVersionCode = 146
+val appVersionName = "1.87.17"
 
 val versionPropertiesFile = rootProject.file("version.properties")
 val versionProperties = Properties().apply {
@@ -51,8 +51,8 @@ val keystoreProperties = Properties().apply {
 }
 
 android {
-    namespace = "com.example.rssreader"
-    compileSdk = 35
+    namespace = "de.lolo.rssreader"
+    compileSdk = 36
 
     signingConfigs {
         if (keystorePropertiesFile.exists()) {
@@ -68,21 +68,22 @@ android {
     defaultConfig {
         applicationId = "de.lolo.rssreader"
         minSdk = 26
-        targetSdk = 35
+        targetSdk = 36
         // Keep the version directly visible for external scanners like F-Droid.
-        versionCode = appVersionCode
-        versionName = appVersionName
+        versionCode = resolvedVersionCode
+        versionName = resolvedVersionName
     }
 
     buildTypes {
         release {
+            if (keystorePropertiesFile.exists()) {
+                signingConfig = signingConfigs.getByName("release")
+            }
             isMinifyEnabled = false
             // Fuer spaetere Release-Haertung bei Bedarf vorsichtig aktivieren:
             // isMinifyEnabled = true
             // isShrinkResources = true
-            if (keystorePropertiesFile.exists()) {
-                signingConfig = signingConfigs.getByName("release")
-            }
+            vcsInfo.include = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -101,10 +102,17 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 
     composeOptions {
         kotlinCompilerExtensionVersion = "1.5.14"
+    }
+
+    bundle {
+        language {
+            enableSplit = false
+        }
     }
 
     packaging {
@@ -112,21 +120,34 @@ android {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
         }
     }
-
     testOptions {
         unitTests.isIncludeAndroidResources = true
     }
+
+    dependenciesInfo {
+        includeInApk = false
+        includeInBundle = false
+    }
+}
+
+tasks.matching { it.name == "compileReleaseArtProfile" }.configureEach {
+    enabled = false
 }
 
 ksp {
     arg("room.schemaLocation", roomSchemaDir.path)
 }
 
+configurations.all {
+    exclude(group = "androidx.profileinstaller", module = "profileinstaller")
+}
+
 dependencies {
     implementation("androidx.core:core-ktx:1.13.1")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.4")
+    implementation("androidx.lifecycle:lifecycle-process:2.8.4")
     implementation("androidx.activity:activity-compose:1.9.1")
-    implementation("androidx.datastore:datastore-preferences:1.1.1")
+    implementation("androidx.datastore:datastore-preferences:1.2.1")
     implementation("androidx.work:work-runtime-ktx:2.9.1")
 
     implementation(platform("androidx.compose:compose-bom:2024.06.00"))
@@ -146,8 +167,10 @@ dependencies {
     implementation("io.coil-kt:coil-compose:2.7.0")
 
     testImplementation("junit:junit:4.13.2")
-    testImplementation("androidx.test:core:1.6.1")
+    testImplementation("androidx.test:core:1.7.0")
     testImplementation("org.robolectric:robolectric:4.15.1")
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.8.1")
+    testImplementation("androidx.work:work-testing:2.9.1")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
@@ -165,12 +188,14 @@ tasks.register<Copy>("exportDebugApk") {
 }
 
 tasks.register<Copy>("exportReleaseApk") {
+    dependsOn("assembleRelease")
     from(layout.buildDirectory.file("outputs/apk/release/app-release.apk"))
     into(exportedApkDir)
     rename { "RSS-Reader-v$resolvedVersionName-release.apk" }
 }
 
 tasks.register<Copy>("exportReleaseBundle") {
+    dependsOn("bundleRelease")
     from(layout.buildDirectory.file("outputs/bundle/release/app-release.aab"))
     into(exportedApkDir)
     rename { "RSS-Reader-v$resolvedVersionName-release.aab" }
@@ -178,14 +203,6 @@ tasks.register<Copy>("exportReleaseBundle") {
 
 tasks.matching { it.name == "assembleDebug" }.configureEach {
     finalizedBy("exportDebugApk")
-}
-
-tasks.matching { it.name == "assembleRelease" }.configureEach {
-    finalizedBy("exportReleaseApk")
-}
-
-tasks.matching { it.name == "bundleRelease" }.configureEach {
-    finalizedBy("exportReleaseBundle")
 }
 
 tasks.register("bumpReleaseVersion") {
@@ -205,10 +222,14 @@ tasks.register("bumpReleaseVersion") {
 
         val buildScriptFile = project.buildFile
         val updatedBuildScript = buildScriptFile.readText()
-            .replace(Regex("""val appVersionCode = \d+"""), "val appVersionCode = $nextVersionCode")
-            .replace(Regex("""val appVersionName = "[^"]+""""), """val appVersionName = "$nextVersionName"""")
+            .replace(
+                Regex("""(?m)^val appVersionCode = \d+$"""),
+                "val appVersionCode = $nextVersionCode"
+            )
+            .replace(
+                Regex("""(?m)^val appVersionName = "[^"]+"$"""),
+                """val appVersionName = "$nextVersionName""""
+            )
         buildScriptFile.writeText(updatedBuildScript)
     }
 }
-
-

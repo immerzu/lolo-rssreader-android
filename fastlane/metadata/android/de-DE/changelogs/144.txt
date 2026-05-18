@@ -1,0 +1,4 @@
+Version 1.87.15: Reproduzierbare Builds fuer F-Droid.
+- ProfileInstaller aus transitiven Abhaengigkeiten entfernt
+- ART-Baseline-Profil-Generierung deaktiviert
+- APK-Inhalt jetzt deterministisch zwischen Build-Umgebungen

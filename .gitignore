@@ -5,6 +5,12 @@ keystore.properties
 *.jks
 *.keystore
 *.p12
+*.pem
+*.key
+*.apk
+*.aab
+*.apks
+*.idsig
 signing/
 build/
 captures/

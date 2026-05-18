@@ -1,0 +1,180 @@
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <string name="common_back">Back</string>
+    <string name="common_ok">OK</string>
+    <string name="common_cancel">Cancel</string>
+    <string name="common_delete">Delete</string>
+    <string name="common_close">Close</string>
+    <string name="common_error">Error</string>
+    <string name="common_save">Save</string>
+    <string name="common_never">never</string>
+    <string name="article_default_title">Article</string>
+
+    <string name="search_title">Search</string>
+    <string name="search_keyword_label">Enter keyword</string>
+    <string name="search_prompt_all_feeds">Search across all feeds by title, excerpt, and feed name.</string>
+    <string name="search_no_results">No matches for "%1$s".</string>
+    <plurals name="search_results_count">
+        <item quantity="one">%1$d result</item>
+        <item quantity="other">%1$d results</item>
+    </plurals>
+
+    <string name="settings_title">Settings</string>
+    <string name="settings_section_notifications">Notifications</string>
+    <string name="settings_notifications_enable_title">Enable notifications</string>
+    <string name="settings_notifications_enable_subtitle">New articles are reported after background refreshes.</string>
+    <string name="settings_section_updates">Updates</string>
+    <string name="settings_refresh_on_start_title">Refresh on startup</string>
+    <string name="settings_refresh_on_start_subtitle">Matches classic RSS reader behavior.</string>
+    <string name="settings_refresh_wifi_only_title">Refresh only on Wi-Fi</string>
+    <string name="settings_refresh_wifi_only_subtitle">Blocks manual and automatic refreshes on mobile data.</string>
+    <string name="settings_background_interval_title">Background refresh interval</string>
+    <string name="settings_background_interval_hint">Note: depending on the Android device, additional system settings may need to be adjusted for more reliable background refreshes, such as background power use or battery optimization.</string>
+    <string name="settings_interval_manual">Manual only</string>
+    <string name="settings_interval_15min">15 minutes</string>
+    <string name="settings_interval_hourly">Hourly</string>
+    <string name="settings_interval_3hours">Every 3 hours</string>
+    <string name="settings_interval_6hours">Every 6 hours</string>
+    <string name="settings_interval_12hours">Every 12 hours</string>
+    <string name="settings_interval_daily">Daily</string>
+    <string name="settings_section_appearance">Appearance</string>
+    <string name="settings_section_language_debug">App language (debug)</string>
+    <string name="settings_language_system">System default</string>
+    <string name="settings_language_german">German</string>
+    <string name="settings_language_english">English</string>
+    <string name="settings_color_scheme_title">Color scheme</string>
+    <string name="settings_theme_system">System default</string>
+    <string name="settings_theme_light">Light mode</string>
+    <string name="settings_theme_dark">Dark mode</string>
+    <string name="settings_entry_sort_title">Show entries</string>
+    <string name="settings_sort_newest">Newest first</string>
+    <string name="settings_sort_oldest">Oldest first</string>
+    <string name="settings_article_text_size_title">Article text size</string>
+    <string name="settings_show_images_title">Show images in reader</string>
+    <string name="settings_show_images_subtitle">Matches the classic text-plus-image reading mode.</string>
+    <string name="notification_new_message_title">New message</string>
+    <string name="notification_new_message_text">New message</string>
+    <string name="notification_new_messages_title">New messages</string>
+    <string name="notification_new_messages_text">New messages</string>
+    <string name="notification_channel_name">RSS updates</string>
+    <string name="notification_channel_description">Notifies about new articles after background refreshes.</string>
+
+    <string name="feed_config_title_edit">Edit feed</string>
+    <string name="feed_config_title_add">Add feed</string>
+    <string name="feed_config_save_failed">Feed could not be saved.</string>
+    <string name="feed_config_url_label">Feed URL</string>
+    <string name="feed_config_display_title_label">Display title</string>
+    <string name="feed_config_delete_title">Delete feed</string>
+    <string name="feed_config_delete_text">The feed and its articles will be removed.</string>
+    <string name="feed_config_delete_failed">Feed could not be deleted.</string>
+    <string name="feed_config_http_not_allowed">This feed uses unencrypted HTTP. For security reasons, the app only allows HTTPS connections.</string>
+
+    <string name="article_list_refresh_failed">Feed could not be refreshed.</string>
+    <string name="article_list_mark_failed">Articles could not be updated.</string>
+    <string name="article_list_favorite_failed">Favorite could not be changed.</string>
+    <string name="article_list_mark_all_read_cd">Mark all as read</string>
+    <string name="article_list_refresh_feed_cd">Refresh feed</string>
+    <plurals name="article_list_unread_count">
+        <item quantity="one">%1$d unread</item>
+        <item quantity="other">%1$d unread</item>
+    </plurals>
+    <string name="article_list_remove_favorite_cd">Remove favorite</string>
+    <string name="article_list_add_favorite_cd">Mark as favorite</string>
+    <string name="article_list_mark_dialog_title">Mark article</string>
+    <string name="article_list_mark_read_failed">Article could not be marked as read.</string>
+    <string name="article_list_mark_unread_failed">Article could not be marked as unread.</string>
+    <string name="article_list_mark_read_action">Read</string>
+    <string name="article_list_mark_unread_action">Unread</string>
+
+    <string name="article_reader_open_browser_cd">Open in browser</string>
+    <string name="article_reader_not_found">Article not found.</string>
+    <string name="article_reader_images_disabled">Images are disabled in settings.</string>
+    <string name="article_reader_no_text">No text content available.</string>
+
+    <string name="shared_no_network_connection">No network connection</string>
+    <string name="shared_wifi_only_refresh">Refresh only over Wi-Fi</string>
+    <string name="shared_import_in_progress">Importing feeds</string>
+    <string name="shared_import_result_success">Import successful</string>
+    <string name="shared_import_result_partial">Not all feeds could be loaded\nErrors: %1$d</string>
+
+    <string name="home_title_move_mode">RSS Reader - Rearrangement mode</string>
+    <string name="home_add_feed_cd">Add feed</string>
+    <string name="home_refresh_running">Updating…</string>
+    <string name="home_refresh_all_feeds_cd">Refresh all feeds</string>
+    <string name="home_menu_cd">Menu</string>
+    <string name="home_menu_search">Search</string>
+    <string name="home_menu_settings">Settings</string>
+    <string name="home_menu_move_mode_disable">Exit rearrangement mode</string>
+    <string name="home_menu_move_mode_enable">Enable rearrangement mode</string>
+    <string name="home_menu_refresh_all">Refresh all feeds</string>
+    <string name="home_menu_mark_all_read">Mark all articles as read</string>
+    <string name="home_menu_mark_all_unread">Mark all articles as unread</string>
+    <string name="home_menu_delete_read">Delete read articles</string>
+    <string name="home_menu_delete_non_favorite">Delete non-favorite articles</string>
+    <string name="home_menu_delete_all_feeds">Delete all feeds</string>
+    <string name="home_menu_import_opml">Import OPML</string>
+    <string name="home_menu_export_opml">Export OPML</string>
+    <string name="home_menu_show_diagnostics">Show technical status</string>
+    <string name="home_move_failed">Feed could not be moved.</string>
+    <string name="home_update_failed">Refresh failed.</string>
+    <string name="home_opml_import_failed">OPML could not be imported.</string>
+    <string name="home_opml_export_failed">OPML could not be exported.</string>
+    <string name="home_entries_mark_failed">Entries could not be updated.</string>
+    <string name="home_entries_reset_failed">Entries could not be reset.</string>
+    <string name="home_diagnostics_failed">Diagnostics could not be loaded.</string>
+    <string name="home_feed_menu_title">Feed menu</string>
+    <string name="home_feed_refresh">Refresh feed</string>
+    <string name="home_feed_refresh_failed">Feed could not be refreshed.</string>
+    <string name="home_feed_mark_read_failed">Feed could not be marked as read.</string>
+    <string name="home_feed_mark_unread_failed">Feed could not be marked as unread.</string>
+    <string name="home_feed_delete_read">Delete read articles</string>
+    <string name="home_feed_delete_non_favorite">Delete non-favorite articles</string>
+    <string name="home_feed_reset_updated_at">Reset refresh date</string>
+    <string name="home_feed_reset_updated_at_success">Refresh date reset</string>
+    <string name="home_feed_reset_updated_at_failed">Refresh date could not be reset.</string>
+    <string name="home_feed_edit">Edit</string>
+    <string name="home_confirm_delete_read_title">Delete read entries</string>
+    <string name="home_confirm_delete_all_entries_title">Delete all entries</string>
+    <string name="home_confirm_delete_all_feeds_title">Delete all feeds</string>
+    <string name="home_confirm_feed_delete_title">Delete feed</string>
+    <string name="home_confirm_feed_delete_read_text">Really delete all read, non-favorite entries from this feed?</string>
+    <string name="home_confirm_feed_delete_all_text">Really delete all non-favorite entries from this feed?</string>
+    <string name="home_confirm_feed_delete_feed_text">Really delete this feed? Favorited entries from this feed will also be removed.</string>
+    <string name="home_confirm_home_delete_read_text">Really delete all read, non-favorite entries?</string>
+    <string name="home_confirm_home_delete_all_text">Really delete all non-favorite entries?</string>
+    <string name="home_confirm_home_delete_feeds_text">Really delete all feeds? This will also remove all articles and favorites.</string>
+    <string name="home_action_failed">Action failed.</string>
+    <string name="home_delete_failed">Delete failed.</string>
+    <string name="home_diagnostics_title">Diagnostics</string>
+    <string name="home_article_label_singular">article</string>
+    <string name="home_article_label_plural">articles</string>
+    <string name="home_feed_label_singular">feed</string>
+    <string name="home_feed_label_plural">feeds</string>
+    <string name="home_feed_article_label_singular">feed article</string>
+    <string name="home_feed_article_label_plural">feed articles</string>
+    <string name="home_entry_label_singular">entry</string>
+    <string name="home_entry_label_plural">entries</string>
+    <string name="home_read_entry_label_singular">read entry</string>
+    <string name="home_read_entry_label_plural">read entries</string>
+    <string name="home_suffix_marked_read">marked as read</string>
+    <string name="home_suffix_marked_unread">marked as unread</string>
+    <string name="home_suffix_deleted">deleted</string>
+    <string name="home_suffix_deleted_in_feed">deleted from feed</string>
+    <string name="home_refresh_summary_base" tools:ignore="PluralsCandidate">Refresh finished: %1$d refreshed, %2$d new</string>
+    <string name="home_refresh_summary_failed_part" tools:ignore="PluralsCandidate">%1$d failed</string>
+    <string name="home_refresh_summary_skipped_part" tools:ignore="PluralsCandidate">%1$d skipped</string>
+    <string name="home_feed_refresh_summary" tools:ignore="PluralsCandidate">Feed refreshed: %1$d new articles</string>
+    <string name="home_export_summary" tools:ignore="PluralsCandidate">OPML exported: %1$d feeds</string>
+    <string name="home_diagnostics_version">Version: %1$s</string>
+    <string name="home_diagnostics_feeds">Feeds: %1$d</string>
+    <string name="home_diagnostics_articles">Articles: %1$d</string>
+    <string name="home_diagnostics_fts_rows">FTS rows: %1$d</string>
+    <string name="home_diagnostics_fts_mode">FTS mode: %1$s</string>
+    <string name="home_diagnostics_fts_manual">manual</string>
+    <string name="home_diagnostics_fts_unknown">unknown</string>
+    <string name="home_diagnostics_last_refresh">Last refresh: refreshed=%1$d, failed=%2$d, skipped=%3$d, new=%4$d</string>
+    <string name="home_diagnostics_last_refresh_none">Last refresh: none</string>
+    <string name="home_diagnostics_last_import">Last import: imported=%1$d, skipped=%2$d, failed=%3$d</string>
+    <string name="home_diagnostics_last_import_none">Last import: none</string>
+    <string name="home_diagnostics_first_failed_suffix">%1$s, firstFailed=%2$s</string>
+    <string name="home_diagnostics_debug_log">Debug log: %1$s</string>
+</resources>

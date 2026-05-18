@@ -1,0 +1,42 @@
+Categories:
+  - News
+  - Reading
+License: Apache-2.0
+AuthorName: immerzu
+SourceCode: https://github.com/immerzu/lolo-rssreader-android
+IssueTracker: https://github.com/immerzu/lolo-rssreader-android/issues
+AutoName: RSS Reader
+RepoType: git
+Repo: https://github.com/immerzu/lolo-rssreader-android
+Binaries: https://github.com/immerzu/lolo-rssreader-android/releases/download/v%v/RSS-Reader-v%v-release.apk
+AllowedAPKSigningKeys: 2fb2657d3215dce8bc1b5a7ad84cf083ea6f3e3cde242fdb65e21d81a3b61e02
+AutoUpdateMode: Version
+UpdateCheckMode: Tags ^v[\d.]+$
+UpdateCheckData: app/build.gradle.kts|val appVersionCode = (\d+)|.|val appVersionName = "([^"]+)"
+CurrentVersion: 1.87.17
+CurrentVersionCode: 146
+Builds:
+  - versionName: 1.87.06
+    versionCode: 136
+    commit: 21be442a7bf9f4d4f9106104e0de5d566625f830
+    subdir: app
+    gradle:
+      - yes
+  - versionName: 1.87.13
+    versionCode: 142
+    commit: 7de5e8dbc3f22387c92526cd622e284c5adb67b5
+    subdir: app
+    gradle:
+      - yes
+  - versionName: 1.87.14
+    versionCode: 143
+    commit: 87362b46b25a275df3210a5bbbeeef65144a8e78
+    subdir: app
+    gradle:
+      - yes
+  - versionName: 1.87.17
+    versionCode: 146
+    commit: 56343e0dfb3a8a0b96f8f5b375b530da93ce23cb
+    subdir: app
+    gradle:
+      - yes

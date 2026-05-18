@@ -1,16 +1,15 @@
-RSS Reader ist ein kompakter, klassischer RSS-Reader fuer Android.
+RSS Reader ist ein kompakter, klassischer RSS-Reader für Android.
 
-Die App sammelt RSS- und Atom-Feeds an einem Ort und zeigt neue Artikel in einer klaren, kompakten Listenansicht an. Neue Beitraege werden lokal gespeichert und koennen direkt in der integrierten Leseransicht gelesen oder im Browser geoeffnet werden.
+Die App sammelt RSS- und Atom-Feeds an einem Ort und zeigt neue Artikel in einer klaren, kompakten Listenansicht an. Neue Beiträge werden lokal gespeichert und lassen sich direkt in der integrierten Leseransicht lesen oder im Browser öffnen.
 
 Funktionen:
 
-* RSS- und Atom-Feeds abonnieren
-* OPML importieren und exportieren
-* Artikel als gelesen oder ungelesen markieren
-* Favoriten vor dem Loeschen schuetzen
-* Heller und dunkler Darstellungsmodus
-* Hintergrundaktualisierung mit Benachrichtigungen
-* Kompakte Leseransicht mit Bildern und Wisch-Navigation
-* Optionale Artikeluebersetzung ueber einen Google-Webdienst
+- RSS- und Atom-Feeds abonnieren
+- OPML-Dateien importieren und exportieren
+- Artikel als gelesen oder ungelesen markieren
+- Favoriten vor dem Löschen schützen
+- Heller und dunkler Modus
+- Hintergrundaktualisierung mit Benachrichtigungen
+- Kompakte Leseransicht mit Bildern und Wisch-Navigation
 
-Die App ist auf eine schlichte, schnelle Feed-Verwaltung ausgelegt.
+Die App ist auf eine einfache, schnelle und übersichtliche Verwaltung von Feeds ausgelegt.

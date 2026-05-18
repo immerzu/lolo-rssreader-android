@@ -1,0 +1,1 @@
+Version 1.87.06 verbessert Einstellungen, Reader-Haertung und sichtbare deutsche UI-Texte.

@@ -41,17 +41,18 @@ Vor einem Release diese Punkte einmal komplett testen:
 Im Projektordner:
 
 ```powershell
-cd D:\Codex\RSS_Reader_Android\rss_reader_full_project
+cd F:\Codex\RSS_Reader_Android\rss_reader_full_project
 .\gradlew.bat testDebugUnitTest
 .\gradlew.bat assembleDebug
+.\gradlew.bat assembleRelease
 ```
 
-Wenn alles sauber ist, danach erst Release bauen.
+Wenn alles sauber ist, ist auch der Release-Build einmal technisch gegengeprueft.
 
 ## 4. Release bauen
 
 ```powershell
-cd D:\Codex\RSS_Reader_Android\rss_reader_full_project
+cd F:\Codex\RSS_Reader_Android\rss_reader_full_project
 .\gradlew.bat assembleRelease
 ```
 
@@ -65,7 +66,7 @@ Optional fuer Play Store:
 
 Im Ordner:
 
-`D:\Codex\RSS_Reader_Android\Ausgabe_APK`
+`F:\Codex\RSS_Reader_Android\Ausgabe_APK`
 
 pruefen, ob vorhanden:
 
@@ -84,9 +85,9 @@ Zusatzpruefung:
 - F-Droid-Index aktualisieren:
 
 ```powershell
-cd D:\Codex\RSS_Reader_Android\fdroid_repo
+cd F:\Codex\RSS_Reader_Android\fdroid_repo
 python -m fdroidserver update -c --rename-apks
-robocopy D:\Codex\RSS_Reader_Android\fdroid_repo\repo D:\Codex\RSS_Reader_Android\fdroid_publish_site\repo /MIR
+robocopy F:\Codex\RSS_Reader_Android\fdroid_repo\repo F:\Codex\RSS_Reader_Android\fdroid_publish_site\repo /MIR
 ```
 
 - Danach `fdroid_publish_site` nach GitHub hochladen.
