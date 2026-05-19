@@ -6,12 +6,12 @@ param(
     [string]$mode = "compact"
 )
 
-$excludeDirs = @('build', '.gradle', '.idea', '.git', 'signing', 'Ausgabe_APK', '!Backups', 'Release_Versionen', 'old_Versionen')
-$excludeFiles = @('local.properties', 'keystore.properties')
+$excludeDirs = @('build', '.gradle', '.idea', '.git', 'signing', 'Ausgabe_APK', '!Backups', 'Release_Versionen', 'old_Versionen', '.android')
+$excludeFiles = @('local.properties', 'keystore.properties', 'analytics.settings', 'debug.keystore', 'debug.keystore.lock', 'adbkey', 'adbkey.pub')
 $binaryExt = @(
     '.apk', '.aab', '.apks', '.idsig', '.jar', '.keystore', '.jks', '.p12', '.pem', '.key', '.png', '.jpg', '.jpeg', '.webp',
     '.gif', '.bmp', '.ico', '.so', '.ttf', '.otf', '.mp3', '.mp4', '.wav', '.pdf', '.class',
-    '.dex', '.db', '.kotlin_module', '.aar'
+    '.dex', '.db', '.kotlin_module', '.aar', '.log', '.tmp', '.bak'
 )
 
 $sensitiveContentPatterns = @(

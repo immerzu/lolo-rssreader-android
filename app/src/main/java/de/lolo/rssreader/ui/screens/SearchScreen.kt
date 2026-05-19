@@ -33,11 +33,10 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Shadow
-import androidx.compose.ui.geometry.Offset
+
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.TextStyle
+
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -154,19 +153,7 @@ private fun SearchResultItem(
     } else {
         Color.White
     }
-    val titleStyle = if (result.isRead) {
-        MaterialTheme.typography.titleMedium
-    } else {
-        MaterialTheme.typography.titleMedium.merge(
-            TextStyle(
-                shadow = Shadow(
-                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.38f),
-                    offset = Offset(0f, 0f),
-                    blurRadius = 10f
-                )
-            )
-        )
-    }
+    val titleStyle = MaterialTheme.typography.titleMedium
 
     Column(
         modifier = Modifier

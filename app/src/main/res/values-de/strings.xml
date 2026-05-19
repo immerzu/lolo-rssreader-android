@@ -177,4 +177,13 @@
     <string name="home_diagnostics_last_import_none">Letzter Import: keiner</string>
     <string name="home_diagnostics_first_failed_suffix">%1$s, firstFailed=%2$s</string>
     <string name="home_diagnostics_debug_log">Debug-Log: %1$s</string>
+
+    <string name="feed_list_loading">Feeds werden geladen…</string>
+    <string name="feed_list_empty_title">Noch keine Feeds angelegt.</string>
+    <string name="feed_list_empty_subtitle">Lege oben rechts einen Feed an und aktualisiere ihn von dort.</string>
+    <string name="feed_list_move_mode_hint">Verschiebemodus aktiv. Sortiere die Feeds mit den Pfeilen.</string>
+    <string name="feed_list_updated_label">Aktualisiert: </string>
+    <string name="feed_list_unread_suffix">ungelesen</string>
+    <string name="feed_list_wifi_label">WLAN</string>
+    <string name="feed_list_sync_label">Sync…</string>
 </resources>

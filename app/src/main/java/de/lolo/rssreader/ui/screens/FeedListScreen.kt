@@ -35,7 +35,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import de.lolo.rssreader.R
 import de.lolo.rssreader.data.db.FeedSummary
 import de.lolo.rssreader.debug.DebugLogger
 import de.lolo.rssreader.ui.formatFeedUpdatedAt
@@ -79,7 +81,7 @@ fun FeedListScreen(
             ) {
                 CircularProgressIndicator()
                 Text(
-                    "Feeds werden geladen...",
+                    stringResource(R.string.feed_list_loading),
                     style = MaterialTheme.typography.titleMedium
                 )
             }
@@ -98,9 +100,9 @@ fun FeedListScreen(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Text("Noch keine Feeds angelegt.", style = MaterialTheme.typography.titleMedium)
+                Text(stringResource(R.string.feed_list_empty_title), style = MaterialTheme.typography.titleMedium)
                 Text(
-                    "Lege oben rechts einen Feed an und aktualisiere ihn von dort.",
+                    stringResource(R.string.feed_list_empty_subtitle),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center
@@ -114,7 +116,7 @@ fun FeedListScreen(
         if (isMoveMode) {
             item(key = "move-mode-hint") {
                 Text(
-                    text = "Verschiebemodus aktiv. Sortiere die Feeds mit den Pfeilen.",
+                    text = stringResource(R.string.feed_list_move_mode_hint),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
@@ -178,6 +180,10 @@ fun FeedListScreen(
                     } else {
                         MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.48f)
                     }
+                    val updatedLabel = stringResource(R.string.feed_list_updated_label)
+                    val unreadSuffix = stringResource(R.string.feed_list_unread_suffix)
+                    val wifiLabel = stringResource(R.string.feed_list_wifi_label)
+                    val syncLabel = stringResource(R.string.feed_list_sync_label)
                     Text(
                         text = feed.displayTitle,
                         style = MaterialTheme.typography.titleMedium,
@@ -188,18 +194,21 @@ fun FeedListScreen(
                     )
                     Text(
                         text = buildString {
-                            append("Aktualisiert: ")
+                            append(updatedLabel)
                             append(formatFeedUpdatedAt(feed.lastFetchedAt))
                             append(", ")
                             append(feed.unreadArticles)
                             append("/")
                             append(feed.totalArticles)
-                            append(" ungelesen")
+                            append(' ')
+                            append(unreadSuffix)
                             if (feed.wifiOnly) {
-                                append("  WLAN")
+                                append(' ')
+                                append(wifiLabel)
                             }
                             if (isRefreshing) {
-                                append("  Sync...")
+                                append(' ')
+                                append(syncLabel)
                             }
                         },
                         style = MaterialTheme.typography.bodyMedium,

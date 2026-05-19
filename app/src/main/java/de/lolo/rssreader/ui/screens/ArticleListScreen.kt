@@ -49,10 +49,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Shadow
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import de.lolo.rssreader.R
@@ -272,9 +269,8 @@ fun ArticleListScreen(
                 }
                 itemsIndexed(
                     items = sortedArticles,
-                    // Defensive keying: einzelne Feed-Quellen koennen unruhige Listenzustaende
-                    // ausloesen. Mit Index+ID bleibt der Key innerhalb der aktuellen Liste sicher eindeutig.
-                    key = { index, item -> "article-${item.id}-$index" }
+                    key = { _, item -> item.id },
+                    contentType = { _, _ -> "article" }
                 ) { _, item ->
                     val titleColor = if (item.isRead) {
                         MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.62f)
@@ -291,19 +287,7 @@ fun ArticleListScreen(
                     } else {
                         MaterialTheme.colorScheme.primary.copy(alpha = 0.95f)
                     }
-                    val titleStyle = if (item.isRead) {
-                        MaterialTheme.typography.titleMedium
-                    } else {
-                        MaterialTheme.typography.titleMedium.merge(
-                            TextStyle(
-                                shadow = Shadow(
-                                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.45f),
-                                    offset = Offset(0f, 0f),
-                                    blurRadius = 12f
-                                )
-                            )
-                        )
-                    }
+                    val titleStyle = MaterialTheme.typography.titleMedium
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()

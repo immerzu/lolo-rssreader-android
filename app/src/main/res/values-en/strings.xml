@@ -177,4 +177,13 @@
     <string name="home_diagnostics_last_import_none">Last import: none</string>
     <string name="home_diagnostics_first_failed_suffix">%1$s, firstFailed=%2$s</string>
     <string name="home_diagnostics_debug_log">Debug log: %1$s</string>
+
+    <string name="feed_list_loading">Loading feeds…</string>
+    <string name="feed_list_empty_title">No feeds added yet.</string>
+    <string name="feed_list_empty_subtitle">Add a feed using the + button and update it from there.</string>
+    <string name="feed_list_move_mode_hint">Reorder mode active. Sort feeds with the arrows.</string>
+    <string name="feed_list_updated_label">Updated: </string>
+    <string name="feed_list_unread_suffix">unread</string>
+    <string name="feed_list_wifi_label">Wi-Fi</string>
+    <string name="feed_list_sync_label">Syncing…</string>
 </resources>
