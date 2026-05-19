@@ -45,6 +45,9 @@ Weitere sinnvolle Analyseschritte:
 - [x] Scroll-Verhalten in ArticleListScreen analysiert (3 Teilverbesserungen, nicht behoben)
 - [x] SearchScreen-Shadow entfernt (konsistent mit ArticleListScreen)
 - [x] FeedListScreen-UI-Texte lokalisiert (8 Strings → DE/EN)
+- [x] Toggle "Nur ungelesene Artikel" in Feed-Ansicht (lokaler UI-State, kein Persist)
+- [x] ArticleReader-Linkfix: mailto öffnet Mail-App, fragment-only (#comments) und
+      relative Links werden gegen articleUrl aufgelöst, gefährliche Schemes blockiert
 - [ ] Ggf. kleine visuelle Politur, falls beim Gerätetest auffällig
 
 ## Technisches

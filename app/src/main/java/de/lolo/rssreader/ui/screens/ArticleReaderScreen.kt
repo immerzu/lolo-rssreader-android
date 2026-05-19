@@ -3,6 +3,8 @@ package de.lolo.rssreader.ui.screens
 import android.annotation.SuppressLint
 import android.content.Intent
 import android.net.Uri
+import android.os.SystemClock
+import android.view.ViewConfiguration
 
 import android.text.format.DateUtils
 import android.text.TextUtils
@@ -435,6 +437,7 @@ fun ArticleReaderScreen(
                                                     webSwipeTracker.startY = motionEvent.y
                                                     webSwipeTracker.deltaX = 0f
                                                     webSwipeTracker.deltaY = 0f
+                                                    webSwipeTracker.downTimeMs = SystemClock.uptimeMillis()
                                                     showSwipeHint = false
                                                     false
                                                 }
@@ -446,18 +449,21 @@ fun ArticleReaderScreen(
                                                 }
 
                                                 MotionEvent.ACTION_UP -> {
-                                                    val swipeResult = determineHorizontalSwipeDirection(
-                                                        totalHorizontalDrag = webSwipeTracker.deltaX,
-                                                        totalVerticalDrag = webSwipeTracker.deltaY,
-                                                        canGoNewer = newerArticleId != null,
-                                                        canGoOlder = olderArticleId != null
-                                                    )
-
-                                                    if (swipeResult != SwipeDirection.None) {
-                                                        triggerSwipe(swipeResult)
+                                                    val gestureDurationMs = SystemClock.uptimeMillis() - webSwipeTracker.downTimeMs
+                                                    val isLongPress = gestureDurationMs >= ViewConfiguration.getLongPressTimeout()
+                                                    if (!isLongPress) {
+                                                        val swipeResult = determineHorizontalSwipeDirection(
+                                                            totalHorizontalDrag = webSwipeTracker.deltaX,
+                                                            totalVerticalDrag = webSwipeTracker.deltaY,
+                                                            canGoNewer = newerArticleId != null,
+                                                            canGoOlder = olderArticleId != null
+                                                        )
+                                                        if (swipeResult != SwipeDirection.None) {
+                                                            triggerSwipe(swipeResult)
+                                                        }
                                                     }
                                                     webSwipeTracker.reset()
-                                                    swipeResult != SwipeDirection.None
+                                                    false
                                                 }
 
                                                 MotionEvent.ACTION_CANCEL -> {
@@ -737,6 +743,32 @@ private fun buildReaderHtml(
                 window.location.href = articleUrl;
               });
             }
+            // Redirect fragment-only and mailto links through the external-open scheme
+            // so they reliably trigger shouldOverrideUrlLoading.
+            // Intercept all link clicks (except already-handled title and image links)
+            // and route them through the external-open scheme for reliable handling.
+            document.body.addEventListener('click', function(event) {
+              var link = event.target;
+              while (link && link.tagName !== 'A') {
+                link = link.parentElement;
+              }
+              if (link && link.tagName === 'A') {
+                // Skip the title link (already handled by its own listener).
+                if (link.parentElement && link.parentElement.tagName === 'H1') return;
+                // Skip image-wrapper links (already handled by the img listener).
+                if (link.querySelector('img')) return;
+                var href = link.getAttribute('href');
+                if (!href) return;
+                var lower = href.trim().toLowerCase();
+                // Skip javascript:/intent: etc. — let WebView security handle them.
+                if (lower.startsWith('javascript:') || lower.startsWith('intent:') ||
+                    lower.startsWith('file:') || lower.startsWith('data:') ||
+                    lower.startsWith('vbscript:')) return;
+                event.preventDefault();
+                event.stopPropagation();
+                window.location.href = 'rssreader-article://open?url=' + encodeURIComponent(href);
+              }
+            }, true);
           });
         </script>
         """
@@ -1059,7 +1091,10 @@ private fun String.normalizeReaderBodyHtml(loadProfile: ReaderLoadProfile): Stri
 }
 
 private fun String.requiresReaderJavaScript(): Boolean {
-    return contains(IMAGE_TAP_SCHEME) || contains("platform.twitter.com/widgets.js")
+    return contains(IMAGE_TAP_SCHEME) || contains("platform.twitter.com/widgets.js") ||
+        contains("href=\"#", ignoreCase = true) || contains("href='#", ignoreCase = true) ||
+        contains("href=\"http", ignoreCase = true) || contains("href='http", ignoreCase = true) ||
+        contains("mailto:", ignoreCase = true)
 }
 
 private fun analyzeReaderLoad(article: ArticleEntity?): ReaderLoadProfile {
@@ -1256,13 +1291,15 @@ private fun openArticleInBrowser(context: android.content.Context, articleLink: 
         ?.takeIf { uri -> isReaderExternallyOpenableScheme(uri.scheme) }
         ?: return
 
-    DebugLogger.i(TAG, "Externer Browser wird geoeffnet: $targetUri")
+    val intent = if (targetUri.scheme == "mailto") {
+        Intent(Intent.ACTION_SENDTO, targetUri)
+    } else {
+        Intent(Intent.ACTION_VIEW, targetUri)
+    }
     runCatching {
-        context.startActivity(
-            Intent(Intent.ACTION_VIEW, targetUri).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        )
+        context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
     }.onFailure {
-        DebugLogger.w(TAG, "Browser konnte nicht geoeffnet werden: $targetUri", it)
+        DebugLogger.w(TAG, "Link konnte nicht geoeffnet werden: $targetUri", it)
     }
 }
 
@@ -1405,8 +1442,11 @@ private const val READER_WEBVIEW_BASE_URL = "https://localhost/"
 private const val ARTICLE_SWITCH_ANIMATION_MS = 280
 private const val ARTICLE_SWITCH_FADE_IN_MS = 180
 private const val ARTICLE_SWITCH_FADE_OUT_MS = 140
-private const val ARTICLE_SWIPE_THRESHOLD_PX = 80f
-private const val ARTICLE_SWIPE_DIRECTION_BIAS = 1.35f
+// Swipe-Schwelle erhoeht, damit Textauswahl/Markieren nicht versehentlich
+// als Artikelwechsel gewertet wird. Horizontal muss nun laenger und klarer
+// dominant sein als zuvor.
+private const val ARTICLE_SWIPE_THRESHOLD_PX = 120f
+private const val ARTICLE_SWIPE_DIRECTION_BIAS = 1.75f
 private const val SWIPE_HINT_DURATION_MS = 2400
 private const val READER_HEAVY_HTML_LENGTH_THRESHOLD = 60000
 private const val READER_HEAVY_IMAGE_COUNT_THRESHOLD = 12
@@ -1491,7 +1531,7 @@ private val readerAccessibilityAttributeRegex = Regex(
     "\\s(?:role\\s*=\\s*(?:\"[^\"]*\"|'[^']*'|[^\\s>]+)|aria-label\\s*=\\s*(?:\"[^\"]*\"|'[^']*'|[^\\s>]+)|aria-labelledby\\s*=\\s*(?:\"[^\"]*\"|'[^']*'|[^\\s>]+)|aria-describedby\\s*=\\s*(?:\"[^\"]*\"|'[^']*'|[^\\s>]+)|aria-hidden\\s*=\\s*(?:\"[^\"]*\"|'[^']*'|[^\\s>]+))",
     RegexOption.IGNORE_CASE
 )
-private val READER_EXTERNAL_OPENABLE_SCHEMES = setOf("http", "https")
+private val READER_EXTERNAL_OPENABLE_SCHEMES = setOf("http", "https", "mailto")
 private val READER_BLOCKED_SUBRESOURCE_SCHEMES =
     setOf("file", "content", "intent", "vbscript", "javascript")
 private val readerInlineEventHandlerRegex = Regex(
@@ -1521,12 +1561,14 @@ private class WebSwipeTracker {
     var startY: Float = 0f
     var deltaX: Float = 0f
     var deltaY: Float = 0f
+    var downTimeMs: Long = 0L
 
     fun reset() {
         startX = 0f
         startY = 0f
         deltaX = 0f
         deltaY = 0f
+        downTimeMs = 0L
     }
 }
 
@@ -1538,23 +1580,28 @@ private fun Modifier.fallbackSwipe(
 ): Modifier {
     return this.pointerInput(newerArticleId, olderArticleId) {
         var totalHorizontalDrag = 0f
+        var downTimeMs = 0L
         detectHorizontalDragGestures(
             onDragStart = {
                 totalHorizontalDrag = 0f
+                downTimeMs = SystemClock.uptimeMillis()
                 onSwipeStart()
             },
             onHorizontalDrag = { _, dragAmount ->
                 totalHorizontalDrag += dragAmount
             },
             onDragEnd = {
-                val swipeResult = determineHorizontalSwipeDirection(
-                    totalHorizontalDrag = totalHorizontalDrag,
-                    totalVerticalDrag = 0f,
-                    canGoNewer = newerArticleId != null,
-                    canGoOlder = olderArticleId != null
-                )
-                if (swipeResult != SwipeDirection.None) {
-                    onSwipeTrigger(swipeResult)
+                val gestureDurationMs = SystemClock.uptimeMillis() - downTimeMs
+                if (gestureDurationMs < ViewConfiguration.getLongPressTimeout()) {
+                    val swipeResult = determineHorizontalSwipeDirection(
+                        totalHorizontalDrag = totalHorizontalDrag,
+                        totalVerticalDrag = 0f,
+                        canGoNewer = newerArticleId != null,
+                        canGoOlder = olderArticleId != null
+                    )
+                    if (swipeResult != SwipeDirection.None) {
+                        onSwipeTrigger(swipeResult)
+                    }
                 }
             },
             onDragCancel = {}
@@ -1586,6 +1633,30 @@ internal fun determineHorizontalSwipeDirection(
         totalHorizontalDrag >= ARTICLE_SWIPE_THRESHOLD_PX && canGoNewer -> SwipeDirection.ToNewer
         totalHorizontalDrag <= -ARTICLE_SWIPE_THRESHOLD_PX && canGoOlder -> SwipeDirection.ToOlder
         else -> SwipeDirection.None
+    }
+}
+
+internal fun resolveArticleLinkForExternalOpen(rawHref: String?, articleUrl: String?): String? {
+    val href = rawHref?.trim().orEmpty()
+    if (href.isBlank()) return null
+    val lower = href.lowercase()
+    if (lower.startsWith("javascript:") || lower.startsWith("intent:") ||
+        lower.startsWith("file:") || lower.startsWith("data:") ||
+        lower.startsWith("vbscript:")) {
+        return null
+    }
+    if (lower.startsWith("http://") || lower.startsWith("https://") ||
+        lower.startsWith("mailto:")) {
+        return href
+    }
+    val base = articleUrl?.trim()?.takeIf { it.isNotBlank() }
+        ?.let { runCatching { URI(it) }.getOrNull() }
+    if (base == null) return null
+    val resolved = base.resolve(href).toString()
+    val resolvedScheme = URI(resolved).scheme?.lowercase().orEmpty()
+    return when (resolvedScheme) {
+        "http", "https", "mailto" -> resolved
+        else -> null
     }
 }
 

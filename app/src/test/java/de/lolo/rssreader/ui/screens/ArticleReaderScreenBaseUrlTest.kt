@@ -13,7 +13,20 @@ class ArticleReaderScreenBaseUrlTest {
         assertEquals(
             SwipeDirection.ToNewer,
             determineHorizontalSwipeDirection(
-                totalHorizontalDrag = 100f,
+                totalHorizontalDrag = 140f,
+                totalVerticalDrag = 10f,
+                canGoNewer = true,
+                canGoOlder = true
+            )
+        )
+    }
+
+    @Test
+    fun determineHorizontalSwipeDirectionDetectsOlderSwipe() {
+        assertEquals(
+            SwipeDirection.ToOlder,
+            determineHorizontalSwipeDirection(
+                totalHorizontalDrag = -140f,
                 totalVerticalDrag = 10f,
                 canGoNewer = true,
                 canGoOlder = true
@@ -26,8 +39,37 @@ class ArticleReaderScreenBaseUrlTest {
         assertEquals(
             SwipeDirection.None,
             determineHorizontalSwipeDirection(
-                totalHorizontalDrag = 90f,
-                totalVerticalDrag = 90f,
+                totalHorizontalDrag = 100f,
+                totalVerticalDrag = 100f,
+                canGoNewer = true,
+                canGoOlder = true
+            )
+        )
+    }
+
+    @Test
+    fun determineHorizontalSwipeDirectionIgnoresDiagonalTextSelection() {
+        // Diagonale Bewegung wie beim Textmarkieren: horizontal dominant, aber
+        // nicht genug, um den 1.75f-Bias zu ueberwinden.
+        assertEquals(
+            SwipeDirection.None,
+            determineHorizontalSwipeDirection(
+                totalHorizontalDrag = 130f,
+                totalVerticalDrag = 80f,
+                canGoNewer = true,
+                canGoOlder = true
+            )
+        )
+    }
+
+    @Test
+    fun determineHorizontalSwipeDirectionRequiresMinimumDistance() {
+        // Unterhalb der 120px-Schwelle kein Swipe.
+        assertEquals(
+            SwipeDirection.None,
+            determineHorizontalSwipeDirection(
+                totalHorizontalDrag = 100f,
+                totalVerticalDrag = 0f,
                 canGoNewer = true,
                 canGoOlder = true
             )
@@ -78,12 +120,19 @@ class ArticleReaderScreenBaseUrlTest {
     }
 
     @Test
-    fun isReaderExternallyOpenableSchemeAllowsHttpAndHttpsOnly() {
+    fun isReaderExternallyOpenableSchemeAllowsHttpHttpsAndMailto() {
         assertTrue(isReaderExternallyOpenableScheme("http"))
         assertTrue(isReaderExternallyOpenableScheme("https"))
+        assertTrue(isReaderExternallyOpenableScheme("mailto"))
         assertFalse(isReaderExternallyOpenableScheme("intent"))
         assertFalse(isReaderExternallyOpenableScheme("javascript"))
         assertFalse(isReaderExternallyOpenableScheme("content"))
+    }
+
+    @Test
+    fun isReaderExternallyOpenableSchemeAllowsHttpsUrlWithFragment() {
+        // Fragment beeinflusst die Scheme-Erkennung nicht – https bleibt https.
+        assertTrue(isReaderExternallyOpenableScheme("https"))
     }
 
     @Test
@@ -466,6 +515,84 @@ class ArticleReaderScreenBaseUrlTest {
             plainText = plainText,
             contentHtml = "",
             imageUrls = ""
+        )
+    }
+
+    @Test
+    fun resolveArticleLinkAllowsAbsoluteHttpsWithFragment() {
+        assertEquals(
+            "https://example.com/post#comments",
+            resolveArticleLinkForExternalOpen(
+                "https://example.com/post#comments",
+                "https://example.com/"
+            )
+        )
+    }
+
+    @Test
+    fun resolveArticleLinkResolvesFragmentOnlyAgainstArticleUrl() {
+        assertEquals(
+            "https://example.com/post/#comments",
+            resolveArticleLinkForExternalOpen(
+                "#comments",
+                "https://example.com/post/"
+            )
+        )
+    }
+
+    @Test
+    fun resolveArticleLinkResolvesRootRelativeFragment() {
+        assertEquals(
+            "https://example.com/post/#comments",
+            resolveArticleLinkForExternalOpen(
+                "/post/#comments",
+                "https://example.com/"
+            )
+        )
+    }
+
+    @Test
+    fun resolveArticleLinkAllowsMailto() {
+        assertEquals(
+            "mailto:test@example.com",
+            resolveArticleLinkForExternalOpen(
+                "mailto:test@example.com",
+                "https://example.com/"
+            )
+        )
+    }
+
+    @Test
+    fun resolveArticleLinkBlocksJavascript() {
+        assertEquals(
+            null,
+            resolveArticleLinkForExternalOpen(
+                "javascript:alert(1)",
+                "https://example.com/"
+            )
+        )
+    }
+
+    @Test
+    fun resolveArticleLinkBlocksIntent() {
+        assertEquals(
+            null,
+            resolveArticleLinkForExternalOpen(
+                "intent://example",
+                "https://example.com/"
+            )
+        )
+    }
+
+    @Test
+    fun resolveArticleLinkReturnsNullForBlankHref() {
+        assertEquals(
+            null,
+            resolveArticleLinkForExternalOpen("", "https://example.com/")
+        )
+        assertEquals(
+            null,
+            resolveArticleLinkForExternalOpen(null, "https://example.com/")
         )
     }
 }

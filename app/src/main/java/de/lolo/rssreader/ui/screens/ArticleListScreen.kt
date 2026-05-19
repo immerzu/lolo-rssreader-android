@@ -17,6 +17,7 @@ import androidx.compose.material.ExperimentalMaterialApi
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.DoneAll
+import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.StarOutline
 import androidx.compose.material.pullrefresh.PullRefreshIndicator
@@ -99,6 +100,10 @@ fun ArticleListScreen(
         }
     }
     val unreadCount = remember(articles) { articles.count { !it.isRead } }
+    var showUnreadOnly by rememberSaveable { mutableStateOf(false) }
+    val visibleArticles = remember(sortedArticles, showUnreadOnly) {
+        if (showUnreadOnly) sortedArticles.filter { !it.isRead } else sortedArticles
+    }
     val scope = rememberCoroutineScope()
     var isRefreshing by rememberSaveable { mutableStateOf(false) }
     var showRefreshIndicator by rememberSaveable { mutableStateOf(false) }
@@ -212,6 +217,23 @@ fun ArticleListScreen(
                 },
                 actions = {
                     IconButton(
+                        onClick = { showUnreadOnly = !showUnreadOnly }
+                    ) {
+                        Icon(
+                            Icons.Default.FilterList,
+                            contentDescription = if (showUnreadOnly) {
+                                stringResource(R.string.article_list_filter_show_all_cd)
+                            } else {
+                                stringResource(R.string.article_list_filter_unread_only_cd)
+                            },
+                            tint = if (showUnreadOnly) {
+                                MaterialTheme.colorScheme.primary
+                            } else {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            }
+                        )
+                    }
+                    IconButton(
                         onClick = {
                             DebugLogger.i(logTag, "Alle Artikel als gelesen: feedId=$feedId")
                             scope.launch {
@@ -250,6 +272,20 @@ fun ArticleListScreen(
                 .fillMaxSize()
                 .padding(padding)
         ) {
+            if (showUnreadOnly && visibleArticles.isEmpty() && articles.isNotEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(24.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        stringResource(R.string.article_list_no_unread_articles),
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            } else {
             LazyColumn(
                 modifier = Modifier
                     .fillMaxSize()
@@ -268,7 +304,7 @@ fun ArticleListScreen(
                     )
                 }
                 itemsIndexed(
-                    items = sortedArticles,
+                    items = visibleArticles,
                     key = { _, item -> item.id },
                     contentType = { _, _ -> "article" }
                 ) { _, item ->
@@ -390,6 +426,7 @@ fun ArticleListScreen(
                     HorizontalDivider()
                 }
             }
+            } // end else (filtered-empty vs list)
             PullRefreshIndicator(
                 refreshing = showRefreshIndicator,
                 state = pullRefreshState,

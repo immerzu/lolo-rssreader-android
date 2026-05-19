@@ -186,4 +186,8 @@
     <string name="feed_list_unread_suffix">unread</string>
     <string name="feed_list_wifi_label">Wi-Fi</string>
     <string name="feed_list_sync_label">Syncing…</string>
+
+    <string name="article_list_filter_unread_only_cd">Show unread articles only</string>
+    <string name="article_list_filter_show_all_cd">Show all articles</string>
+    <string name="article_list_no_unread_articles">No unread articles.</string>
 </resources>
