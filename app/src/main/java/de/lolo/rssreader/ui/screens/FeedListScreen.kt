@@ -27,6 +27,10 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.Alignment
@@ -43,7 +47,10 @@ import de.lolo.rssreader.debug.DebugLogger
 import de.lolo.rssreader.ui.formatFeedUpdatedAt
 import coil.compose.SubcomposeAsyncImage
 import coil.compose.SubcomposeAsyncImageContent
+import kotlinx.coroutines.delay
 import java.net.URI
+
+private const val FEED_LIST_LOADING_DELAY_MS = 400L
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -64,8 +71,22 @@ fun FeedListScreen(
             "state feedsLoaded=$feedsLoaded, feedCount=${feeds.size}, isRefreshing=$isRefreshing, isMoveMode=$isMoveMode"
         )
     }
+    var showLoadingPlaceholder by remember { mutableStateOf(false) }
+    LaunchedEffect(feedsLoaded) {
+        if (feedsLoaded) {
+            showLoadingPlaceholder = false
+        } else {
+            showLoadingPlaceholder = false
+            delay(FEED_LIST_LOADING_DELAY_MS)
+            showLoadingPlaceholder = true
+        }
+    }
 
     if (!feedsLoaded) {
+        if (!showLoadingPlaceholder) {
+            Box(modifier = modifier.fillMaxSize())
+            return
+        }
         LaunchedEffect(Unit) {
             DebugLogger.i("FeedListScreen", "Ladezustand gerendert, weil feedsLoaded=false")
         }
