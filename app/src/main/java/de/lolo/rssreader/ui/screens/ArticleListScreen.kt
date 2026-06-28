@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.ExperimentalMaterialApi
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -44,6 +45,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -63,7 +65,12 @@ import de.lolo.rssreader.debug.DebugLogger
 import de.lolo.rssreader.ui.formatRelativeTime
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
+
+private object ArticleListScreenArticleCache {
+    val lastArticlesByFeedId = mutableMapOf<Long, List<ArticleEntity>>()
+}
 
 @OptIn(
     ExperimentalMaterial3Api::class,
@@ -82,7 +89,17 @@ fun ArticleListScreen(
     val logTag = "ArticleListScreen"
     val context = LocalContext.current
     val feed by repository.observeFeed(feedId).collectAsState(initial = null)
-    val articles by repository.observeArticles(feedId).collectAsState(initial = emptyList())
+    val observedArticles by repository.observeArticles(feedId).collectAsState(initial = null)
+    var lastVisibleArticles by remember(feedId) {
+        mutableStateOf(ArticleListScreenArticleCache.lastArticlesByFeedId[feedId].orEmpty())
+    }
+    LaunchedEffect(feedId, observedArticles) {
+        observedArticles?.let { loadedArticles ->
+            lastVisibleArticles = loadedArticles
+            ArticleListScreenArticleCache.lastArticlesByFeedId[feedId] = loadedArticles
+        }
+    }
+    val articles = observedArticles ?: lastVisibleArticles
     val sortedArticles = remember(articles, entrySortOrder) {
         when (entrySortOrder) {
             EntrySortOrder.NEWEST_FIRST -> {
@@ -111,6 +128,13 @@ fun ArticleListScreen(
     var errorMessage by rememberSaveable { mutableStateOf<String?>(null) }
     var selectedArticleId by rememberSaveable { mutableStateOf<Long?>(null) }
     var refreshStatusText by rememberSaveable { mutableStateOf<String?>(null) }
+    var savedFirstVisibleItemIndex by rememberSaveable(feedId) { mutableIntStateOf(0) }
+    var savedFirstVisibleItemScrollOffset by rememberSaveable(feedId) { mutableIntStateOf(0) }
+    var restoreApplied by remember(feedId) { mutableStateOf(false) }
+    val listState = rememberLazyListState(
+        initialFirstVisibleItemIndex = savedFirstVisibleItemIndex,
+        initialFirstVisibleItemScrollOffset = savedFirstVisibleItemScrollOffset
+    )
     fun showRefreshIndicatorBriefly() {
         val token = refreshIndicatorToken + 1
         refreshIndicatorToken = token
@@ -174,6 +198,33 @@ fun ArticleListScreen(
         refreshing = showRefreshIndicator,
         onRefresh = refreshFeed
     )
+
+    LaunchedEffect(feedId, listState) {
+        snapshotFlow {
+            listState.firstVisibleItemIndex to listState.firstVisibleItemScrollOffset
+        }
+            .distinctUntilChanged()
+            .collect { (index, offset) ->
+                savedFirstVisibleItemIndex = index
+                savedFirstVisibleItemScrollOffset = offset
+            }
+    }
+
+    LaunchedEffect(feedId, visibleArticles.size, showUnreadOnly, articles.size) {
+        val listIsVisible = !showUnreadOnly || visibleArticles.isNotEmpty() || articles.isEmpty()
+        if (!restoreApplied && listIsVisible) {
+            val itemCount = visibleArticles.size + 1
+            if (itemCount > 0) {
+                val targetIndex = savedFirstVisibleItemIndex.coerceAtMost(itemCount - 1)
+                listState.scrollToItem(targetIndex, savedFirstVisibleItemScrollOffset)
+                restoreApplied = true
+                DebugLogger.d(
+                    logTag,
+                    "Scrollposition wiederhergestellt: feedId=$feedId, index=$targetIndex, offset=$savedFirstVisibleItemScrollOffset"
+                )
+            }
+        }
+    }
 
     LaunchedEffect(feedId, isRefreshing, showRefreshIndicator, refreshStatusText) {
         DebugLogger.d(
@@ -287,6 +338,7 @@ fun ArticleListScreen(
                 }
             } else {
             LazyColumn(
+                state = listState,
                 modifier = Modifier
                     .fillMaxSize()
                     .pullRefresh(pullRefreshState)
@@ -329,6 +381,8 @@ fun ArticleListScreen(
                             .fillMaxWidth()
                             .combinedClickable(
                                 onClick = {
+                                    savedFirstVisibleItemIndex = listState.firstVisibleItemIndex
+                                    savedFirstVisibleItemScrollOffset = listState.firstVisibleItemScrollOffset
                                     DebugLogger.i(
                                         logTag,
                                         "Artikel aus Liste geoeffnet: articleId=${item.id}, feedId=$feedId"

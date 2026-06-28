@@ -381,15 +381,17 @@ class FeedRepository(
     suspend fun moveFeedUp(feedId: Long) {
         runOnIo {
             database.withTransaction {
-                val feeds = feedDao.getAll()
+                val feeds = feedDao.getAll().toMutableList()
                 val currentIndex = feeds.indexOfFirst { it.id == feedId }
                 if (currentIndex <= 0) {
                     return@withTransaction
                 }
-                val currentFeed = feeds[currentIndex]
-                val previousFeed = feeds[currentIndex - 1]
-                feedDao.updateDisplayOrder(currentFeed.id, previousFeed.displayOrder)
-                feedDao.updateDisplayOrder(previousFeed.id, currentFeed.displayOrder)
+                    // Swap positions in the sorted list, then reassign sequential displayOrder.
+                    // This is robust against duplicate or unsequenced displayOrder values.
+                val feed = feeds[currentIndex]
+                feeds[currentIndex] = feeds[currentIndex - 1]
+                feeds[currentIndex - 1] = feed
+                reassignSequentialDisplayOrders(feeds)
             }
         }
     }
@@ -397,15 +399,17 @@ class FeedRepository(
     suspend fun moveFeedDown(feedId: Long) {
         runOnIo {
             database.withTransaction {
-                val feeds = feedDao.getAll()
+                val feeds = feedDao.getAll().toMutableList()
                 val currentIndex = feeds.indexOfFirst { it.id == feedId }
                 if (currentIndex == -1 || currentIndex >= feeds.lastIndex) {
                     return@withTransaction
                 }
-                val currentFeed = feeds[currentIndex]
-                val nextFeed = feeds[currentIndex + 1]
-                feedDao.updateDisplayOrder(currentFeed.id, nextFeed.displayOrder)
-                feedDao.updateDisplayOrder(nextFeed.id, currentFeed.displayOrder)
+                    // Swap positions in the sorted list, then reassign sequential displayOrder.
+                    // This is robust against duplicate or unsequenced displayOrder values.
+                val feed = feeds[currentIndex]
+                feeds[currentIndex] = feeds[currentIndex + 1]
+                feeds[currentIndex + 1] = feed
+                reassignSequentialDisplayOrders(feeds)
             }
         }
     }
@@ -887,6 +891,19 @@ class FeedRepository(
                 DebugLogger.i(TAG, "feed_heavy_marked feedId=$feedId url=$url reason=defensiveImport")
             }
             feedId
+        }
+    }
+
+    /**
+     * Assigns sequential 0-based displayOrder values to every feed in the list,
+     * based on their current sorted position. Only issues UPDATE for feeds whose
+     * displayOrder actually differs, minimizing unnecessary writes.
+     */
+    private suspend fun reassignSequentialDisplayOrders(feeds: List<FeedEntity>) {
+        feeds.forEachIndexed { index, feed ->
+            if (feed.displayOrder != index) {
+                feedDao.updateDisplayOrder(feed.id, index)
+            }
         }
     }
 

@@ -1,5 +1,8 @@
 package de.lolo.rssreader.ui
 
+import android.content.Context
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.os.SystemClock
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
@@ -8,10 +11,13 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.navigation.NavType
@@ -33,6 +39,8 @@ import de.lolo.rssreader.ui.screens.HomeScreen
 import de.lolo.rssreader.ui.screens.SearchScreen
 import de.lolo.rssreader.ui.screens.SettingsRouteScreen
 import de.lolo.rssreader.ui.theme.RssReaderTheme
+import kotlinx.coroutines.launch
+import java.util.concurrent.TimeUnit
 
 @Composable
 fun RssReaderApp(
@@ -43,10 +51,62 @@ fun RssReaderApp(
     val navController = rememberNavController()
     val settings by settingsRepository.settings.collectAsState(initial = null)
     val lifecycleOwner = LocalLifecycleOwner.current
+    val appContext = LocalContext.current.applicationContext
+    val scope = rememberCoroutineScope()
     val currentBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = currentBackStackEntry?.destination?.route
     val latestCurrentRoute by rememberUpdatedState(currentRoute)
+    val latestSettings by rememberUpdatedState(settings)
     var lastBackgroundedAtElapsedMs by remember { mutableLongStateOf(0L) }
+    var foregroundRefreshInProgress by remember { mutableStateOf(false) }
+
+    fun launchForegroundRefreshIfNeeded(nowElapsedMs: Long) {
+        val loadedSettings = latestSettings ?: return
+        if (
+            foregroundRefreshInProgress ||
+            !shouldRefreshOnForegroundAfterInactivity(
+                settings = loadedSettings,
+                lastBackgroundedAtElapsedMs = lastBackgroundedAtElapsedMs,
+                nowElapsedMs = nowElapsedMs
+            )
+        ) {
+            return
+        }
+
+        foregroundRefreshInProgress = true
+        scope.launch {
+            try {
+                val hasWifiConnection = hasForegroundRefreshWifiConnection(appContext)
+                if (
+                    isForegroundRefreshDefinitelyOffline(appContext) ||
+                    shouldSkipForegroundRefreshForWifiOnlySetting(
+                        settings = loadedSettings,
+                        hasWifiConnection = hasWifiConnection
+                    )
+                ) {
+                    DebugLogger.i(
+                        "RssReaderApp",
+                        "Vordergrund-Aktualisierung uebersprungen: offlineOderWifiOnly, " +
+                            "refreshOnlyOnWifi=${loadedSettings.refreshOnlyOnWifi}, hasWifi=$hasWifiConnection"
+                    )
+                    return@launch
+                }
+
+                DebugLogger.i(
+                    "RssReaderApp",
+                    "Vordergrund-Aktualisierung nach Inaktivitaet gestartet"
+                )
+                val stats = repository.refreshAll(hasWifiConnection = hasWifiConnection)
+                DebugLogger.i(
+                    "RssReaderApp",
+                    "Vordergrund-Aktualisierung beendet: refreshed=${stats.refreshedFeeds}, " +
+                        "failed=${stats.failedFeeds}, skipped=${stats.skippedFeeds}, new=${stats.newArticles}"
+                )
+            } finally {
+                foregroundRefreshInProgress = false
+            }
+        }
+    }
 
     LaunchedEffect(settings?.refreshIntervalMinutes, settings?.refreshOnlyOnWifi) {
         settings?.let { loadedSettings ->
@@ -70,15 +130,17 @@ fun RssReaderApp(
                 }
 
                 Lifecycle.Event.ON_START -> {
+                    val nowElapsedMs = SystemClock.elapsedRealtime()
                     DebugLogger.i(
                         "RssReaderApp",
                         "App im Vordergrund: currentRoute=${latestCurrentRoute ?: "(none)"}, lastBackgroundedAtElapsedMs=$lastBackgroundedAtElapsedMs"
                     )
+                    launchForegroundRefreshIfNeeded(nowElapsedMs)
                     if (
                         latestCurrentRoute == Screen.Reader.route &&
                         shouldResetReaderAfterInactivity(
                             lastBackgroundedAtElapsedMs = lastBackgroundedAtElapsedMs,
-                            nowElapsedMs = SystemClock.elapsedRealtime()
+                            nowElapsedMs = nowElapsedMs
                         )
                     ) {
                         DebugLogger.i(
@@ -215,5 +277,74 @@ internal fun shouldResetReaderAfterInactivity(
 }
 
 internal const val READER_INACTIVITY_RESET_TIMEOUT_MS = 15L * 60L * 1000L
+internal const val FOREGROUND_REFRESH_AFTER_INACTIVITY_TIMEOUT_MS = 5L * 60L * 60L * 1000L
 
+internal fun shouldRefreshOnForegroundAfterInactivity(
+    settings: AppPreferences,
+    lastBackgroundedAtElapsedMs: Long,
+    nowElapsedMs: Long,
+    defaultTimeoutMs: Long = FOREGROUND_REFRESH_AFTER_INACTIVITY_TIMEOUT_MS
+): Boolean {
+    if (!isForegroundRefreshEnabled(settings)) {
+        return false
+    }
+    if (lastBackgroundedAtElapsedMs <= 0L || nowElapsedMs <= lastBackgroundedAtElapsedMs) {
+        return false
+    }
+
+    return nowElapsedMs - lastBackgroundedAtElapsedMs >= foregroundRefreshInactivityTimeoutMs(
+        settings = settings,
+        defaultTimeoutMs = defaultTimeoutMs
+    )
+}
+
+internal fun isForegroundRefreshEnabled(settings: AppPreferences): Boolean {
+    return settings.refreshOnStart || settings.refreshIntervalMinutes > 0
+}
+
+internal fun foregroundRefreshInactivityTimeoutMs(
+    settings: AppPreferences,
+    defaultTimeoutMs: Long = FOREGROUND_REFRESH_AFTER_INACTIVITY_TIMEOUT_MS
+): Long {
+    return settings.refreshIntervalMinutes
+        .takeIf { it > 0 }
+        ?.let { TimeUnit.MINUTES.toMillis(it.toLong()) }
+        ?: defaultTimeoutMs
+}
+
+internal fun shouldSkipForegroundRefreshForWifiOnlySetting(
+    settings: AppPreferences,
+    hasWifiConnection: Boolean
+): Boolean {
+    return settings.refreshOnlyOnWifi && !hasWifiConnection
+}
+
+private fun isForegroundRefreshDefinitelyOffline(context: Context): Boolean {
+    val connectivityManager = context.getSystemService(ConnectivityManager::class.java)
+        ?: return true
+    val activeNetwork = connectivityManager.activeNetwork ?: return true
+    val capabilities = connectivityManager.getNetworkCapabilities(activeNetwork) ?: return true
+
+    return !hasForegroundRefreshTransport(capabilities)
+}
+
+private fun hasForegroundRefreshTransport(capabilities: NetworkCapabilities): Boolean {
+    return capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) ||
+        capabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) ||
+        capabilities.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET) ||
+        capabilities.hasTransport(NetworkCapabilities.TRANSPORT_VPN)
+}
+
+private fun hasForegroundRefreshWifiConnection(context: Context): Boolean {
+    val connectivityManager = context.getSystemService(ConnectivityManager::class.java)
+        ?: return false
+    val activeNetwork = connectivityManager.activeNetwork ?: return false
+    val capabilities = connectivityManager.getNetworkCapabilities(activeNetwork) ?: return false
+    val hasWifi = capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)
+    val hasCellular = capabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR)
+    val hasEthernet = capabilities.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET)
+    val hasVpn = capabilities.hasTransport(NetworkCapabilities.TRANSPORT_VPN)
+
+    return hasWifi || (hasVpn && !connectivityManager.isActiveNetworkMetered && !hasCellular && !hasEthernet)
+}
 

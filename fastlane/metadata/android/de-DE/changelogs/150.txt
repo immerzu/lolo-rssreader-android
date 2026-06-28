@@ -1,0 +1,5 @@
+Version 1.87.21: Fehlerkorrekturen und Verbesserungen.
+- Feed-Reihenfolge aendern (moveFeedUp/moveFeedDown) repariert bei gleichem displayOrder
+- Automatische Aktualisierung beim Zurückkehren aus dem Hintergrund
+- Scrollposition in der Artikelliste bleibt jetzt beim Wechsel erhalten
+- Kleinere Stabilitaetsverbesserungen

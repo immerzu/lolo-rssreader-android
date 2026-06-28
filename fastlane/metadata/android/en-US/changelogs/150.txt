@@ -1,0 +1,5 @@
+Version 1.87.21: Bug fixes and improvements.
+- Fixed feed reordering (moveFeedUp/moveFeedDown) when feeds share the same displayOrder
+- Automatic feed refresh when returning to the app after inactivity
+- Scroll position in article list is now preserved when switching feeds
+- Minor stability improvements
