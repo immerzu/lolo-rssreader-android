@@ -1,0 +1,3 @@
+Version 1.87.22: Fehlerkorrekturen und Verbesserungen.
+- Scrollposition in der Artikelliste bleibt jetzt auch nach Rückkehr aus dem Artikel-Reader erhalten
+- Kleinere Stabilitaetsverbesserungen

@@ -1,0 +1,3 @@
+Version 1.87.22: Bug fixes and improvements.
+- Scroll position in article list is now preserved after returning from article reader
+- Minor stability improvements

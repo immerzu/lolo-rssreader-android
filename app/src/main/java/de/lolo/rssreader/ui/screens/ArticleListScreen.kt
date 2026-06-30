@@ -211,8 +211,7 @@ fun ArticleListScreen(
     }
 
     LaunchedEffect(feedId, visibleArticles.size, showUnreadOnly, articles.size) {
-        val listIsVisible = !showUnreadOnly || visibleArticles.isNotEmpty() || articles.isEmpty()
-        if (!restoreApplied && listIsVisible) {
+        if (!restoreApplied && visibleArticles.isNotEmpty()) {
             val itemCount = visibleArticles.size + 1
             if (itemCount > 0) {
                 val targetIndex = savedFirstVisibleItemIndex.coerceAtMost(itemCount - 1)
