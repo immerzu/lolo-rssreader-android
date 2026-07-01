@@ -1,0 +1,4 @@
+Version 1.87.24: Fehlerkorrekturen und Verbesserungen.
+- Fehlgeschlagene Feeds werden jetzt dauerhaft mit einem Warnsymbol angezeigt
+- Fehlgeschlagene Feeds werden nach erfolgreichem Refresh automatisch zurückgesetzt
+- Abbruch von Hintergrund-Refreshes führt nicht mehr fälschlich zu Fehlermarkierungen

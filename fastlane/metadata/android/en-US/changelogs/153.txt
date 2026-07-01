@@ -1,0 +1,4 @@
+Version 1.87.24: Bug fixes and improvements.
+- Failed feed indicators are now persistently shown with a warning icon
+- Feeds that failed to refresh are automatically cleared after a successful refresh
+- Background refresh cancellations no longer incorrectly mark feeds as failed
