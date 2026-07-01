@@ -12,7 +12,8 @@ data class FeedSummary(
     val wifiOnly: Boolean,
     val lastOpenedAt: Long?,
     val totalArticles: Long,
-    val unreadArticles: Long
+    val unreadArticles: Long,
+    val lastRefreshFailed: Boolean = false
 ) {
     val displayTitle: String
         get() = customTitle?.takeIf { it.isNotBlank() } ?: title

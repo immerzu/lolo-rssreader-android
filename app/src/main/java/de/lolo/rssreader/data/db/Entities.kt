@@ -24,7 +24,8 @@ data class FeedEntity(
     val lastOpenedAt: Long? = null,
     val etag: String? = null,
     val lastModified: String? = null,
-    val heavy: Boolean = false
+    val heavy: Boolean = false,
+    val lastRefreshFailed: Boolean = false
 )
 
 @Entity(

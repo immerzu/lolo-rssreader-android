@@ -1,6 +1,7 @@
 package de.lolo.rssreader.data.repository
 
 import java.util.concurrent.atomic.AtomicInteger
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -93,6 +94,30 @@ class FeedRepositoryRefreshSupportTest {
 
         assertEquals(4, outcomes.size)
         assertEquals(2, maxInFlight.get())
+    }
+
+    @Test
+    fun refreshCoordinatorPropagatesCancellationException() = runTest {
+        var onFailureCalled = false
+        val coordinator = RefreshCoordinator<Int>(
+            parallelism = 2,
+            task = { _: Int ->
+                throw CancellationException("Job was cancelled")
+            },
+            onFailure = { _: Int, _: Throwable ->
+                onFailureCalled = true
+                RefreshFeedOutcome(insertedArticles = null, retryableFailure = false)
+            }
+        )
+
+        try {
+            coordinator.run(listOf(1, 2, 3))
+            fail("Expected CancellationException")
+        } catch (e: CancellationException) {
+            assertEquals("Job was cancelled", e.message)
+        }
+
+        assertFalse("onFailure darf bei CancellationException nicht aufgerufen werden", onFailureCalled)
     }
 
     @Test

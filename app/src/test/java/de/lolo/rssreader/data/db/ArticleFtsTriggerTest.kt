@@ -36,6 +36,7 @@ class ArticleFtsTriggerTest {
             .addMigrations(AppDatabase.MIGRATION_7_8)
             .addMigrations(AppDatabase.MIGRATION_8_9)
             .addMigrations(AppDatabase.MIGRATION_9_10)
+            .addMigrations(AppDatabase.MIGRATION_10_11)
             .build()
         feedDao = database.feedDao()
         articleDao = database.articleDao()
@@ -245,6 +246,7 @@ class ArticleFtsTriggerTest {
             .addMigrations(AppDatabase.MIGRATION_7_8)
             .addMigrations(AppDatabase.MIGRATION_8_9)
             .addMigrations(AppDatabase.MIGRATION_9_10)
+            .addMigrations(AppDatabase.MIGRATION_10_11)
             .build()
 
         try {
@@ -332,6 +334,7 @@ class ArticleFtsTriggerTest {
             .addMigrations(AppDatabase.MIGRATION_7_8)
             .addMigrations(AppDatabase.MIGRATION_8_9)
             .addMigrations(AppDatabase.MIGRATION_9_10)
+            .addMigrations(AppDatabase.MIGRATION_10_11)
             .build()
 
         try {
@@ -384,6 +387,7 @@ class ArticleFtsTriggerTest {
             .addMigrations(AppDatabase.MIGRATION_7_8)
             .addMigrations(AppDatabase.MIGRATION_8_9)
             .addMigrations(AppDatabase.MIGRATION_9_10)
+            .addMigrations(AppDatabase.MIGRATION_10_11)
             .build()
 
         try {
@@ -445,6 +449,7 @@ class ArticleFtsTriggerTest {
             .addMigrations(AppDatabase.MIGRATION_7_8)
             .addMigrations(AppDatabase.MIGRATION_8_9)
             .addMigrations(AppDatabase.MIGRATION_9_10)
+            .addMigrations(AppDatabase.MIGRATION_10_11)
             .build()
 
         try {
@@ -485,6 +490,7 @@ class ArticleFtsTriggerTest {
             .addMigrations(AppDatabase.MIGRATION_7_8)
             .addMigrations(AppDatabase.MIGRATION_8_9)
             .addMigrations(AppDatabase.MIGRATION_9_10)
+            .addMigrations(AppDatabase.MIGRATION_10_11)
             .build()
 
         try {
@@ -570,6 +576,7 @@ class ArticleFtsTriggerTest {
             .addMigrations(AppDatabase.MIGRATION_7_8)
             .addMigrations(AppDatabase.MIGRATION_8_9)
             .addMigrations(AppDatabase.MIGRATION_9_10)
+            .addMigrations(AppDatabase.MIGRATION_10_11)
             .build()
 
         try {
@@ -610,6 +617,7 @@ class ArticleFtsTriggerTest {
             .addMigrations(AppDatabase.MIGRATION_7_8)
             .addMigrations(AppDatabase.MIGRATION_8_9)
             .addMigrations(AppDatabase.MIGRATION_9_10)
+            .addMigrations(AppDatabase.MIGRATION_10_11)
             .build()
 
         try {

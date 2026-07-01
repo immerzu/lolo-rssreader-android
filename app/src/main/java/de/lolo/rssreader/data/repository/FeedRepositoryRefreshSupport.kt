@@ -1,5 +1,6 @@
 package de.lolo.rssreader.data.repository
 
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.supervisorScope
@@ -9,7 +10,7 @@ import kotlinx.coroutines.sync.withPermit
 internal class RefreshCoordinator<T>(
     private val parallelism: Int,
     private val task: suspend (T) -> RefreshFeedOutcome,
-    private val onFailure: (T, Throwable) -> RefreshFeedOutcome
+    private val onFailure: suspend (T, Throwable) -> RefreshFeedOutcome
 ) {
     init {
         require(parallelism > 0) { "parallelism must be greater than 0" }
@@ -23,8 +24,13 @@ internal class RefreshCoordinator<T>(
         items.map { item ->
             async {
                 semaphore.withPermit {
-                    runCatching { task(item) }
-                        .getOrElse { throwable -> onFailure(item, throwable) }
+                    try {
+                        task(item)
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Throwable) {
+                        onFailure(item, e)
+                    }
                 }
             }
         }.awaitAll()

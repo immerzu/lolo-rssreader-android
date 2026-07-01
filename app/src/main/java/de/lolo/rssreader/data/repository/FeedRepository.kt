@@ -182,11 +182,18 @@ class FeedRepository(
         return runOnIo {
             val feed = feedDao.getById(feedId) ?: return@runOnIo 0
             DebugLogger.i(TAG, "refreshFeed gestartet: feedId=$feedId, url=${feed.url}")
-            refreshFeedInternal(feed).also { inserted ->
-                DebugLogger.i(
-                    TAG,
-                    "refreshFeed beendet: feedId=$feedId, inserted=$inserted"
-                )
+            try {
+                refreshFeedInternal(feed).also { inserted ->
+                    DebugLogger.i(
+                        TAG,
+                        "refreshFeed beendet: feedId=$feedId, inserted=$inserted"
+                    )
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                feedDao.markRefreshFailed(feed.id)
+                throw e
             }
         }
     }
@@ -556,9 +563,7 @@ class FeedRepository(
             lastModified = feed.lastModified
         )
         if (fetchResult is de.lolo.rssreader.data.network.FeedFetchResult.NotModified) {
-            feedDao.update(
-                feed.copy(lastFetchedAt = System.currentTimeMillis())
-            )
+            feedDao.markRefreshed(feed.id, System.currentTimeMillis())
             DebugLogger.i(TAG, "refreshFeedInternal: Feed unveraendert (304): feedId=${feed.id}")
             return 0
         }
@@ -567,7 +572,7 @@ class FeedRepository(
         // Abruf, ist der Feed inhaltlich unverändert. Parsing, Artikel-Update und FTS werden
         // übersprungen – nur lastFetchedAt wird aktualisiert.
         if (feed.etag != null && success.etag != null && feed.etag == success.etag) {
-            feedDao.update(feed.copy(lastFetchedAt = System.currentTimeMillis()))
+            feedDao.markRefreshed(feed.id, System.currentTimeMillis())
             DebugLogger.i(TAG, "refreshFeedInternal: Feed inhaltlich unveraendert (200 + gleicher ETag): feedId=${feed.id}")
             return 0
         }
@@ -711,7 +716,8 @@ class FeedRepository(
             lastFetchedAt = fetchedAt,
             etag = etag ?: existingFeed.etag,
             lastModified = lastModified ?: existingFeed.lastModified,
-            heavy = heavy
+            heavy = heavy,
+            lastRefreshFailed = false
         )
     }
 
@@ -797,12 +803,14 @@ class FeedRepository(
         )
     }
 
-    private fun buildRefreshFailureOutcome(
+    private suspend fun buildRefreshFailureOutcome(
         feed: FeedEntity,
         logPrefix: String,
         throwable: Throwable
     ): RefreshFeedOutcome {
         DebugLogger.w(TAG, "$logPrefix fehlgeschlagen: ${feed.url}", throwable)
+        // Fehlerflag im Feed persistieren
+        feedDao.markRefreshFailed(feed.id)
         return RefreshFeedOutcome(
             insertedArticles = null,
             retryableFailure = throwable.isRetryableRefreshFailure()

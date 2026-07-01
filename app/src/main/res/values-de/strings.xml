@@ -190,4 +190,5 @@
     <string name="article_list_filter_unread_only_cd">Nur ungelesene Artikel anzeigen</string>
     <string name="article_list_filter_show_all_cd">Alle Artikel anzeigen</string>
     <string name="article_list_no_unread_articles">Keine ungelesenen Artikel.</string>
+    <string name="feed_list_refresh_failed_cd">Letzte Aktualisierung fehlgeschlagen</string>
 </resources>

@@ -18,6 +18,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.UnfoldMore
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -187,6 +188,16 @@ fun FeedListScreen(
                     alpha = if (feed.isUnreadFeed) 1f else 0.58f,
                     modifier = Modifier.padding(top = 1.dp)
                 )
+                if (feed.lastRefreshFailed) {
+                    Icon(
+                        imageVector = Icons.Default.Warning,
+                        contentDescription = stringResource(R.string.feed_list_refresh_failed_cd),
+                        tint = MaterialTheme.colorScheme.error,
+                        modifier = Modifier
+                            .size(20.dp)
+                            .padding(top = 3.dp)
+                    )
+                }
                 Column(
                     modifier = Modifier.weight(1f),
                     verticalArrangement = Arrangement.spacedBy(2.dp)

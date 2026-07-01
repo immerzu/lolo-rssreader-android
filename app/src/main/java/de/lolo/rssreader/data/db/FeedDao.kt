@@ -22,6 +22,7 @@ interface FeedDao {
             feeds.lastFetchedAt AS lastFetchedAt,
             feeds.wifiOnly AS wifiOnly,
             feeds.lastOpenedAt AS lastOpenedAt,
+            feeds.lastRefreshFailed AS lastRefreshFailed,
             COUNT(articles.id) AS totalArticles,
             COALESCE(SUM(CASE WHEN articles.isRead = 0 THEN 1 ELSE 0 END), 0) AS unreadArticles
         FROM feeds
@@ -60,6 +61,12 @@ interface FeedDao {
 
     @Query("UPDATE feeds SET displayOrder = :displayOrder WHERE id = :feedId")
     suspend fun updateDisplayOrder(feedId: Long, displayOrder: Int)
+
+    @Query("UPDATE feeds SET lastRefreshFailed = 1 WHERE id = :feedId")
+    suspend fun markRefreshFailed(feedId: Long)
+
+    @Query("UPDATE feeds SET lastRefreshFailed = 0, lastFetchedAt = :fetchedAt WHERE id = :feedId")
+    suspend fun markRefreshed(feedId: Long, fetchedAt: Long)
 
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insert(feed: FeedEntity): Long
