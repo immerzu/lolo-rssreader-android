@@ -7,7 +7,6 @@ import de.lolo.rssreader.BuildConfig
 import de.lolo.rssreader.data.errors.RssReaderException
 import de.lolo.rssreader.debug.DebugLogger
 import org.xmlpull.v1.XmlPullParser
-import org.xmlpull.v1.XmlPullParserException
 import java.io.StringReader
 import java.net.URI
 import java.security.MessageDigest
@@ -68,37 +67,71 @@ class FeedParser {
     )
 
     fun parse(payload: FetchedFeedPayload, sourceUrl: String? = null): ParsedFeed {
-        return parseInternal(
+        return parseWithNamespaceFallback(
             inputPath = "reader",
-            runtime = FeedParseRuntime(
-                sourceUrl = sourceUrl,
-                payloadByteSize = payload.byteSize,
-                defensiveMode = payload.defensiveMode
-            ),
+            runtimeFactory = {
+                FeedParseRuntime(
+                    sourceUrl = sourceUrl,
+                    payloadByteSize = payload.byteSize,
+                    defensiveMode = payload.defensiveMode
+                )
+            },
             setInput = { parser -> parser.setInput(payload.openReader()) }
         )
     }
 
     fun parse(xml: String, sourceUrl: String? = null): ParsedFeed {
-        return parseInternal(
+        return parseWithNamespaceFallback(
             inputPath = "string",
-            runtime = FeedParseRuntime(
-                sourceUrl = sourceUrl,
-                payloadByteSize = null,
-                defensiveMode = false
-            ),
+            runtimeFactory = {
+                FeedParseRuntime(
+                    sourceUrl = sourceUrl,
+                    payloadByteSize = null,
+                    defensiveMode = false
+                )
+            },
             setInput = { parser -> parser.setInput(StringReader(xml)) }
         )
+    }
+
+    private fun parseWithNamespaceFallback(
+        inputPath: String,
+        runtimeFactory: () -> FeedParseRuntime,
+        setInput: (XmlPullParser) -> Unit
+    ): ParsedFeed {
+        val runtime = runtimeFactory()
+        return try {
+            parseInternal(
+                inputPath = inputPath,
+                runtime = runtime,
+                processNamespaces = true,
+                setInput = setInput
+            )
+        } catch (exception: RssReaderException.InvalidXml) {
+            DebugLogger.w(
+                TAG,
+                "feed_parse_namespace_retry url=${runtime.sourceUrl.orEmpty()} bytes=${runtime.payloadByteSize ?: -1} input=$inputPath",
+                exception
+            )
+            parseInternal(
+                inputPath = "$inputPath-no-ns",
+                runtime = runtimeFactory(),
+                processNamespaces = false,
+                setInput = setInput
+            )
+        }
     }
 
     private fun parseInternal(
         inputPath: String,
         runtime: FeedParseRuntime,
+        processNamespaces: Boolean,
         setInput: (XmlPullParser) -> Unit
     ): ParsedFeed {
+        var parser: XmlPullParser? = null
         return try {
-            val parser = Xml.newPullParser()
-            parser.setFeature(XmlPullParser.FEATURE_PROCESS_NAMESPACES, true)
+            parser = Xml.newPullParser()
+            parser.setFeature(XmlPullParser.FEATURE_PROCESS_NAMESPACES, processNamespaces)
             setInput(parser)
 
             while (parser.eventType != XmlPullParser.START_TAG &&
@@ -114,12 +147,22 @@ class FeedParser {
             }
             DebugLogger.i(
                 TAG,
-                "feed_parse url=${runtime.sourceUrl.orEmpty()} bytes=${runtime.payloadByteSize ?: -1} input=$inputPath defensive=${runtime.defensiveMode} capped=${runtime.itemCapApplied} truncated=${runtime.truncatedItems > 0} imageScanSkipped=${runtime.imageScanSkipped} items=${parsedFeed.items.size}"
+                "feed_parse url=${runtime.sourceUrl.orEmpty()} bytes=${runtime.payloadByteSize ?: -1} input=$inputPath namespaces=$processNamespaces defensive=${runtime.defensiveMode} capped=${runtime.itemCapApplied} truncated=${runtime.truncatedItems > 0} imageScanSkipped=${runtime.imageScanSkipped} items=${parsedFeed.items.size}"
             )
             parsedFeed
         } catch (exception: RssReaderException) {
+            DebugLogger.w(
+                TAG,
+                "feed_parse_failed url=${runtime.sourceUrl.orEmpty()} bytes=${runtime.payloadByteSize ?: -1} input=$inputPath namespaces=$processNamespaces ${parser.parserPosition()}",
+                exception
+            )
             throw exception
         } catch (exception: Exception) {
+            DebugLogger.w(
+                TAG,
+                "feed_parse_failed url=${runtime.sourceUrl.orEmpty()} bytes=${runtime.payloadByteSize ?: -1} input=$inputPath namespaces=$processNamespaces ${parser.parserPosition()}",
+                exception
+            )
             throw RssReaderException.InvalidXml(exception)
         }
     }
@@ -137,12 +180,12 @@ class FeedParser {
                     parser.matchesTag("channel") -> insideChannel = true
                     parser.matchesTag("title") && parser.isNamespaceEmpty() &&
                         insideChannel && feedTitle == "Unbekannter Feed" -> {
-                        feedTitle = parser.nextText().trim().ifBlank { "Unbekannter Feed" }
+                        feedTitle = parser.readPlainTextContent().ifBlank { "Unbekannter Feed" }
                     }
 
                     parser.matchesTag("link") && parser.isNamespaceEmpty() &&
                         insideChannel && siteUrl.isNullOrBlank() -> {
-                        siteUrl = parser.nextText().trim().ifBlank { null }
+                        siteUrl = parser.readPlainTextContent().ifBlank { null }
                     }
 
                     parser.matchesTag("image") && parser.isNamespaceEmpty() &&
@@ -200,15 +243,15 @@ class FeedParser {
                 val isDirectChild = parser.depth == itemDepth + 1
                 when {
                     isDirectChild && parser.matchesTag("guid") && parser.isNamespaceEmpty() -> {
-                        guid = parser.nextText().trim()
+                        guid = parser.readPlainTextContent()
                     }
 
                     isDirectChild && parser.matchesTag("title") && parser.isNamespaceEmpty() -> {
-                        title = parser.nextText().trim().ifBlank { null }
+                        title = parser.readPlainTextContent().ifBlank { null }
                     }
 
                     isDirectChild && parser.matchesTag("link") && parser.isNamespaceEmpty() -> {
-                        link = parser.nextText().trim()
+                        link = parser.readPlainTextContent()
                     }
 
                     isDirectChild && parser.matchesTag("description") &&
@@ -235,20 +278,20 @@ class FeedParser {
                     }
 
                     isDirectChild && parser.matchesTag("dc:creator", "creator") -> {
-                        author = parser.nextText().trim().ifBlank { null }
+                        author = parser.readPlainTextContent().ifBlank { null }
                     }
 
                     isDirectChild && parser.matchesTag("author") && parser.isNamespaceEmpty() -> {
-                        author = parser.nextText().trim().ifBlank { null }
+                        author = parser.readPlainTextContent().ifBlank { null }
                     }
 
                     isDirectChild && parser.matchesTag("pubDate") && parser.isNamespaceEmpty() -> {
-                        rawPublishedAt = parser.nextText()
+                        rawPublishedAt = parser.readPlainTextContent()
                         publishedAt = parseDate(rawPublishedAt.orEmpty())
                     }
 
                     isDirectChild && parser.matchesTag("dc:date", "date", "published", "updated") -> {
-                        rawPublishedAt = parser.nextText()
+                        rawPublishedAt = parser.readPlainTextContent()
                         publishedAt = parseDate(rawPublishedAt.orEmpty())
                     }
 
@@ -261,7 +304,7 @@ class FeedParser {
 
                     parser.matchesTag("media:title", "title") &&
                         parser.normalizedNamespace() == "http://search.yahoo.com/mrss/" -> {
-                        mediaTitle = parser.nextText().trim().ifBlank { null }
+                        mediaTitle = parser.readPlainTextContent().ifBlank { null }
                     }
                 }
             }
@@ -342,11 +385,11 @@ class FeedParser {
             if (parser.eventType == XmlPullParser.START_TAG && parser.depth == feedDepth + 1) {
                 when (parser.normalizedName()) {
                     "title" -> if (feedTitle == "Unbekannter Feed") {
-                        feedTitle = parser.nextText().trim().ifBlank { "Unbekannter Feed" }
+                        feedTitle = parser.readPlainTextContent().ifBlank { "Unbekannter Feed" }
                     }
 
                     "icon", "logo" -> if (iconUrl.isNullOrBlank()) {
-                        iconUrl = parser.nextText().trim().ifBlank { null }
+                        iconUrl = parser.readPlainTextContent().ifBlank { null }
                     }
 
                     "link" -> {
@@ -395,7 +438,7 @@ class FeedParser {
                 parser.depth == imageDepth + 1 &&
                 parser.matchesTag("url")
             ) {
-                imageUrl = resolveUrl(baseUrl, parser.nextText())
+                imageUrl = resolveUrl(baseUrl, parser.readPlainTextContent())
             }
             parser.next()
         }
@@ -421,8 +464,8 @@ class FeedParser {
         ) {
             if (parser.eventType == XmlPullParser.START_TAG && parser.depth == entryDepth + 1) {
                 when (parser.normalizedName()) {
-                    "id" -> id = parser.nextText().trim()
-                    "title" -> title = parser.nextText().trim().ifBlank { null }
+                    "id" -> id = parser.readPlainTextContent()
+                    "title" -> title = parser.readPlainTextContent().ifBlank { null }
                     "summary" -> summaryHtml = parser.readElementContent(
                         maxChars = runtime.earlyContentReadCharLimit()
                     ) { limit ->
@@ -440,7 +483,7 @@ class FeedParser {
                         )
                     }
                     "published", "updated" -> {
-                        rawPublishedAt = parser.nextText()
+                        rawPublishedAt = parser.readPlainTextContent()
                         publishedAt = parseDate(rawPublishedAt.orEmpty())
                     }
 
@@ -542,7 +585,7 @@ class FeedParser {
                 parser.depth == authorDepth + 1 &&
                 parser.matchesTag("name")
             ) {
-                authorName = parser.nextText().trim().ifBlank { null }
+                authorName = parser.readPlainTextContent().ifBlank { null }
             }
             parser.next()
         }
@@ -798,6 +841,14 @@ class FeedParser {
 
     private fun XmlPullParser.isNamespaceEmpty(): Boolean = normalizedNamespace().isNullOrBlank()
 
+    private fun XmlPullParser?.parserPosition(): String {
+        if (this == null) {
+            return "position=unavailable"
+        }
+        val tagName = name.orEmpty().ifBlank { "-" }
+        return "event=$eventType name=$tagName line=$lineNumber column=$columnNumber"
+    }
+
     private fun XmlPullParser.isMediaImageTag(): Boolean {
         val normalized = normalizedName()
         if (normalizedNamespace() == "http://search.yahoo.com/mrss/" &&
@@ -897,6 +948,9 @@ class FeedParser {
             }
         }
     }
+
+    private fun XmlPullParser.readPlainTextContent(): String =
+        htmlToPlainText(readElementContent())
 
     private fun XmlPullParser.skipCurrentElement() {
         val startDepth = depth

@@ -1,5 +1,6 @@
 package de.lolo.rssreader.ui.screens
 
+import android.os.SystemClock
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -40,21 +41,26 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import de.lolo.rssreader.R
 import de.lolo.rssreader.data.db.ArticleEntity
 import de.lolo.rssreader.data.errors.toUserMessage
@@ -88,6 +94,7 @@ fun ArticleListScreen(
 ) {
     val logTag = "ArticleListScreen"
     val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
     val feed by repository.observeFeed(feedId).collectAsState(initial = null)
     val observedArticles by repository.observeArticles(feedId).collectAsState(initial = null)
     var lastVisibleArticles by remember(feedId) {
@@ -122,8 +129,11 @@ fun ArticleListScreen(
         if (showUnreadOnly) sortedArticles.filter { !it.isRead } else sortedArticles
     }
     val scope = rememberCoroutineScope()
-    var isRefreshing by rememberSaveable { mutableStateOf(false) }
-    var showRefreshIndicator by rememberSaveable { mutableStateOf(false) }
+    var isRefreshing by remember { mutableStateOf(false) }
+    var showRefreshIndicator by remember { mutableStateOf(false) }
+    var refreshStartedAtElapsedMs by remember { mutableLongStateOf(0L) }
+    val latestIsRefreshing by rememberUpdatedState(isRefreshing)
+    val latestRefreshStartedAtElapsedMs by rememberUpdatedState(refreshStartedAtElapsedMs)
     var refreshIndicatorToken by rememberSaveable { mutableIntStateOf(0) }
     var errorMessage by rememberSaveable { mutableStateOf<String?>(null) }
     var selectedArticleId by rememberSaveable { mutableStateOf<Long?>(null) }
@@ -170,6 +180,7 @@ fun ArticleListScreen(
                 return@launch
             }
             isRefreshing = true
+            refreshStartedAtElapsedMs = SystemClock.elapsedRealtime()
             showRefreshIndicatorBriefly()
             DebugLogger.i(logTag, "Feed-Refresh manuell gestartet: feedId=$feedId")
             try {
@@ -190,6 +201,7 @@ fun ArticleListScreen(
                     }
             } finally {
                 isRefreshing = false
+                refreshStartedAtElapsedMs = 0L
                 refreshStatusText = null
             }
         }
@@ -231,6 +243,30 @@ fun ArticleListScreen(
             "state feedId=$feedId, isRefreshing=$isRefreshing, showRefreshIndicator=$showRefreshIndicator, " +
                 "refreshStatusText=${refreshStatusText != null}"
         )
+    }
+
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (
+                event == Lifecycle.Event.ON_START &&
+                shouldRecoverStaleRefreshUiState(
+                    isRefreshing = latestIsRefreshing,
+                    refreshStartedAtElapsedMs = latestRefreshStartedAtElapsedMs,
+                    nowElapsedMs = SystemClock.elapsedRealtime()
+                )
+            ) {
+                DebugLogger.w(logTag, "Stale Feed-Refresh-UI-State beim App-Resume zurueckgesetzt: feedId=$feedId")
+                isRefreshing = false
+                showRefreshIndicator = false
+                refreshStatusText = null
+                refreshStartedAtElapsedMs = 0L
+                refreshIndicatorToken += 1
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
     }
 
     LaunchedEffect(feedId) {

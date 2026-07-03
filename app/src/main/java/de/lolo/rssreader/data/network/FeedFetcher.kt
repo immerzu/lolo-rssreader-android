@@ -41,6 +41,8 @@ class FeedFetcher(
             val builder = Request.Builder()
                 .url(url)
                 .header("User-Agent", AppUserAgent.value)
+                .header("Accept", FEED_ACCEPT_HEADER)
+                .header("Accept-Charset", FEED_ACCEPT_CHARSET_HEADER)
             if (ifNoneMatchPresent) {
                 builder.header("If-None-Match", etag!!)
             }
@@ -308,6 +310,9 @@ class FeedFetcher(
 
     companion object {
         private const val TAG = "FeedFetcher"
+        private const val FEED_ACCEPT_HEADER =
+            "application/rss+xml, application/atom+xml, application/xml, text/xml;q=0.9, */*;q=0.8"
+        private const val FEED_ACCEPT_CHARSET_HEADER = "utf-8, iso-8859-1;q=0.8"
         private const val MAX_FETCH_ATTEMPTS = 2
         private const val RETRY_DELAY_MS = 650L
         private const val LARGE_FEED_SOFT_LIMIT_BYTES = 5L * 1024L * 1024L

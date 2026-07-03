@@ -135,4 +135,20 @@ class ArticleReaderHtmlSecurityTest {
         assertFalse(sanitized.contains("tracker.gif"))
         assertTrue(sanitized.contains("<p>Sichtbarer Inhalt nach dem Style-Tag</p>"))
     }
+
+    @Test
+    fun sanitizeRemovesLegacyImageFlowAttributes() {
+        val sanitized = sanitizeReaderBodyHtmlForTest(
+            """
+                <p><img src="https://example.com/photo.jpg" align="left" hspace="8" vspace="6"></p>
+                <p>Text darf nicht neben dem Bild in eine schmale Spalte fliessen.</p>
+            """.trimIndent()
+        )
+
+        assertTrue(sanitized.contains("""src="https://example.com/photo.jpg""""))
+        assertFalse(sanitized.contains("align=", ignoreCase = true))
+        assertFalse(sanitized.contains("hspace=", ignoreCase = true))
+        assertFalse(sanitized.contains("vspace=", ignoreCase = true))
+        assertTrue(sanitized.contains("Text darf nicht neben dem Bild"))
+    }
 }

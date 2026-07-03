@@ -475,6 +475,11 @@ fun ArticleReaderScreen(
                                             }
                                         }
                                         webViewClient = object : WebViewClient() {
+                                            private fun isActiveReaderWebView(view: WebView?): Boolean =
+                                                view != null &&
+                                                    activeWebView === view &&
+                                                    currentArticle?.id == currentArticleId
+
                                             override fun shouldInterceptRequest(
                                                 view: WebView?,
                                                 request: WebResourceRequest?
@@ -524,11 +529,14 @@ fun ArticleReaderScreen(
                                                     TAG,
                                                     "WebView Renderprozess beendet: articleId=${currentArticle?.id?.toString().orEmpty()}, crashed=${detail?.didCrash() == true}"
                                                 )
-                                                if (activeWebView === view) {
+                                                val isActiveView = isActiveReaderWebView(view)
+                                                if (isActiveView) {
                                                     activeWebView = null
                                                 }
                                                 destroyWebView(view)
-                                                webViewFailed = true
+                                                if (isActiveView) {
+                                                    webViewFailed = true
+                                                }
                                                 return true
                                             }
 
@@ -543,7 +551,9 @@ fun ArticleReaderScreen(
                                                 TAG,
                                                 "WebView Fehler im Hauptframe: articleId=${currentArticle?.id?.toString().orEmpty()}, code=${error?.errorCode}"
                                             )
-                                            webViewFailed = true
+                                            if (isActiveReaderWebView(view)) {
+                                                webViewFailed = true
+                                            }
                                         }
                                     }
 
@@ -558,7 +568,9 @@ fun ArticleReaderScreen(
                                                 TAG,
                                                 "WebView HTTP-Fehler im Hauptframe: articleId=${currentArticle?.id?.toString().orEmpty()}, code=${errorResponse?.statusCode}"
                                             )
-                                            webViewFailed = true
+                                            if (isActiveReaderWebView(view)) {
+                                                webViewFailed = true
+                                            }
                                         }
                                     }
 
@@ -588,7 +600,9 @@ fun ArticleReaderScreen(
                                                         TAG,
                                                         "Legacy WebView Fehler: articleId=${currentArticle?.id?.toString().orEmpty()}, code=$errorCode, url=$failingUrl"
                                                     )
-                                                    webViewFailed = true
+                                                    if (isActiveReaderWebView(view)) {
+                                                        webViewFailed = true
+                                                    }
                                                 }
                                             }
                                         }
@@ -856,6 +870,10 @@ private fun buildReaderHtml(
             img, iframe, video, blockquote, twitterwidget {
               max-width: 100% !important;
             }
+            img, figure, iframe, video, blockquote, twitterwidget {
+              float: none !important;
+              clear: both !important;
+            }
             img {
               display: block;
               max-width: min(100%, ${imageMaxWidthPx}px) !important;
@@ -878,6 +896,7 @@ private fun buildReaderHtml(
             figure {
               margin: 1em auto 1.15em;
               max-width: min(100%, 560px);
+              width: auto !important;
             }
             figure > img {
               margin-bottom: 0;
@@ -962,6 +981,9 @@ private fun buildReaderHtml(
               border-top: 1px solid var(--border);
               margin: 1.5em 0;
             }
+            [align="left"], [align="right"] {
+              float: none !important;
+            }
             $heavyMediaContainRule
             $imageRule
           </style>
@@ -1020,67 +1042,29 @@ internal fun sanitizeReaderBodyHtmlForTest(
 private fun String.normalizeReaderBodyHtml(loadProfile: ReaderLoadProfile): String {
     // Reader-HTML bleibt lesbar, aber fremde Inline-Skripte und Feed-eigene Styles
     // sollen die WebView nicht unnötig belasten oder das Layout destabilisieren.
-    val normalizedHtml = readerAccessibilityAttributeRegex.replace(
-        readerMetadataAttributeRegex.replace(
-        readerInteractionAttributeRegex.replace(
-        readerLegacyImageMapAttributeRegex.replace(
-        readerResponsiveImageAttributeRegex.replace(
-        readerDangerousStyleAttributeRegex.replace(
-        readerInlineEventHandlerRegex.replace(
-            readerFormControlTagRegex.replace(
-                readerFormTagRegex.replace(
-                    readerLegacyPresentationTagRegex.replace(
-                    readerLegacyMiscTagRegex.replace(
-                        readerAppletTagRegex.replace(
-                            readerLegacyFrameTagRegex.replace(
-                                readerPluginEmbedTagRegex.replace(
-                                    readerTemplateTagRegex.replace(
-                                        readerNoscriptTagRegex.replace(
-                                            readerStyleTagRegex.replace(
-                                                readerMetaTagRegex.replace(
-                                                    readerLinkTagRegex.replace(
-                                                        readerBaseTagRegex.replace(
-                                                            readerScriptTagRegex.replace(this, ""),
-                                                            ""
-                                                        ),
-                                                        ""
-                                                    ),
-                                                    ""
-                                                ),
-                                                ""
-                                            ),
-                                            ""
-                                        ),
-                                        ""
-                                    ),
-                                    ""
-                                ),
-                                ""
-                            ),
-                            ""
-                        ),
-                        ""
-                    ),
-                    ""
-                    ),
-                    ""
-                ),
-                ""
-            ),
-            ""
-        ),
-        ""
-        ),
-        ""
-    ),
-    ""
-    ),
-    ""
-    ),
-    ""
-    ),
-    ""
-    )
+    var normalizedHtml = this
+    normalizedHtml = readerScriptTagRegex.replace(normalizedHtml, "")
+    normalizedHtml = readerBaseTagRegex.replace(normalizedHtml, "")
+    normalizedHtml = readerLinkTagRegex.replace(normalizedHtml, "")
+    normalizedHtml = readerMetaTagRegex.replace(normalizedHtml, "")
+    normalizedHtml = readerStyleTagRegex.replace(normalizedHtml, "")
+    normalizedHtml = readerNoscriptTagRegex.replace(normalizedHtml, "")
+    normalizedHtml = readerTemplateTagRegex.replace(normalizedHtml, "")
+    normalizedHtml = readerPluginEmbedTagRegex.replace(normalizedHtml, "")
+    normalizedHtml = readerLegacyFrameTagRegex.replace(normalizedHtml, "")
+    normalizedHtml = readerAppletTagRegex.replace(normalizedHtml, "")
+    normalizedHtml = readerLegacyMiscTagRegex.replace(normalizedHtml, "")
+    normalizedHtml = readerLegacyPresentationTagRegex.replace(normalizedHtml, "")
+    normalizedHtml = readerFormTagRegex.replace(normalizedHtml, "")
+    normalizedHtml = readerFormControlTagRegex.replace(normalizedHtml, "")
+    normalizedHtml = readerInlineEventHandlerRegex.replace(normalizedHtml, "")
+    normalizedHtml = readerDangerousStyleAttributeRegex.replace(normalizedHtml, "")
+    normalizedHtml = readerResponsiveImageAttributeRegex.replace(normalizedHtml, "")
+    normalizedHtml = readerLegacyImageMapAttributeRegex.replace(normalizedHtml, "")
+    normalizedHtml = readerLegacyFlowAttributeRegex.replace(normalizedHtml, "")
+    normalizedHtml = readerInteractionAttributeRegex.replace(normalizedHtml, "")
+    normalizedHtml = readerMetadataAttributeRegex.replace(normalizedHtml, "")
+    normalizedHtml = readerAccessibilityAttributeRegex.replace(normalizedHtml, "")
     if (!loadProfile.isHeavy) {
         return normalizedHtml
     }
@@ -1517,6 +1501,10 @@ private val readerResponsiveImageAttributeRegex = Regex(
 )
 private val readerLegacyImageMapAttributeRegex = Regex(
     "\\s(?:usemap\\s*=\\s*(?:\"[^\"]*\"|'[^']*'|[^\\s>]+)|ismap\\b)",
+    RegexOption.IGNORE_CASE
+)
+private val readerLegacyFlowAttributeRegex = Regex(
+    "\\s(?:align|hspace|vspace)\\s*=\\s*(?:\"[^\"]*\"|'[^']*'|[^\\s>]+)",
     RegexOption.IGNORE_CASE
 )
 private val readerInteractionAttributeRegex = Regex(

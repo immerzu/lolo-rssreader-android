@@ -93,6 +93,21 @@ internal fun launchFromUiScope(
     }
 }
 
+internal fun shouldRecoverStaleRefreshUiState(
+    isRefreshing: Boolean,
+    refreshStartedAtElapsedMs: Long,
+    nowElapsedMs: Long,
+    timeoutMs: Long = STALE_REFRESH_UI_TIMEOUT_MS
+): Boolean {
+    if (!isRefreshing) {
+        return false
+    }
+    if (refreshStartedAtElapsedMs <= 0L || nowElapsedMs <= refreshStartedAtElapsedMs) {
+        return true
+    }
+    return nowElapsedMs - refreshStartedAtElapsedMs >= timeoutMs
+}
+
 internal fun isDefinitelyOffline(context: Context): Boolean {
     val connectivityManager = context.getSystemService(ConnectivityManager::class.java)
         ?: return true
@@ -201,6 +216,8 @@ internal fun hasWifiRefreshTransportFlags(
 ): Boolean {
     return hasWifi || (hasVpn && !isActiveNetworkMetered && !hasCellular && !hasEthernet)
 }
+
+internal const val STALE_REFRESH_UI_TIMEOUT_MS = 15L * 60L * 1000L
 
 @Composable
 internal fun ImportProgressDialog() {

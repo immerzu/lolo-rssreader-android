@@ -380,9 +380,13 @@ class FeedFetcherTest {
     @Test
     fun fetchUsesVersionDerivedUserAgent() {
         var capturedUserAgent: String? = null
+        var capturedAccept: String? = null
+        var capturedAcceptCharset: String? = null
         val client = OkHttpClient.Builder()
             .addInterceptor { chain ->
                 capturedUserAgent = chain.request().header("User-Agent")
+                capturedAccept = chain.request().header("Accept")
+                capturedAcceptCharset = chain.request().header("Accept-Charset")
                 Response.Builder()
                     .request(chain.request())
                     .protocol(Protocol.HTTP_1_1)
@@ -400,6 +404,10 @@ class FeedFetcherTest {
 
         assertEquals(AppUserAgent.value, capturedUserAgent)
         assertTrue(capturedUserAgent.orEmpty().startsWith("RSS-Reader/"))
+        assertTrue(capturedAccept.orEmpty().contains("application/rss+xml"))
+        assertTrue(capturedAccept.orEmpty().contains("application/atom+xml"))
+        assertTrue(capturedAccept.orEmpty().contains("text/xml"))
+        assertTrue(capturedAcceptCharset.orEmpty().contains("utf-8"))
     }
 
     @Test

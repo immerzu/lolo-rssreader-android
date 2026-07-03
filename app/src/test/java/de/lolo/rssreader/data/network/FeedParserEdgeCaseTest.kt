@@ -39,6 +39,69 @@ class FeedParserEdgeCaseTest {
     }
 
     @Test
+    fun phoronixStyleRssFeedParsesAsValidRss() {
+        val parsed = parser.parse(
+            xml = """
+                <?xml version="1.0"?>
+                <rss version="2.0" xmlns:dc="http://purl.org/dc/elements/1.1/">
+                  <channel>
+                    <title>Phoronix</title>
+                    <link>https://www.phoronix.com/</link>
+                    <description>Linux Hardware Reviews, Performance Benchmarks &amp; Open-Source / Free Software News</description>
+                    <language>en-us</language>
+                    <item>
+                      <title>GraalVM CE 25.1.3 Gets Native Image &quot;Hello World&quot; Program Down To <em>Just</em> 6.5MB</title>
+                      <link>https://www.phoronix.com/news/GraalVM-Community-25.1.3</link>
+                      <guid>https://www.phoronix.com/news/GraalVM-Community-25.1.3</guid>
+                      <pubDate>Tue, 30 Jun 2026 16:11:40 -0400</pubDate>
+                      <dc:creator>Michael Larabel</dc:creator>
+                      <description>GraalVM, the advanced JDK focused on ahead-of-time Native Image compilation, is out with its newest community feature release.</description>
+                    </item>
+                  </channel>
+                </rss>
+            """.trimIndent(),
+            sourceUrl = "https://www.phoronix.com/rss.php"
+        )
+
+        assertEquals("Phoronix", parsed.title)
+        val article = parsed.items.single()
+        assertEquals(
+            "GraalVM CE 25.1.3 Gets Native Image \"Hello World\" Program Down To Just 6.5MB",
+            article.title
+        )
+        assertEquals("https://www.phoronix.com/news/GraalVM-Community-25.1.3", article.link)
+        assertEquals("Michael Larabel", article.author)
+        assertTrue(article.plainText.contains("GraalVM"))
+        assertNotNull(article.publishedAt)
+    }
+
+    @Test
+    fun rssWithUndeclaredPrefixedCreatorUsesNamespaceFallback() {
+        val parsed = parser.parse(
+            xml = """
+                <?xml version="1.0"?>
+                <rss version="2.0">
+                  <channel>
+                    <title>Prefix Edge Case</title>
+                    <item>
+                      <title>Artikel mit Prefix</title>
+                      <link>https://example.com/prefix</link>
+                      <guid>https://example.com/prefix</guid>
+                      <dc:creator>Autor ohne Namespace-Deklaration</dc:creator>
+                      <description>Beschreibung</description>
+                    </item>
+                  </channel>
+                </rss>
+            """.trimIndent(),
+            sourceUrl = "https://example.com/feed.xml"
+        )
+
+        val article = parsed.items.single()
+        assertEquals("Artikel mit Prefix", article.title)
+        assertEquals("Autor ohne Namespace-Deklaration", article.author)
+    }
+
+    @Test
     fun itemWithEmptyTitleUsesFallback() {
         val parsed = parser.parse(
             xml = """

@@ -93,6 +93,39 @@ class DocumentImportExportSupportTest {
     }
 
     @Test
+    fun staleRefreshUiStateIsRecoveredAfterTimeout() {
+        assertTrue(
+            shouldRecoverStaleRefreshUiState(
+                isRefreshing = true,
+                refreshStartedAtElapsedMs = 1_000L,
+                nowElapsedMs = 1_000L + STALE_REFRESH_UI_TIMEOUT_MS
+            )
+        )
+    }
+
+    @Test
+    fun activeRecentRefreshUiStateIsNotRecovered() {
+        assertTrue(
+            !shouldRecoverStaleRefreshUiState(
+                isRefreshing = true,
+                refreshStartedAtElapsedMs = 1_000L,
+                nowElapsedMs = 1_000L + STALE_REFRESH_UI_TIMEOUT_MS - 1L
+            )
+        )
+    }
+
+    @Test
+    fun missingRefreshStartTimestampIsRecoveredWhenRefreshingFlagIsSet() {
+        assertTrue(
+            shouldRecoverStaleRefreshUiState(
+                isRefreshing = true,
+                refreshStartedAtElapsedMs = 0L,
+                nowElapsedMs = 5_000L
+            )
+        )
+    }
+
+    @Test
     fun formatImportResultDialogMessageUsesSuccessMessage() {
         assertEquals(
             "Import erfolgreich",

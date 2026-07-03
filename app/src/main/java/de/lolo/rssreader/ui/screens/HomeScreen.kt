@@ -2,6 +2,7 @@ package de.lolo.rssreader.ui.screens
 
 import android.content.Context
 import android.os.Build
+import android.os.SystemClock
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -46,19 +47,23 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import de.lolo.rssreader.R
 import de.lolo.rssreader.debug.DebugLogger
 import de.lolo.rssreader.data.db.FeedSummary
@@ -104,6 +109,7 @@ fun HomeScreen(
 ) {
     val logTag = "HomeScreen"
     val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
     val activity = findHostActivity(context)
     val feeds by repository.observeFeedSummaries().collectAsState(initial = null)
     var lastVisibleFeeds by remember { mutableStateOf(HomeScreenFeedCache.lastFeeds) }
@@ -117,8 +123,11 @@ fun HomeScreen(
     val loadedFeeds = feeds ?: lastVisibleFeeds
     val feedsLoadedForUi = feeds != null || lastVisibleFeeds.isNotEmpty()
     val scope = rememberCoroutineScope()
-    var isRefreshing by rememberSaveable { mutableStateOf(false) }
-    var showRefreshIndicator by rememberSaveable { mutableStateOf(false) }
+    var isRefreshing by remember { mutableStateOf(false) }
+    var showRefreshIndicator by remember { mutableStateOf(false) }
+    var refreshStartedAtElapsedMs by remember { mutableLongStateOf(0L) }
+    val latestIsRefreshing by rememberUpdatedState(isRefreshing)
+    val latestRefreshStartedAtElapsedMs by rememberUpdatedState(refreshStartedAtElapsedMs)
     var refreshIndicatorToken by rememberSaveable { mutableIntStateOf(0) }
     var initialRefreshDone by rememberSaveable { mutableStateOf(false) }
     var errorMessage by rememberSaveable { mutableStateOf<String?>(null) }
@@ -175,6 +184,7 @@ fun HomeScreen(
             return
         }
         isRefreshing = true
+        refreshStartedAtElapsedMs = SystemClock.elapsedRealtime()
         showRefreshIndicatorBriefly()
         try {
             runCatching { repository.refreshAll(hasWifiConnection = hasWifiConnection) }
@@ -213,6 +223,7 @@ fun HomeScreen(
                 }
         } finally {
             isRefreshing = false
+            refreshStartedAtElapsedMs = 0L
             refreshStatusText = null
         }
     }
@@ -311,6 +322,30 @@ fun HomeScreen(
         DebugLogger.i(logTag, "sichtbar")
         onDispose {
             DebugLogger.i(logTag, "verlassen")
+        }
+    }
+
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (
+                event == Lifecycle.Event.ON_START &&
+                shouldRecoverStaleRefreshUiState(
+                    isRefreshing = latestIsRefreshing,
+                    refreshStartedAtElapsedMs = latestRefreshStartedAtElapsedMs,
+                    nowElapsedMs = SystemClock.elapsedRealtime()
+                )
+            ) {
+                DebugLogger.w(logTag, "Stale Refresh-UI-State beim App-Resume zurueckgesetzt")
+                isRefreshing = false
+                showRefreshIndicator = false
+                refreshStatusText = null
+                refreshStartedAtElapsedMs = 0L
+                refreshIndicatorToken += 1
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
         }
     }
 
