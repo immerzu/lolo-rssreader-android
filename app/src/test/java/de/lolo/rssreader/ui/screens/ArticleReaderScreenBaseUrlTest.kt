@@ -243,7 +243,9 @@ class ArticleReaderScreenBaseUrlTest {
         assertFalse(sanitized.contains("accesskey=", ignoreCase = true))
         assertTrue(sanitized.contains("""src="https://example.com/image.jpg""""))
         assertTrue(sanitized.contains("""href="https://example.com/article""""))
-        assertTrue(sanitized.contains("""style="width:100%""""))
+        // style-Attribut auf <img> wird entfernt, da das Reader-CSS die Bilddarstellung
+        // vollstaendig steuert und inline-Styles (z.B. float:left) das Layout zerstoeren.
+        assertFalse(sanitized.contains("""style="width:100%""""))
     }
 
     @Test

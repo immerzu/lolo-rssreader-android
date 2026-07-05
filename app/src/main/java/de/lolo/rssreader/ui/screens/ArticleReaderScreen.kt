@@ -870,9 +870,19 @@ private fun buildReaderHtml(
             img, iframe, video, blockquote, twitterwidget {
               max-width: 100% !important;
             }
-            img, figure, iframe, video, blockquote, twitterwidget {
+            img, figure, iframe, video, blockquote, twitterwidget,
+            a[style*="float:"], div[style*="float:"], span[style*="float:"],
+            p[style*="float:"], section[style*="float:"], article[style*="float:"],
+            [class*="align"], [class*="caption"], [class*="wp-block"], [class*="size-"] {
               float: none !important;
               clear: both !important;
+            }
+            [class*="align"], [class*="caption"], [class*="wp-block"] {
+              display: block !important;
+              margin-left: auto !important;
+              margin-right: auto !important;
+              width: auto !important;
+              max-width: min(100%, ${imageMaxWidthPx}px) !important;
             }
             img {
               display: block;
@@ -1062,6 +1072,11 @@ private fun String.normalizeReaderBodyHtml(loadProfile: ReaderLoadProfile): Stri
     normalizedHtml = readerResponsiveImageAttributeRegex.replace(normalizedHtml, "")
     normalizedHtml = readerLegacyImageMapAttributeRegex.replace(normalizedHtml, "")
     normalizedHtml = readerLegacyFlowAttributeRegex.replace(normalizedHtml, "")
+    // style-Attribute auf <img> und <figure> entfernen – das Reader-CSS steuert
+    // deren Darstellung vollständig. Inline-Styles mit float:left/right würden
+    // sonst das Layout zerstören (Text neben grossen Bildern in Mini-Spalte).
+    normalizedHtml = readerImgStyleAttributeRegex.replace(normalizedHtml, "$1$2")
+    normalizedHtml = readerFigureStyleAttributeRegex.replace(normalizedHtml, "$1$2")
     normalizedHtml = readerInteractionAttributeRegex.replace(normalizedHtml, "")
     normalizedHtml = readerMetadataAttributeRegex.replace(normalizedHtml, "")
     normalizedHtml = readerAccessibilityAttributeRegex.replace(normalizedHtml, "")
@@ -1505,6 +1520,16 @@ private val readerLegacyImageMapAttributeRegex = Regex(
 )
 private val readerLegacyFlowAttributeRegex = Regex(
     "\\s(?:align|hspace|vspace)\\s*=\\s*(?:\"[^\"]*\"|'[^']*'|[^\\s>]+)",
+    RegexOption.IGNORE_CASE
+)
+// Entfernt style="..." aus <img>-Tags. Das Reader-CSS steuert Bild-Darstellung
+// vollständig; inline-Style mit float:left würde sonst Text neben das Bild zwingen.
+private val readerImgStyleAttributeRegex = Regex(
+    "(<img\\b[^>]*?)\\s+style\\s*=\\s*(?:\"[^\"]*\"|'[^']*')([^>]*?>)",
+    RegexOption.IGNORE_CASE
+)
+private val readerFigureStyleAttributeRegex = Regex(
+    "(<figure\\b[^>]*?)\\s+style\\s*=\\s*(?:\"[^\"]*\"|'[^']*')([^>]*?>)",
     RegexOption.IGNORE_CASE
 )
 private val readerInteractionAttributeRegex = Regex(

@@ -75,8 +75,10 @@ import de.lolo.rssreader.data.repository.RepositoryDiagnosticsSnapshot
 import de.lolo.rssreader.data.settings.AppPreferences
 import de.lolo.rssreader.notifications.ArticleUpdateNotifier
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeout
 
 private enum class HomeAction {
     DELETE_READ,
@@ -91,6 +93,7 @@ private enum class FeedConfirmAction {
 }
 
 private const val HOME_REFRESH_INDICATOR_DURATION_MS = 700L
+private const val REFRESH_ALL_TIMEOUT_MS = 600_000L // 10 Minuten
 private object HomeScreenFeedCache {
     var lastFeeds: List<FeedSummary> = emptyList()
 }
@@ -143,6 +146,10 @@ fun HomeScreen(
     var importDialogToken by rememberSaveable { mutableIntStateOf(0) }
     var importResultMessage by rememberSaveable { mutableStateOf<String?>(null) }
     var refreshStatusText by rememberSaveable { mutableStateOf<String?>(null) }
+    // Stale refreshStatusText nach Process-Death zurücksetzen
+    if (refreshStatusText != null && (!isRefreshing || refreshStartedAtElapsedMs <= 0L)) {
+        refreshStatusText = null
+    }
     var diagnosticsText by rememberSaveable { mutableStateOf<String?>(null) }
     val snackbarHostState = remember { SnackbarHostState() }
     val showInfoMessage: (String) -> Unit = { message ->
@@ -187,7 +194,11 @@ fun HomeScreen(
         refreshStartedAtElapsedMs = SystemClock.elapsedRealtime()
         showRefreshIndicatorBriefly()
         try {
-            runCatching { repository.refreshAll(hasWifiConnection = hasWifiConnection) }
+            runCatching {
+                    withTimeout(REFRESH_ALL_TIMEOUT_MS) {
+                        repository.refreshAll(hasWifiConnection = hasWifiConnection)
+                    }
+                }
                 .onSuccess { stats ->
                     if (showSuccessMessage) {
                         showInfoMessage(formatRefreshSummary(context, stats))
@@ -215,7 +226,10 @@ fun HomeScreen(
                     }
                 }
                 .onFailure {
-                    if (it !is CancellationException) {
+                    if (it is TimeoutCancellationException) {
+                        DebugLogger.w(logTag, "Refresh-Timeout nach ${REFRESH_ALL_TIMEOUT_MS}ms")
+                        errorMessage = context.getString(R.string.home_update_failed)
+                    } else if (it !is CancellationException) {
                         errorMessage = it.toUserMessage(
                             context.getString(R.string.home_update_failed)
                         )

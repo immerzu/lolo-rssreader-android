@@ -70,9 +70,13 @@ import de.lolo.rssreader.data.settings.EntrySortOrder
 import de.lolo.rssreader.debug.DebugLogger
 import de.lolo.rssreader.ui.formatRelativeTime
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeout
+
+private const val SINGLE_FEED_REFRESH_TIMEOUT_MS = 120_000L // 2 Minuten
 
 private object ArticleListScreenArticleCache {
     val lastArticlesByFeedId = mutableMapOf<Long, List<ArticleEntity>>()
@@ -138,6 +142,10 @@ fun ArticleListScreen(
     var errorMessage by rememberSaveable { mutableStateOf<String?>(null) }
     var selectedArticleId by rememberSaveable { mutableStateOf<Long?>(null) }
     var refreshStatusText by rememberSaveable { mutableStateOf<String?>(null) }
+    // Stale refreshStatusText nach Process-Death zurücksetzen
+    if (refreshStatusText != null && (!isRefreshing || refreshStartedAtElapsedMs <= 0L)) {
+        refreshStatusText = null
+    }
     var savedFirstVisibleItemIndex by rememberSaveable(feedId) { mutableIntStateOf(0) }
     var savedFirstVisibleItemScrollOffset by rememberSaveable(feedId) { mutableIntStateOf(0) }
     var restoreApplied by remember(feedId) { mutableStateOf(false) }
@@ -184,7 +192,11 @@ fun ArticleListScreen(
             showRefreshIndicatorBriefly()
             DebugLogger.i(logTag, "Feed-Refresh manuell gestartet: feedId=$feedId")
             try {
-                runCatching { repository.refreshFeed(feedId) }
+                runCatching {
+                        withTimeout(SINGLE_FEED_REFRESH_TIMEOUT_MS) {
+                            repository.refreshFeed(feedId)
+                        }
+                    }
                     .onSuccess { inserted ->
                         DebugLogger.i(
                             logTag,
@@ -192,7 +204,10 @@ fun ArticleListScreen(
                         )
                     }
                     .onFailure {
-                        if (it !is CancellationException) {
+                        if (it is TimeoutCancellationException) {
+                            DebugLogger.w(logTag, "Feed-Refresh-Timeout nach ${SINGLE_FEED_REFRESH_TIMEOUT_MS}ms: feedId=$feedId")
+                            errorMessage = context.getString(R.string.article_list_refresh_failed)
+                        } else if (it !is CancellationException) {
                             DebugLogger.w(logTag, "Feed-Refresh fehlgeschlagen: feedId=$feedId", it)
                             errorMessage = it.toUserMessage(
                                 context.getString(R.string.article_list_refresh_failed)

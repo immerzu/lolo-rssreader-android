@@ -217,7 +217,7 @@ internal fun hasWifiRefreshTransportFlags(
     return hasWifi || (hasVpn && !isActiveNetworkMetered && !hasCellular && !hasEthernet)
 }
 
-internal const val STALE_REFRESH_UI_TIMEOUT_MS = 15L * 60L * 1000L
+internal const val STALE_REFRESH_UI_TIMEOUT_MS = 5L * 60L * 1000L
 
 @Composable
 internal fun ImportProgressDialog() {

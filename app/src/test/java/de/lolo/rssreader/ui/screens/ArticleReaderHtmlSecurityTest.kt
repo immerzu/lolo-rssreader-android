@@ -151,4 +151,37 @@ class ArticleReaderHtmlSecurityTest {
         assertFalse(sanitized.contains("vspace=", ignoreCase = true))
         assertTrue(sanitized.contains("Text darf nicht neben dem Bild"))
     }
+
+    @Test
+    fun sanitizeRemovesInlineStyleWithFloatFromImg() {
+        val sanitized = sanitizeReaderBodyHtmlForTest(
+            """
+                <p><img src="https://example.com/photo.jpg" style="float: left; width: 300px; margin-right: 10px;"></p>
+                <p>Text darf nicht rechts neben dem Bild in einer schmalen Spalte fliessen.</p>
+            """.trimIndent()
+        )
+
+        assertTrue(sanitized.contains("""src="https://example.com/photo.jpg""""))
+        assertFalse(sanitized.contains("float:", ignoreCase = true))
+        // Das style-Attribut wird vollstaendig vom <img>-Tag entfernt
+        assertFalse(Regex("""<img[^>]*\sstyle\s*=""", RegexOption.IGNORE_CASE).containsMatchIn(sanitized))
+        assertTrue(sanitized.contains("Text darf nicht rechts neben dem Bild"))
+    }
+
+    @Test
+    fun sanitizeRemovesInlineStyleWithFloatFromFigure() {
+        val sanitized = sanitizeReaderBodyHtmlForTest(
+            """
+                <figure style="float: left; width: 50%;">
+                    <img src="https://example.com/photo.jpg">
+                </figure>
+                <p>Text darf nicht rechts neben der figure-Box fliessen.</p>
+            """.trimIndent()
+        )
+
+        assertTrue(sanitized.contains("""src="https://example.com/photo.jpg""""))
+        assertTrue(sanitized.contains("<figure"))
+        assertFalse(Regex("""<figure[^>]*\sstyle\s*=""", RegexOption.IGNORE_CASE).containsMatchIn(sanitized))
+        assertTrue(sanitized.contains("Text darf nicht rechts neben der figure-Box"))
+    }
 }
