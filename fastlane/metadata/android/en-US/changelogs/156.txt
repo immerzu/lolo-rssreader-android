@@ -1,0 +1,7 @@
+Version 1.87.27: More reliable refresh and consistent status display.
+- Improved unified app-start and foreground refresh logic
+- Consistent refresh status and progress display
+- Single-feed refresh integrated into the global status display
+- Protection against parallel refreshes
+- Expanded unit tests for foreground refresh logic
+- Fixed outdated local tool paths

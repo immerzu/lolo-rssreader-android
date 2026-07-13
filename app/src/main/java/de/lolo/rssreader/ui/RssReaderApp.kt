@@ -59,12 +59,13 @@ fun RssReaderApp(
     val latestSettings by rememberUpdatedState(settings)
     var lastBackgroundedAtElapsedMs by remember { mutableLongStateOf(0L) }
     var foregroundRefreshInProgress by remember { mutableStateOf(false) }
+    var isFirstSettingsLoad by remember { mutableStateOf(true) }
 
     fun launchForegroundRefreshIfNeeded(nowElapsedMs: Long) {
         val loadedSettings = latestSettings ?: return
         if (
             foregroundRefreshInProgress ||
-            !shouldRefreshOnForegroundAfterInactivity(
+            !shouldRefreshOnForeground(
                 settings = loadedSettings,
                 lastBackgroundedAtElapsedMs = lastBackgroundedAtElapsedMs,
                 nowElapsedMs = nowElapsedMs
@@ -111,6 +112,17 @@ fun RssReaderApp(
     LaunchedEffect(settings?.refreshIntervalMinutes, settings?.refreshOnlyOnWifi) {
         settings?.let { loadedSettings ->
             refreshScheduler.sync(loadedSettings)
+        }
+    }
+
+    LaunchedEffect(settings) {
+        if (isFirstSettingsLoad && settings != null) {
+            isFirstSettingsLoad = false
+            DebugLogger.i(
+                "RssReaderApp",
+                "Settings erstmals geladen, starte ggf. Vordergrund-Aktualisierung"
+            )
+            launchForegroundRefreshIfNeeded(SystemClock.elapsedRealtime())
         }
     }
 
@@ -172,6 +184,7 @@ fun RssReaderApp(
                         repository = repository,
                         settings = loadedSettings,
                         settingsLoaded = settings != null,
+                        isForegroundRefreshing = foregroundRefreshInProgress,
                         onOpenFeed = { feedId ->
                             navController.navigate(Screen.ArticleList.create(feedId))
                         },
@@ -278,6 +291,7 @@ internal fun shouldResetReaderAfterInactivity(
 
 internal const val READER_INACTIVITY_RESET_TIMEOUT_MS = 15L * 60L * 1000L
 internal const val FOREGROUND_REFRESH_AFTER_INACTIVITY_TIMEOUT_MS = 5L * 60L * 60L * 1000L
+internal const val FOREGROUND_REFRESH_ON_START_TIMEOUT_MS = 5L * 60L * 1000L
 
 internal fun shouldRefreshOnForegroundAfterInactivity(
     settings: AppPreferences,
@@ -306,10 +320,26 @@ internal fun foregroundRefreshInactivityTimeoutMs(
     settings: AppPreferences,
     defaultTimeoutMs: Long = FOREGROUND_REFRESH_AFTER_INACTIVITY_TIMEOUT_MS
 ): Long {
+    if (settings.refreshOnStart && settings.refreshIntervalMinutes <= 0) {
+        return FOREGROUND_REFRESH_ON_START_TIMEOUT_MS
+    }
     return settings.refreshIntervalMinutes
         .takeIf { it > 0 }
         ?.let { TimeUnit.MINUTES.toMillis(it.toLong()) }
         ?: defaultTimeoutMs
+}
+
+internal fun shouldRefreshOnForeground(
+    settings: AppPreferences,
+    lastBackgroundedAtElapsedMs: Long,
+    nowElapsedMs: Long,
+    defaultTimeoutMs: Long = FOREGROUND_REFRESH_AFTER_INACTIVITY_TIMEOUT_MS
+): Boolean {
+    if (!isForegroundRefreshEnabled(settings)) return false
+    // Cold Start (lastBackgroundedAtElapsedMs <= 0L): nur refreshen wenn refreshOnStart aktiv
+    if (lastBackgroundedAtElapsedMs <= 0L) return settings.refreshOnStart
+    if (nowElapsedMs <= lastBackgroundedAtElapsedMs) return false
+    return nowElapsedMs - lastBackgroundedAtElapsedMs >= foregroundRefreshInactivityTimeoutMs(settings, defaultTimeoutMs)
 }
 
 internal fun shouldSkipForegroundRefreshForWifiOnlySetting(

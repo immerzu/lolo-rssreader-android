@@ -1,0 +1,7 @@
+Version 1.87.27: Zuverlässigere Aktualisierung und einheitliche Statusanzeige.
+- App-Start- und Vordergrund-Refresh über vereinheitlichte Logik verbessert
+- Konsistente Anzeige von Aktualisierungsstatus und Fortschritt
+- Einzelfeed-Refresh in die globale Statusanzeige integriert
+- Schutz vor parallelen Aktualisierungen beim Refresh
+- Unit-Tests für die Vordergrund-Refresh-Logik erweitert
+- Veraltete lokale Tool-Pfade korrigiert

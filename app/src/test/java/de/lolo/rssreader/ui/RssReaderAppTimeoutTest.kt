@@ -54,19 +54,19 @@ class RssReaderAppTimeoutTest {
     }
 
     @Test
-    fun shouldRefreshOnForegroundAfterInactivityUsesDefaultTimeoutForRefreshOnStart() {
+    fun shouldRefreshOnForegroundAfterInactivityUses5MinTimeoutForRefreshOnStartOnly() {
         assertFalse(
             shouldRefreshOnForegroundAfterInactivity(
                 settings = AppPreferences(refreshOnStart = true),
                 lastBackgroundedAtElapsedMs = 1_000L,
-                nowElapsedMs = 1_000L + FOREGROUND_REFRESH_AFTER_INACTIVITY_TIMEOUT_MS - 1L
+                nowElapsedMs = 1_000L + FOREGROUND_REFRESH_ON_START_TIMEOUT_MS - 1L
             )
         )
         assertTrue(
             shouldRefreshOnForegroundAfterInactivity(
                 settings = AppPreferences(refreshOnStart = true),
                 lastBackgroundedAtElapsedMs = 1_000L,
-                nowElapsedMs = 1_000L + FOREGROUND_REFRESH_AFTER_INACTIVITY_TIMEOUT_MS
+                nowElapsedMs = 1_000L + FOREGROUND_REFRESH_ON_START_TIMEOUT_MS
             )
         )
     }
@@ -113,6 +113,122 @@ class RssReaderAppTimeoutTest {
             shouldSkipForegroundRefreshForWifiOnlySetting(
                 settings = AppPreferences(refreshOnlyOnWifi = false),
                 hasWifiConnection = false
+            )
+        )
+    }
+
+    // --- shouldRefreshOnForeground (Cold Start + Resume kombiniert) ---
+
+    @Test
+    fun shouldRefreshOnForegroundReturnsTrueOnColdStartWhenRefreshOnStartIsEnabled() {
+        assertTrue(
+            shouldRefreshOnForeground(
+                settings = AppPreferences(refreshOnStart = true),
+                lastBackgroundedAtElapsedMs = 0L,
+                nowElapsedMs = 1_000L
+            )
+        )
+    }
+
+    @Test
+    fun shouldRefreshOnForegroundReturnsFalseOnColdStartWhenRefreshOnStartIsDisabled() {
+        assertFalse(
+            shouldRefreshOnForeground(
+                settings = AppPreferences(refreshOnStart = false, refreshIntervalMinutes = 0),
+                lastBackgroundedAtElapsedMs = 0L,
+                nowElapsedMs = 1_000L
+            )
+        )
+    }
+
+    @Test
+    fun shouldRefreshOnForegroundReturnsFalseOnColdStartWhenAllRefreshIsDisabled() {
+        assertFalse(
+            shouldRefreshOnForeground(
+                settings = AppPreferences(refreshOnStart = false, refreshIntervalMinutes = 0),
+                lastBackgroundedAtElapsedMs = 0L,
+                nowElapsedMs = 1_000L
+            )
+        )
+    }
+
+    @Test
+    fun shouldRefreshOnForegroundReturnsTrueAfter10MinBackgroundWithRefreshOnStartOnly() {
+        val tenMinutesMs = 10L * 60L * 1000L
+        assertTrue(
+            shouldRefreshOnForeground(
+                settings = AppPreferences(refreshOnStart = true, refreshIntervalMinutes = 0),
+                lastBackgroundedAtElapsedMs = 1_000L,
+                nowElapsedMs = 1_000L + tenMinutesMs
+            )
+        )
+    }
+
+    @Test
+    fun shouldRefreshOnForegroundReturnsFalseAfter1MinBackgroundWithRefreshOnStartOnly() {
+        val oneMinuteMs = 1L * 60L * 1000L
+        assertFalse(
+            shouldRefreshOnForeground(
+                settings = AppPreferences(refreshOnStart = true, refreshIntervalMinutes = 0),
+                lastBackgroundedAtElapsedMs = 1_000L,
+                nowElapsedMs = 1_000L + oneMinuteMs
+            )
+        )
+    }
+
+    @Test
+    fun shouldRefreshOnForegroundReturnsTrueAfterIntervalOnResumeWhenIntervalEnabled() {
+        val thirtyOneMinutesMs = 31L * 60L * 1000L
+        assertTrue(
+            shouldRefreshOnForeground(
+                settings = AppPreferences(refreshIntervalMinutes = 30),
+                lastBackgroundedAtElapsedMs = 1_000L,
+                nowElapsedMs = 1_000L + thirtyOneMinutesMs
+            )
+        )
+    }
+
+    @Test
+    fun shouldRefreshOnForegroundReturnsFalseBeforeIntervalOnResumeWhenIntervalEnabled() {
+        val oneMinuteMs = 1L * 60L * 1000L
+        assertFalse(
+            shouldRefreshOnForeground(
+                settings = AppPreferences(refreshIntervalMinutes = 30),
+                lastBackgroundedAtElapsedMs = 1_000L,
+                nowElapsedMs = 1_000L + oneMinuteMs
+            )
+        )
+    }
+
+    @Test
+    fun shouldRefreshOnForegroundReturnsFalseWhenNoTimeElapsedSinceBackground() {
+        assertFalse(
+            shouldRefreshOnForeground(
+                settings = AppPreferences(refreshOnStart = true, refreshIntervalMinutes = 30),
+                lastBackgroundedAtElapsedMs = 5_000L,
+                nowElapsedMs = 5_000L
+            )
+        )
+    }
+
+    @Test
+    fun shouldRefreshOnForegroundReturnsFalseWhenNowBeforeBackgrounded() {
+        assertFalse(
+            shouldRefreshOnForeground(
+                settings = AppPreferences(refreshOnStart = true, refreshIntervalMinutes = 30),
+                lastBackgroundedAtElapsedMs = 5_000L,
+                nowElapsedMs = 4_000L
+            )
+        )
+    }
+
+    @Test
+    fun shouldRefreshOnForegroundReturnsFalseWhenAllRefreshDisabledOnResume() {
+        assertFalse(
+            shouldRefreshOnForeground(
+                settings = AppPreferences(refreshOnStart = false, refreshIntervalMinutes = 0),
+                lastBackgroundedAtElapsedMs = 1_000L,
+                nowElapsedMs = 1_000L + FOREGROUND_REFRESH_AFTER_INACTIVITY_TIMEOUT_MS
             )
         )
     }

@@ -52,6 +52,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -104,6 +105,7 @@ fun HomeScreen(
     repository: FeedRepository,
     settings: AppPreferences,
     settingsLoaded: Boolean,
+    isForegroundRefreshing: Boolean = false,
     onOpenFeed: (Long) -> Unit,
     onAddFeed: () -> Unit,
     onEditFeed: (Long) -> Unit,
@@ -132,7 +134,6 @@ fun HomeScreen(
     val latestIsRefreshing by rememberUpdatedState(isRefreshing)
     val latestRefreshStartedAtElapsedMs by rememberUpdatedState(refreshStartedAtElapsedMs)
     var refreshIndicatorToken by rememberSaveable { mutableIntStateOf(0) }
-    var initialRefreshDone by rememberSaveable { mutableStateOf(false) }
     var errorMessage by rememberSaveable { mutableStateOf<String?>(null) }
     var selectedFeedMenuId by rememberSaveable { mutableStateOf<Long?>(null) }
     var topMenuExpanded by rememberSaveable { mutableStateOf(false) }
@@ -150,6 +151,20 @@ fun HomeScreen(
     if (refreshStatusText != null && (!isRefreshing || refreshStartedAtElapsedMs <= 0L)) {
         refreshStatusText = null
     }
+    var refreshFromForeground by remember { mutableStateOf(false) }
+    SideEffect {
+        if (isForegroundRefreshing && !isRefreshing) {
+            isRefreshing = true
+            refreshFromForeground = true
+            refreshStartedAtElapsedMs = SystemClock.elapsedRealtime()
+            refreshStatusText = context.getString(R.string.home_refresh_running)
+        } else if (!isForegroundRefreshing && isRefreshing && refreshFromForeground) {
+            isRefreshing = false
+            refreshFromForeground = false
+            refreshStartedAtElapsedMs = 0L
+            refreshStatusText = null
+        }
+    }
     var diagnosticsText by rememberSaveable { mutableStateOf<String?>(null) }
     val snackbarHostState = remember { SnackbarHostState() }
     val showInfoMessage: (String) -> Unit = { message ->
@@ -162,14 +177,10 @@ fun HomeScreen(
         val token = refreshIndicatorToken + 1
         refreshIndicatorToken = token
         showRefreshIndicator = true
-        refreshStatusText = null
         scope.launch {
             delay(HOME_REFRESH_INDICATOR_DURATION_MS)
             if (refreshIndicatorToken == token) {
                 showRefreshIndicator = false
-                if (isRefreshing) {
-                    refreshStatusText = context.getString(R.string.home_refresh_running)
-                }
             }
         }
     }
@@ -191,8 +202,14 @@ fun HomeScreen(
             return
         }
         isRefreshing = true
+        refreshFromForeground = false
         refreshStartedAtElapsedMs = SystemClock.elapsedRealtime()
-        showRefreshIndicatorBriefly()
+        refreshStatusText = context.getString(R.string.home_refresh_running)
+        showRefreshIndicator = true
+        scope.launch {
+            delay(HOME_REFRESH_INDICATOR_DURATION_MS)
+            showRefreshIndicator = false
+        }
         try {
             runCatching {
                     withTimeout(REFRESH_ALL_TIMEOUT_MS) {
@@ -239,6 +256,54 @@ fun HomeScreen(
             isRefreshing = false
             refreshStartedAtElapsedMs = 0L
             refreshStatusText = null
+        }
+    }
+    suspend fun runRefreshFeed(feedId: Long) {
+        if (isRefreshing || busy) {
+            return
+        }
+        val feed = loadedFeeds.firstOrNull { it.id == feedId }
+        if (isDefinitelyOffline(context)) {
+            errorMessage = noNetworkConnectionMessage(context)
+            return
+        }
+        if (
+            isRefreshBlockedForWifiRequirements(
+                context = context,
+                globalRefreshOnlyOnWifi = settings.refreshOnlyOnWifi,
+                feedWifiOnly = feed?.wifiOnly == true
+            )
+        ) {
+            errorMessage = wifiOnlyRefreshMessage(context)
+            return
+        }
+        isRefreshing = true
+        refreshFromForeground = false
+        refreshStartedAtElapsedMs = SystemClock.elapsedRealtime()
+        refreshStatusText = context.getString(R.string.home_refresh_running)
+        showRefreshIndicator = true
+        scope.launch {
+            delay(HOME_REFRESH_INDICATOR_DURATION_MS)
+            showRefreshIndicator = false
+        }
+        try {
+            runCatching { repository.refreshFeed(feedId) }
+                .onSuccess { newArticles ->
+                    showInfoMessage(formatFeedRefreshSummary(context, newArticles))
+                }
+                .onFailure {
+                    if (it !is CancellationException) {
+                        errorMessage = it.toUserMessage(
+                            context.getString(R.string.home_feed_refresh_failed)
+                        )
+                    }
+                }
+        } finally {
+            isRefreshing = false
+            refreshFromForeground = false
+            refreshStartedAtElapsedMs = 0L
+            refreshStatusText = null
+            showRefreshIndicator = false
         }
     }
     fun launchRefreshAll(showSuccessMessage: Boolean, manualTrigger: Boolean) {
@@ -319,13 +384,6 @@ fun HomeScreen(
         }
     }
 
-    LaunchedEffect(settingsLoaded, settings.refreshOnStart) {
-        if (settingsLoaded && settings.refreshOnStart && !initialRefreshDone) {
-            initialRefreshDone = true
-            launchRefreshAll(showSuccessMessage = false, manualTrigger = false)
-        }
-    }
-
     LaunchedEffect(isMoveMode) {
         if (isMoveMode) {
             selectedFeedMenuId = null
@@ -351,6 +409,7 @@ fun HomeScreen(
             ) {
                 DebugLogger.w(logTag, "Stale Refresh-UI-State beim App-Resume zurueckgesetzt")
                 isRefreshing = false
+                refreshFromForeground = false
                 showRefreshIndicator = false
                 refreshStatusText = null
                 refreshStartedAtElapsedMs = 0L
@@ -421,7 +480,7 @@ fun HomeScreen(
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
-                            if (refreshStatusText != null && !showRefreshIndicator) {
+                            if (refreshStatusText != null) {
                                 Text(
                                     text = refreshStatusText!!,
                                     style = MaterialTheme.typography.bodySmall,
@@ -724,37 +783,11 @@ fun HomeScreen(
             text = {
                 Column {
                     TextButton(
+                        enabled = !isRefreshing && !busy,
                         onClick = {
                             selectedFeedMenuId = null
-                            scope.launch {
-                                if (isRefreshing || busy) {
-                                    return@launch
-                                }
-                                if (isDefinitelyOffline(context)) {
-                                    errorMessage = noNetworkConnectionMessage(context)
-                                    return@launch
-                                }
-                                if (
-                                    isRefreshBlockedForWifiRequirements(
-                                        context = context,
-                                        globalRefreshOnlyOnWifi = settings.refreshOnlyOnWifi,
-                                        feedWifiOnly = selectedFeed?.wifiOnly == true
-                                    )
-                                ) {
-                                    errorMessage = wifiOnlyRefreshMessage(context)
-                                    return@launch
-                                }
-                                runCatching { repository.refreshFeed(feedId) }
-                                    .onSuccess { newArticles ->
-                                        showInfoMessage(formatFeedRefreshSummary(context, newArticles))
-                                    }
-                                    .onFailure {
-                                        if (it !is CancellationException) {
-                                            errorMessage = it.toUserMessage(
-                                                context.getString(R.string.home_feed_refresh_failed)
-                                            )
-                                        }
-                                    }
+                            launchFromUiScope(activity, scope) {
+                                runRefreshFeed(feedId)
                             }
                         }
                     ) {
