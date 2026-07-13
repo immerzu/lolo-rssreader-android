@@ -14,7 +14,7 @@ Kurz und praktisch – vor jedem Release einmal durchgehen.
 ## 2. Tests
 
 ```powershell
-cd F:\Codex\RSS_Reader_Android\rss_reader_full_project
+cd F:\001_Coding_Projekte\RSS_Reader_Android\rss_reader_full_project
 .\gradlew.bat clean testDebugUnitTest
 .\gradlew.bat assembleDebug
 .\gradlew.bat assembleRelease
@@ -26,7 +26,7 @@ Alle Tasks müssen grün sein.
 
 ## 3. Artefakte prüfen
 
-- [ ] `F:\Codex\RSS_Reader_Android\Ausgabe_APK\` enthält die neuen Dateien
+- [ ] `F:\001_Coding_Projekte\RSS_Reader_Android\Ausgabe_APK\` enthält die neuen Dateien
 - [ ] Dateinamen enthalten die korrekte Version (z. B. `RSS-Reader-v1.87.16-release.apk`)
 - [ ] Keine APK/AAB versehentlich in Git
 - [ ] APK kurz auf Gerät oder Emulator starten und Rauchtest machen

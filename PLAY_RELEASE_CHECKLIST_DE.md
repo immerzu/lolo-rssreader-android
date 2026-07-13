@@ -11,13 +11,13 @@ Stand dieses Projekts:
 
 Release-Dateien:
 
-- APK fuer Tests: `F:\Codex\RSS_Reader_Android\Ausgabe_APK\RSS-Reader-v1.50.01-93-release.apk`
-- AAB fuer Google Play: `F:\Codex\RSS_Reader_Android\Ausgabe_APK\RSS-Reader-v1.50.01-93-release.aab`
+- APK fuer Tests: `F:\001_Coding_Projekte\RSS_Reader_Android\Ausgabe_APK\RSS-Reader-v1.50.01-93-release.apk`
+- AAB fuer Google Play: `F:\001_Coding_Projekte\RSS_Reader_Android\Ausgabe_APK\RSS-Reader-v1.50.01-93-release.aab`
 
 Wichtige lokale Signierdateien:
 
-- `F:\Codex\RSS_Reader_Android\rss_reader_full_project\signing\rss-reader-release.jks`
-- `F:\Codex\RSS_Reader_Android\rss_reader_full_project\keystore.properties`
+- `F:\001_Coding_Projekte\RSS_Reader_Android\rss_reader_full_project\signing\rss-reader-release.jks`
+- `F:\001_Coding_Projekte\RSS_Reader_Android\rss_reader_full_project\keystore.properties`
 
 Vor dem ersten Play-Upload:
 
