@@ -43,3 +43,15 @@ Folgende Aufgaben wurden erfolgreich ausgeführt:
 
 ## Manuelle Hinweise
 - Die Refresh-Szenarien (App-Start, Resume, Gesamt-Refresh, Einzelfeed-Refresh, Parallelität) wurden auf einem Gerät praktisch geprüft.
+
+## Veröffentlichung und F-Droid-Status (Stand: 2026-07-13)
+
+- Release-Commit: `a2f529e215c4bfdac4bbce9b8f83df171a4f7209`
+- Tag: `v1.87.27` (annotiert)
+- GitHub-Release: `RSS Reader 1.87.27`
+- GitHub `main` und GitLab `main` zeigen beide auf `a2f529e` (identischer Release-Stand).
+- Refresh-Fixes, ergänzte/korrigierte Unit-Tests sowie die Tool-Pfadkorrekturen sind committet und veröffentlicht.
+- `testDebugUnitTest`, `assembleDebug` und `assembleRelease` waren erfolgreich.
+- Öffentlicher F-Droid-Stand (fdroiddata): noch `1.87.26` / `155`.
+- `1.87.27` / `156` ist öffentlich bei F-Droid noch nicht als Build oder Veröffentlichung sichtbar.
+- Interner `checkupdates`-Status bei F-Droid ist öffentlich nicht feststellbar (unbekannt).
