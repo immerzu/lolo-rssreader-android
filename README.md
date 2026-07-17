@@ -1,57 +1,57 @@
+English | [Deutsch](README_DE.md)
+
 # RSS Reader
 
-Ein einfaches Android-Projekt in Kotlin + Jetpack Compose.
+A simple Android project in Kotlin + Jetpack Compose.
 
-## Lizenz
-Dieses Projekt steht unter der Apache License 2.0.
-Details siehe [LICENSE](LICENSE).
+## License
+This project is licensed under the Apache License 2.0.
+See [LICENSE](LICENSE) for details.
 
-## Enthalten
-- Feed-Uebersicht
-- Feed hinzufuegen
-- RSS/Atom laden
+## Features
+- Feed overview
+- Add feed
+- Load RSS/Atom
 - Parser
-- Room-Datenbank
-- Artikel-Liste
-- Leseransicht mit Text und Bildern darunter
-- einfache Einstellungen
+- Room database
+- Article list
+- Reader view with text and images below
+- Simple settings
 
-## Projektstart
-Mit Android Studio oeffnen und den Ordner `rss_reader_full_project` als Projekt verwenden.
-Alternativ startet `start-android-studio.ps1` Android Studio bereits mit den lokalen JDK-/SDK-Pfaden.
+## Getting Started
+Open with Android Studio and use the `rss_reader_full_project` folder as the project.
+Alternatively, `start-android-studio.ps1` launches Android Studio already configured with the local JDK/SDK paths.
 
 ## Build
-Per Android Studio ueber `Build > Build APK(s)` oder lokal ueber `gradlew.bat assembleDebug`.
-Vor einem Release-Kandidaten zusaetzlich `gradlew.bat assembleRelease` ausfuehren und die Checkliste in [RELEASE_CHECKLIST_RSS_READER_DE.md](F:\001_Coding_Projekte\RSS_Reader_Android/rss_reader_full_project/RELEASE_CHECKLIST_RSS_READER_DE.md) verwenden.
+Via Android Studio through `Build > Build APK(s)` or locally via `gradlew.bat assembleDebug`.
+Before a release candidate, additionally run `gradlew.bat assembleRelease` and use the checklist in [RELEASE_CHECKLIST_RSS_READER_DE.md](RELEASE_CHECKLIST_RSS_READER_DE.md).
 
-## F-Droid Metadaten
-Store-Metadaten fuer F-Droid liegen unter `fastlane/metadata/android/`.
-Eine kurze Notiz zur offiziellen Einreichung steht in [docs/FDROID_EINREICHUNG_DE.md](docs/FDROID_EINREICHUNG_DE.md).
-Ein vorbereiteter Submission-Text liegt in [docs/FDROID_SUBMISSION_TEMPLATE_EN.md](docs/FDROID_SUBMISSION_TEMPLATE_EN.md).
+## F-Droid Metadata
+Store metadata for F-Droid is located under `fastlane/metadata/android/`.
+A short note on the official submission is in [docs/FDROID_EINREICHUNG_DE.md](docs/FDROID_EINREICHUNG_DE.md).
+A prepared submission text is in [docs/FDROID_SUBMISSION_TEMPLATE_EN.md](docs/FDROID_SUBMISSION_TEMPLATE_EN.md).
 
-## Release-Signing (nur fuer Maintainer)
+## Release Signing (maintainers only)
 
-Fuer Release-Builds wird eine lokale `keystore.properties` benoetigt.
-Diese Datei ist NICHT Teil des Repositories und darf niemals committed werden.
+Release builds require a local `keystore.properties`.
+This file is NOT part of the repository and must never be committed.
 
-1. `keystore.properties.example` nach `keystore.properties` kopieren.
-2. Die Platzhalter durch echte Werte ersetzen.
-3. Sicherstellen, dass `.gitignore` die Datei ausschliesst.
+1. Copy `keystore.properties.example` to `keystore.properties`.
+2. Replace the placeholders with real values.
+3. Make sure `.gitignore` excludes the file.
 
-**Wichtig:**
-- `keystore.properties` enthaelt Signing-Passwoerter und darf nicht versioniert werden.
-- Der Release-Key (`*.jks`) muss ausserhalb des Repositories verwaltet werden.
-- Falls `keystore.properties` bereits geteilt wurde, gelten die enthaltenen Daten als kompromittiert.
-- Debug-Builds benoetigen KEIN `keystore.properties` und funktionieren ohne Signing-Konfiguration.
-- Ohne `keystore.properties` erzeugt `assembleRelease` eine unsignierte APK (kontrolliert, kein Fehler).
-  Fuer eine signierte Release-APK muss `keystore.properties` lokal vorhanden sein.
+**Important:**
+- `keystore.properties` contains signing passwords and must not be versioned.
+- The release key (`*.jks`) must be managed outside the repository.
+- If `keystore.properties` has already been shared, its contents must be considered compromised.
+- Debug builds require NO `keystore.properties` and work without signing configuration.
+- Without `keystore.properties`, `assembleRelease` produces an unsigned APK (controlled, not an error).
+  A signed release APK requires `keystore.properties` to be present locally.
 
 **R8 / Minify:**
-- `isMinifyEnabled` und `isShrinkResources` bleiben bewusst deaktiviert.
-- Fruehere Aktivierungsversuche haben zu schwerwiegenden Problemen gefuehrt.
-- Keine Aenderung ohne separate, explizite Freigabe.
+- `isMinifyEnabled` and `isShrinkResources` are intentionally kept disabled.
+- Previous attempts to enable them caused severe problems.
+- No change without a separate, explicit approval.
 
-## Hinweis zur Gradle-Konfiguration
-Der Wrapper ist fuer diese Maschine bereits vorbereitet und nutzt die lokal abgelegte Gradle-8.7-Distribution.
-
-
+## Gradle Configuration Note
+The wrapper is already prepared for this machine and uses the locally stored Gradle 8.7 distribution.
