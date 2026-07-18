@@ -727,15 +727,12 @@ private fun buildReaderHtml(
     } else {
         "img, figure { display: none !important; }"
     }
-    val articleTapUrl = article.link
-        .takeIf { it.isNotBlank() }
-        ?.let { "$IMAGE_TAP_SCHEME://open?url=${Uri.encode(it)}" }
-        .orEmpty()
+    val articleTapUrl = buildArticleTapUrl(article.link)
     val imageTapScript = if (articleTapUrl.isNotBlank()) {
         """
         <script>
           document.addEventListener('DOMContentLoaded', function() {
-            var articleUrl = '$articleTapUrl';
+            ${buildArticleUrlAssignment(articleTapUrl)}
             document.querySelectorAll('img').forEach(function(img) {
               img.loading = 'lazy';
               img.decoding = 'async';
@@ -1048,6 +1045,29 @@ internal fun sanitizeReaderBodyHtmlForTest(
     html: String,
     isHeavy: Boolean = false
 ): String = html.normalizeReaderBodyHtml(ReaderLoadProfile(isHeavy = isHeavy))
+
+// Erzeugt aus einem (potenziell nicht vertrauenswürdigen) Wert ein korrekt
+// gequotetes JavaScript-String-Literal. JSONObject.quote umschließt den Wert
+// mit doppelten Anführungszeichen und maskiert " \ sowie Steuerzeichen, sodass
+// der Wert nicht aus dem String-Literal ausbrechen und keinen Code einschleusen
+// kann. Das Ergebnis wird OHNE zusätzliche manuelle Anführungszeichen eingebettet.
+internal fun toJavaScriptStringLiteral(value: String): String =
+    org.json.JSONObject.quote(value)
+
+// Baut die (nicht vertrauenswürdige) Artikel-Tap-URL exakt wie im Produktions-
+// pfad: article.link -> Uri.encode -> "<scheme>://open?url=...". Ausgelagert,
+// damit Tests genau diesen Erzeugungspfad prüfen können.
+internal fun buildArticleTapUrl(link: String): String =
+    link.takeIf { it.isNotBlank() }
+        ?.let { "$IMAGE_TAP_SCHEME://open?url=${Uri.encode(it)}" }
+        .orEmpty()
+
+// Erzeugt die vollständige JavaScript-Zuweisungszeile, die im Reader-Skript
+// eingebettet wird. Der Wert wird über toJavaScriptStringLiteral als genau ein
+// korrekt gequotetes Literal eingesetzt – OHNE zusätzliche manuelle Quotes.
+// Test und Produktion nutzen dadurch exakt denselben Generierungspfad.
+internal fun buildArticleUrlAssignment(articleTapUrl: String): String =
+    "var articleUrl = ${toJavaScriptStringLiteral(articleTapUrl)};"
 
 private fun String.normalizeReaderBodyHtml(loadProfile: ReaderLoadProfile): String {
     // Reader-HTML bleibt lesbar, aber fremde Inline-Skripte und Feed-eigene Styles
