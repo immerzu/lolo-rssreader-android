@@ -59,6 +59,73 @@ class FeedParserTest {
     }
 
     @Test
+    fun internalDoctypeEntityIsNotExpanded() {
+        // DOCDECL-Haertung: Eine ueber DOCTYPE definierte interne Entitaet darf nicht
+        // verarbeitet werden. Waere DOCDECL aktiv (processDocdecl=true), wuerde
+        // &internal; zu "INTERNAL_EXPANDED_..." expandieren und der Marker im Titel
+        // erscheinen. Mit deaktiviertem DOCDECL bleibt die Entitaet unexpandiert.
+        val marker = "INTERNAL_EXPANDED_7C4D"
+        val xml = """
+            <?xml version="1.0"?>
+            <!DOCTYPE rss [
+              <!ENTITY internal "$marker">
+            ]>
+            <rss version="2.0">
+              <channel>
+                <title>FeedTitle</title>
+                <link>https://example.com/</link>
+                <item>
+                  <title>Start &internal; End</title>
+                  <link>https://example.com/item1</link>
+                </item>
+              </channel>
+            </rss>
+        """.trimIndent()
+
+        val parsed = parser.parse(xml = xml, sourceUrl = "https://example.com/feed")
+        val combined = parsed.items.joinToString(" ") { "${it.title} ${it.plainText}" }
+        assertFalse("Interne DOCTYPE-Entitaet wurde expandiert (DOCDECL aktiv?)", combined.contains(marker))
+    }
+
+    @Test
+    fun externalEntityInDoctypeIsNotResolved() {
+        // XXE-Haertung: Eine ueber DOCTYPE definierte externe Entitaet (SYSTEM, lokale
+        // Datei mit eindeutigem Marker) darf NICHT aufgeloest werden. Der Marker der
+        // externen Datei darf weder im Titel noch im Fließtext erscheinen.
+        val marker = "XXE_LEAK_MARKER_9F3A2B"
+        val externalFile = File.createTempFile("xxe_target", ".txt").apply {
+            writeText("CONFIDENTIAL_EXTERNAL_CONTENT_$marker")
+            deleteOnExit()
+        }
+        val xml = """
+            <?xml version="1.0"?>
+            <!DOCTYPE rss [
+              <!ENTITY xxe SYSTEM "${externalFile.toURI()}">
+            ]>
+            <rss version="2.0">
+              <channel>
+                <title>FeedTitle</title>
+                <link>https://example.com/</link>
+                <item>
+                  <title>Before &xxe; After</title>
+                  <link>https://example.com/item1</link>
+                </item>
+              </channel>
+            </rss>
+        """.trimIndent()
+
+        val parsed = runCatching {
+            parser.parse(xml = xml, sourceUrl = "https://example.com/feed")
+        }.getOrNull()
+
+        val combined = parsed?.items
+            ?.joinToString(" ") { item -> "${item.title} ${item.plainText}" }
+            .orEmpty()
+        assertFalse("Externe Entity wurde aufgeloest (XXE-Marker im Titel/Text)", combined.contains(marker))
+        assertFalse("Externe Datei wurde eingelesen (XXE)", combined.contains("CONFIDENTIAL_EXTERNAL_CONTENT"))
+    }
+
+    @Test
     fun payloadReaderPreservesLatin1UmlautsOnParserPath() {
         val xml = """
             <?xml version="1.0" encoding="ISO-8859-1"?>

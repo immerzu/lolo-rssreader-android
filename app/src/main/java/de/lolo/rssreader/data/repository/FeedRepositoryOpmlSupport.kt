@@ -12,7 +12,6 @@ import kotlinx.coroutines.supervisorScope
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 
-private const val OPML_IMPORT_SOFT_MAX_BYTES = 2L * 1024L * 1024L
 private const val OPML_IMPORT_BUFFER_SIZE = 8 * 1024
 internal const val OPML_IMPORT_PARALLELISM = 3
 
@@ -33,7 +32,7 @@ internal object OpmlImportSupport {
     fun readImportBytes(inputStream: InputStream): ByteArray =
         readInputStreamBounded(
             inputStream = inputStream,
-            maxBytes = OPML_IMPORT_SOFT_MAX_BYTES
+            maxBytes = OpmlCodec.OPML_IMPORT_MAX_BYTES
         )
 
     fun parseEntriesOrEmpty(importBytes: ByteArray): List<OpmlFeedEntry> =

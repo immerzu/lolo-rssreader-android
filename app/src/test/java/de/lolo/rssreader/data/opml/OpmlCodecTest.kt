@@ -248,4 +248,56 @@ class OpmlCodecTest {
             entries
         )
     }
+
+    private fun buildSizedValidOpml(targetBytes: Long): ByteArray {
+        val head = """<?xml version="1.0" encoding="UTF-8"?>
+<opml version="1.0">
+  <head><title>Feeds</title></head>
+  <body>
+    <outline text="Feed" title="Feed" type="rss" xmlUrl="https://example.com/feed.xml" />"""
+        val tail = """
+  </body>
+</opml>"""
+        // Ein XML-Kommentar wird vom Parser ignoriert, erlaubt aber exaktes
+        // Groessen-Padding ohne Riesen-Attribut oder Riesen-Textknoten.
+        val fixedPart = (head + "\n    " + "\n" + tail).toByteArray(Charsets.UTF_8).size
+        val pad = (targetBytes - fixedPart - 7).toInt().coerceAtLeast(0)
+        val xml = head + "\n    " + "<!--" + "A".repeat(pad) + "-->" + "\n" + tail
+        return xml.toByteArray(Charsets.UTF_8)
+    }
+
+    @Test
+    fun parseAcceptsValidOpmlJustUnderImportLimit() {
+        val bytes = buildSizedValidOpml(OpmlCodec.OPML_IMPORT_MAX_BYTES - 1024)
+        assertTrue("Eingabe deutlich unter Grenze erwartet", bytes.size < OpmlCodec.OPML_IMPORT_MAX_BYTES)
+
+        val entries = OpmlCodec.parse(ByteArrayInputStream(bytes))
+
+        assertTrue("Gueltige OPML knapp unter Grenze muss Eintraege liefern", entries.isNotEmpty())
+    }
+
+    @Test
+    fun parseAcceptsValidOpmlExactlyAtImportLimit() {
+        val bytes = buildSizedValidOpml(OpmlCodec.OPML_IMPORT_MAX_BYTES)
+        assertEquals(OpmlCodec.OPML_IMPORT_MAX_BYTES, bytes.size.toLong())
+
+        val entries = OpmlCodec.parse(ByteArrayInputStream(bytes))
+
+        assertTrue("Gueltige OPML an der Grenze muss Eintraege liefern", entries.isNotEmpty())
+    }
+
+    @Test
+    fun parseRejectsOversizedOpmlWithImportFileTooLarge() {
+        val bytes = buildSizedValidOpml(OpmlCodec.OPML_IMPORT_MAX_BYTES + 1)
+        assertEquals(OpmlCodec.OPML_IMPORT_MAX_BYTES + 1, bytes.size.toLong())
+
+        val failure = runCatching {
+            OpmlCodec.parse(ByteArrayInputStream(bytes))
+        }.exceptionOrNull()
+
+        assertTrue(
+            "Uebergrosse OPML muss ImportFileTooLarge ausloesen, war: ${failure?.javaClass?.simpleName}",
+            failure is RssReaderException.ImportFileTooLarge
+        )
+    }
 }

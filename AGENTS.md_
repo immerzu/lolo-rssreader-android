@@ -1,12 +1,12 @@
 ﻿# AGENTS.md – RSS Reader (Android)
 
 ## Projekt
-- Android-App in Kotlin + Jetpack Compose, Package `com.example.rssreader`, Application-ID `de.lolo.rssreader`
+- Android-App in Kotlin + Jetpack Compose, Package `de.lolo.rssreader`, Application-ID `de.lolo.rssreader`
 - RSS/Atom-Reader mit Feed-Verwaltung, OPML-Import/Export, Artikel-Reader, Suche, Hintergrundaktualisierung
 - Sprache: Kotlin 1.9.24, Compose BOM 2024.06, Material3
 
 ## Ordnerstruktur
-- `app/src/main/java/com/example/rssreader/` – Hauptquellcode
+- `app/src/main/java/de/lolo/rssreader/` – Hauptquellcode
   - `data/` – Room-Datenbank (Entities, DAOs, AppDatabase), Netzwerk (FeedFetcher, FeedParser), OPML, Repository, Einstellungen
   - `ui/` – Compose-UI (Screens, Navigation, Theme, UiFormatters)
   - `sync/` – WorkManager (BackgroundRefreshWorker) und RefreshScheduler
@@ -19,8 +19,8 @@
 - `signing/` – Keystore (via `keystore.properties`)
 
 ## Build & Ausführung
-- Build-Tool: Gradle 8.7 (Wrapper `gradlew.bat`)
-- Android Gradle Plugin 8.5.2, compileSdk 35, minSdk 26, Java 17
+- Build-Tool: Gradle 8.11.1 (Wrapper `gradlew.bat`)
+- Android Gradle Plugin 8.10.0, compileSdk 36, minSdk 26, Java 17
 - Debug-Build: `gradlew.bat assembleDebug` (exportiert APK nach `../Ausgabe_APK/`)
 - Release-Build: `gradlew.bat assembleRelease`
 - Tests: `gradlew.bat testDebugUnitTest`

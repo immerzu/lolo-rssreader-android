@@ -1,4 +1,5 @@
 import org.gradle.api.tasks.Copy
+import java.io.ByteArrayOutputStream
 import java.util.Properties
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
@@ -50,6 +51,24 @@ val keystoreProperties = Properties().apply {
     }
 }
 
+// Liest ein Release-Signierpasswort aus der Windows-Anmeldeinformationsverwaltung
+// (Credential Manager). Die Werte liegen benutzergebunden im OS-Secret-Store und
+// werden zur Buildzeit ueber tools/get-signing-secret.ps1 abgerufen – niemals im
+// Klartext in einer Projektdatei. Das Ergebnis wird direkt eingefangen, nicht
+// auf der Konsole ausgegeben.
+fun readWindowsCredential(target: String): String {
+    val stdout = ByteArrayOutputStream()
+    exec {
+        commandLine(
+            "powershell", "-NoProfile", "-ExecutionPolicy", "Bypass",
+            "-File", rootProject.file("tools/get-signing-secret.ps1").absolutePath,
+            target
+        )
+        standardOutput = stdout
+    }
+    return stdout.toString(Charsets.UTF_8.name()).trim().replace("\uFEFF", "")
+}
+
 android {
     namespace = "de.lolo.rssreader"
     compileSdk = 36
@@ -58,9 +77,10 @@ android {
         if (keystorePropertiesFile.exists()) {
             create("release") {
                 storeFile = rootProject.file(keystoreProperties.getProperty("storeFile"))
-                storePassword = keystoreProperties.getProperty("storePassword")
                 keyAlias = keystoreProperties.getProperty("keyAlias")
-                keyPassword = keystoreProperties.getProperty("keyPassword")
+                // Passwoerter kommen ausschliesslich aus dem Windows-Secret-Store.
+                storePassword = readWindowsCredential("rssreader_store_password")
+                keyPassword = readWindowsCredential("rssreader_key_password")
             }
         }
     }

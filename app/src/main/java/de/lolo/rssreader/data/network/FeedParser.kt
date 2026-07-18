@@ -132,6 +132,10 @@ class FeedParser {
         return try {
             parser = Xml.newPullParser()
             parser.setFeature(XmlPullParser.FEATURE_PROCESS_NAMESPACES, processNamespaces)
+            // DOCDECL (DOCTYPE) ausdruecklich nicht verarbeiten: verhindert, dass
+            // externe Entitaeten (XXE) aufgeloest oder externe Ressourcen eingelesen
+            // werden koennen. Gueltige RSS-/Atom-Feeds benoetigen keine DOCTYPE.
+            parser.setFeature(XmlPullParser.FEATURE_PROCESS_DOCDECL, false)
             setInput(parser)
 
             while (parser.eventType != XmlPullParser.START_TAG &&
