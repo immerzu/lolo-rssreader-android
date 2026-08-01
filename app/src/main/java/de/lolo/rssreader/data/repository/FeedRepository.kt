@@ -19,6 +19,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import java.io.InputStream
 import java.io.OutputStream
+import java.net.URI
 import java.nio.charset.StandardCharsets
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -123,12 +124,13 @@ class FeedRepository(
         displayOrder: Int? = null
     ): Long =
         runOnIo {
-            val fetchResult = fetchAndParseFeed(url)
+            val validatedUrl = requireSupportedFeedScheme(url)
+            val fetchResult = fetchAndParseFeed(validatedUrl)
             val success = fetchResult as de.lolo.rssreader.data.network.FeedFetchResult.Success
-            val parsed = parser.parse(success.payload, url)
+            val parsed = parser.parse(success.payload, validatedUrl)
             try {
                 insertParsedFeed(
-                    url = url,
+                    url = validatedUrl,
                     customTitle = customTitle,
                     wifiOnly = wifiOnly,
                     parsed = parsed,
@@ -141,6 +143,26 @@ class FeedRepository(
                 throw RssReaderException.DuplicateFeed()
             }
         }
+
+    /**
+     * Prueft vor dem Speichern, ob die Feed-URL ein erlaubtes Schema (http/https)
+     * mit Host besitzt. Verhindert, dass Adressen wie file:// oder ftp:// in die
+     * Datenbank gelangen. Die HTTPS-only-Policy prueft der FeedFetcher beim Fetch
+     * (http:// wird dort mit RssReaderException.HttpNotAllowed abgelehnt).
+     */
+    private fun requireSupportedFeedScheme(url: String): String {
+        val trimmed = url.trim()
+        val uri = runCatching { URI(trimmed) }.getOrNull()
+            ?: throw RssReaderException.InvalidUrl(trimmed)
+        val scheme = uri.scheme?.lowercase()
+        if (scheme != "http" && scheme != "https") {
+            throw RssReaderException.InvalidUrl(trimmed)
+        }
+        if (uri.host.isNullOrBlank()) {
+            throw RssReaderException.InvalidUrl(trimmed)
+        }
+        return trimmed
+    }
 
     suspend fun refreshAll(hasWifiConnection: Boolean? = null): RefreshRunStats {
         return runOnIo {

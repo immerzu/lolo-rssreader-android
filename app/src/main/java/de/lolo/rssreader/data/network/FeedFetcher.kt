@@ -30,7 +30,7 @@ class FeedFetcher(
         val ifModifiedSincePresent = !lastModified.isNullOrBlank()
         DebugLogger.i(
             TAG,
-            "feed_fetch_request url=$url ifNoneMatch=$ifNoneMatchPresent ifModifiedSince=$ifModifiedSincePresent" +
+            "feed_fetch_request url=${url.maskUrlCredentialsForLog()} ifNoneMatch=$ifNoneMatchPresent ifModifiedSince=$ifModifiedSincePresent" +
                 if (ifNoneMatchPresent) " etagPrefix=${etag.prefixHash()}" else "" +
                 if (ifModifiedSincePresent) " lastModified=$lastModified" else ""
         )
@@ -58,7 +58,7 @@ class FeedFetcher(
             try {
                 client.newCall(request).execute().use { response ->
                     if (response.code == 304) {
-                        DebugLogger.i(TAG, "feed_fetch_304 url=$url etagSent=$ifNoneMatchPresent lastModSent=$ifModifiedSincePresent")
+                        DebugLogger.i(TAG, "feed_fetch_304 url=${url.maskUrlCredentialsForLog()} etagSent=$ifNoneMatchPresent lastModSent=$ifModifiedSincePresent")
                         return FeedFetchResult.NotModified
                     }
                     if (!response.isSuccessful) {
@@ -77,7 +77,7 @@ class FeedFetcher(
                     val defensiveMode = responseBytes.size.toLong() > LARGE_FEED_SOFT_LIMIT_BYTES
                     if (defensiveMode) {
                         logWarn(
-                            "feed_fetch_defensive url=$url bytes=${responseBytes.size} softLimit=$LARGE_FEED_SOFT_LIMIT_BYTES",
+                            "feed_fetch_defensive url=${url.maskUrlCredentialsForLog()} bytes=${responseBytes.size} softLimit=$LARGE_FEED_SOFT_LIMIT_BYTES",
                             null
                         )
                     }
@@ -94,7 +94,7 @@ class FeedFetcher(
                         .takeIf { !it.isNullOrBlank() }
                     DebugLogger.i(
                         TAG,
-                        "feed_fetch_response url=$url code=200" +
+                        "feed_fetch_response url=${url.maskUrlCredentialsForLog()} code=200" +
                             " etag=${responseEtagRaw.prefixHash() ?: "null"}" +
                             " lastModified=${responseLastModified ?: "null"}" +
                             " cacheControl=${response.header("Cache-Control").orEmpty().takeIf { it.isNotBlank() } ?: "null"}" +
@@ -112,7 +112,7 @@ class FeedFetcher(
                     ).also {
                         DebugLogger.i(
                             TAG,
-                            "feed_fetch url=$url bytes=${responseBytes.size} defensive=$defensiveMode hardReject=false etag=${responseEtagRaw != null} lastModified=${responseLastModified != null}"
+                            "feed_fetch url=${url.maskUrlCredentialsForLog()} bytes=${responseBytes.size} defensive=$defensiveMode hardReject=false etag=${responseEtagRaw != null} lastModified=${responseLastModified != null}"
                         )
                     }
                 }
@@ -120,42 +120,42 @@ class FeedFetcher(
                 if (!shouldRetry(exception, attempt)) {
                     if (exception is RssReaderException.FeedTooLarge) {
                         logWarn(
-                            "feed_fetch_reject url=$url bytes=${exception.actualSizeBytes} hardLimit=${exception.limitBytes}",
+                            "feed_fetch_reject url=${url.maskUrlCredentialsForLog()} bytes=${exception.actualSizeBytes} hardLimit=${exception.limitBytes}",
                             exception
                         )
                     }
-                    logWarn("Feed konnte nicht geladen werden: $url", exception)
+                    logWarn("Feed konnte nicht geladen werden: ${url.maskUrlCredentialsForLog()}", exception)
                     throw exception
                 }
-                logInfo("Temporärer Feed-Fehler, neuer Versuch (${attempt + 1}/$MAX_FETCH_ATTEMPTS): $url")
+                logInfo("Temporärer Feed-Fehler, neuer Versuch (${attempt + 1}/$MAX_FETCH_ATTEMPTS): ${url.maskUrlCredentialsForLog()}")
                 delay(RETRY_DELAY_MS)
             } catch (exception: SocketTimeoutException) {
                 val mapped = RssReaderException.Timeout(exception)
                 if (!shouldRetry(mapped, attempt)) {
-                    logWarn("Timeout beim Laden des Feeds: $url", exception)
+                    logWarn("Timeout beim Laden des Feeds: ${url.maskUrlCredentialsForLog()}", exception)
                     throw mapped
                 }
-                logInfo("Timeout beim Feed, neuer Versuch (${attempt + 1}/$MAX_FETCH_ATTEMPTS): $url")
+                logInfo("Timeout beim Feed, neuer Versuch (${attempt + 1}/$MAX_FETCH_ATTEMPTS): ${url.maskUrlCredentialsForLog()}")
                 delay(RETRY_DELAY_MS)
             } catch (exception: UnknownHostException) {
                 val mapped = RssReaderException.NetworkUnavailable(exception)
-                logWarn("Feed-Adresse nicht auflösbar: $url", exception)
+                logWarn("Feed-Adresse nicht auflösbar: ${url.maskUrlCredentialsForLog()}", exception)
                 throw mapped
             } catch (exception: ConnectException) {
                 val mapped = RssReaderException.ConnectionFailed(exception)
                 if (!shouldRetry(mapped, attempt)) {
-                    logWarn("Verbindung zum Feed fehlgeschlagen: $url", exception)
+                    logWarn("Verbindung zum Feed fehlgeschlagen: ${url.maskUrlCredentialsForLog()}", exception)
                     throw mapped
                 }
-                logInfo("Verbindungsfehler beim Feed, neuer Versuch (${attempt + 1}/$MAX_FETCH_ATTEMPTS): $url")
+                logInfo("Verbindungsfehler beim Feed, neuer Versuch (${attempt + 1}/$MAX_FETCH_ATTEMPTS): ${url.maskUrlCredentialsForLog()}")
                 delay(RETRY_DELAY_MS)
             } catch (exception: IOException) {
                 val mapped = RssReaderException.ConnectionFailed(exception)
                 if (!shouldRetry(mapped, attempt)) {
-                    logWarn("I/O-Fehler beim Laden des Feeds: $url", exception)
+                    logWarn("I/O-Fehler beim Laden des Feeds: ${url.maskUrlCredentialsForLog()}", exception)
                     throw mapped
                 }
-                logInfo("I/O-Fehler beim Feed, neuer Versuch (${attempt + 1}/$MAX_FETCH_ATTEMPTS): $url")
+                logInfo("I/O-Fehler beim Feed, neuer Versuch (${attempt + 1}/$MAX_FETCH_ATTEMPTS): ${url.maskUrlCredentialsForLog()}")
                 delay(RETRY_DELAY_MS)
             }
         }
@@ -173,6 +173,18 @@ class FeedFetcher(
             return false
         }
         return !uri.host.isNullOrBlank()
+    }
+
+    /**
+     * Maskiert user:pass@-Bestandteile einer Feed-URL fuer Log-Ausgaben, damit
+     * eventuelle Zugangsdaten nicht im Debug-Log erscheinen. Nur fuer Logging;
+     * die tatsaechlich verwendete URL bleibt unveraendert.
+     */
+    private fun String.maskUrlCredentialsForLog(): String {
+        val uri = runCatching { URI(this) }.getOrNull() ?: return this
+        val userInfo = uri.rawUserInfo ?: return this
+        val masked = if (userInfo.contains(':')) "***:***" else "***"
+        return replace("$userInfo@", "$masked@")
     }
 
     private fun readResponseBodyBounded(
@@ -327,6 +339,11 @@ class FeedFetcher(
             .connectTimeout(15, TimeUnit.SECONDS)
             .readTimeout(20, TimeUnit.SECONDS)
             .callTimeout(30, TimeUnit.SECONDS)
+            // HTTPS-only-Haertung: OkHttp folgt Redirects von HTTPS auf HTTP
+            // standardmaessig (followSslRedirects=true). Ein Feed-Server darf
+            // nicht auf Klartext-HTTP herunterstufen duerfen, sonst wuerde die
+            // bewusste http-Ablehnung in isSupportedFeedUrl unterlaufen.
+            .followSslRedirects(false)
             .build()
 
         /**

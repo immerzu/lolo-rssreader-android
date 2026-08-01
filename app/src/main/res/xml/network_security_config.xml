@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Explizite Network-Security-Policy: Klartext-HTTP ist fuer alle Verbindungen
+  verboten (entspricht usesCleartextTraffic="false", aber explizit dokumentiert).
+  trust-anchors bleiben bewusst Standard (System-CAs + User-CAs), damit Nutzer
+  mit eigenen Zertifikaten (z.B. private Feeds) nicht ausgesperrt werden.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false" />
+</network-security-config>
