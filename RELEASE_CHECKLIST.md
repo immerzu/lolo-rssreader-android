@@ -27,7 +27,7 @@ Alle Tasks müssen grün sein.
 ## 3. Artefakte prüfen
 
 - [ ] `F:\001_Coding_Projekte\RSS_Reader_Android\Ausgabe_APK\` enthält die neuen Dateien
-- [ ] Dateinamen enthalten die korrekte Version (z. B. `RSS-Reader-v1.87.16-release.apk`)
+- [ ] Dateinamen enthalten die korrekte Version (z. B. `RSS-Reader-v1.87.29-release.apk`)
 - [ ] Keine APK/AAB versehentlich in Git
 - [ ] APK kurz auf Gerät oder Emulator starten und Rauchtest machen
 
@@ -47,5 +47,5 @@ Alle Tasks müssen grün sein.
 
 ## WICHTIG
 
-**Keine R8-/Minify-/ShrinkResources-Aktivierung ohne separate, explizite Freigabe.**
+**R8/Minify/ShrinkResources/Obfuscation sind dauerhaft VERBOTEN** (niemals aktivieren, nicht als Vorschlag anbieten).
 Frühere Aktivierungsversuche haben zu schwerwiegenden Problemen geführt.
