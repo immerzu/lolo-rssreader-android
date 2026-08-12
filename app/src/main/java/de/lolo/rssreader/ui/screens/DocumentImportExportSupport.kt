@@ -19,6 +19,8 @@ import androidx.compose.ui.unit.dp
 import de.lolo.rssreader.R
 import androidx.lifecycle.lifecycleScope
 import de.lolo.rssreader.data.errors.RssReaderException
+import de.lolo.rssreader.data.network.hasWifiConnection
+import de.lolo.rssreader.data.network.hasWifiTransport
 import de.lolo.rssreader.data.repository.FeedRepository
 import de.lolo.rssreader.data.repository.OpmlImportResult
 import kotlinx.coroutines.CancellationException
@@ -162,7 +164,7 @@ internal fun isRefreshBlockedForWifiOnlySetting(
 ): Boolean {
     return shouldBlockRefreshForWifiOnlySetting(
         refreshOnlyOnWifi = refreshOnlyOnWifi,
-        hasWifiConnection = hasWifiRefreshConnection(context)
+        hasWifiConnection = hasWifiConnection(context, requireInternetCapability = false)
     )
 }
 
@@ -174,36 +176,7 @@ internal fun isRefreshBlockedForWifiRequirements(
     return shouldBlockRefreshForWifiRequirements(
         globalRefreshOnlyOnWifi = globalRefreshOnlyOnWifi,
         feedWifiOnly = feedWifiOnly,
-        hasWifiConnection = hasWifiRefreshConnection(context)
-    )
-}
-
-internal fun hasWifiRefreshConnection(context: Context): Boolean {
-    val connectivityManager = context.getSystemService(ConnectivityManager::class.java)
-        ?: return false
-    val activeNetwork = connectivityManager.activeNetwork
-        ?: return false
-    val capabilities = connectivityManager.getNetworkCapabilities(activeNetwork)
-
-    return hasWifiRefreshTransport(
-        capabilities = capabilities,
-        isActiveNetworkMetered = connectivityManager.isActiveNetworkMetered
-    )
-}
-
-internal fun hasWifiRefreshTransport(
-    capabilities: NetworkCapabilities?,
-    isActiveNetworkMetered: Boolean
-): Boolean {
-    if (capabilities == null) {
-        return false
-    }
-    return hasWifiRefreshTransportFlags(
-        hasWifi = capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI),
-        hasCellular = capabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR),
-        hasEthernet = capabilities.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET),
-        hasVpn = capabilities.hasTransport(NetworkCapabilities.TRANSPORT_VPN),
-        isActiveNetworkMetered = isActiveNetworkMetered
+        hasWifiConnection = hasWifiConnection(context, requireInternetCapability = false)
     )
 }
 
@@ -214,7 +187,13 @@ internal fun hasWifiRefreshTransportFlags(
     hasVpn: Boolean,
     isActiveNetworkMetered: Boolean
 ): Boolean {
-    return hasWifi || (hasVpn && !isActiveNetworkMetered && !hasCellular && !hasEthernet)
+    return hasWifiTransport(
+        hasWifi = hasWifi,
+        hasCellular = hasCellular,
+        hasEthernet = hasEthernet,
+        hasVpn = hasVpn,
+        isActiveNetworkMetered = isActiveNetworkMetered
+    )
 }
 
 internal const val STALE_REFRESH_UI_TIMEOUT_MS = 5L * 60L * 1000L

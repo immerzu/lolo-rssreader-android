@@ -27,8 +27,8 @@
 - Android Studio starten: `start-android-studio.ps1`
 
 ## Versionierung
-- Version in `version.properties` (VERSION_CODE, VERSION_NAME) und Kopf von `app/build.gradle.kts`
-- Gradle-Task `bumpReleaseVersion` erhöht Version und aktualisiert die Gradle-Properties
+- Version ausschließlich in `version.properties` (VERSION_CODE, VERSION_NAME)
+- Gradle-Task `bumpReleaseVersion` erhöht Version und schreibt ausschließlich `version.properties`
 - Git-Tags für Releases: `v<major>.<minor>.<patch>` (z.B. `v1.87.12`)
 
 ## Release-Prozess

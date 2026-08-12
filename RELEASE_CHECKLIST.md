@@ -41,7 +41,7 @@ Alle Tasks müssen grün sein.
 ## 5. Nach dem Release
 
 - [ ] `.\gradlew.bat bumpReleaseVersion` für den nächsten Release ausführen
-- [ ] Geänderte Dateien committen (version.properties + build.gradle.kts)
+- [ ] Geänderte Dateien committen (nur version.properties)
 - [ ] Erzeugte Artefakte sicher archivieren
 - [ ] Changelog/Notizen aktualisieren
 

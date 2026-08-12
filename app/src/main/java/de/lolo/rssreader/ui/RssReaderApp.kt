@@ -27,6 +27,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import de.lolo.rssreader.debug.DebugLogger
+import de.lolo.rssreader.data.network.hasWifiConnection
 import de.lolo.rssreader.data.repository.FeedRepository
 import de.lolo.rssreader.data.settings.AppPreferences
 import de.lolo.rssreader.data.settings.SettingsRepository
@@ -77,7 +78,7 @@ fun RssReaderApp(
         foregroundRefreshInProgress = true
         scope.launch {
             try {
-                val hasWifiConnection = hasForegroundRefreshWifiConnection(appContext)
+                val hasWifiConnection = hasWifiConnection(appContext, requireInternetCapability = false)
                 if (
                     isForegroundRefreshDefinitelyOffline(appContext) ||
                     shouldSkipForegroundRefreshForWifiOnlySetting(
@@ -365,16 +366,4 @@ private fun hasForegroundRefreshTransport(capabilities: NetworkCapabilities): Bo
         capabilities.hasTransport(NetworkCapabilities.TRANSPORT_VPN)
 }
 
-private fun hasForegroundRefreshWifiConnection(context: Context): Boolean {
-    val connectivityManager = context.getSystemService(ConnectivityManager::class.java)
-        ?: return false
-    val activeNetwork = connectivityManager.activeNetwork ?: return false
-    val capabilities = connectivityManager.getNetworkCapabilities(activeNetwork) ?: return false
-    val hasWifi = capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)
-    val hasCellular = capabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR)
-    val hasEthernet = capabilities.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET)
-    val hasVpn = capabilities.hasTransport(NetworkCapabilities.TRANSPORT_VPN)
-
-    return hasWifi || (hasVpn && !connectivityManager.isActiveNetworkMetered && !hasCellular && !hasEthernet)
-}
 

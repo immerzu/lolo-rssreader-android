@@ -51,7 +51,9 @@ via `tools/get-signing-secret.ps1` (targets: `rssreader_store_password`, `rssrea
 - `keystore.properties` must not be versioned (it points at signing configuration).
 - The signing passwords live only in the OS credential store, never in repository files.
 - The release key (`*.jks`, e.g. `signing/rss-reader-release.jks`) must be managed outside the repository and backed up separately.
-- Debug builds require NO `keystore.properties` and work without signing configuration.
+- Debug builds are signed with the SAME release key when `keystore.properties` is present,
+  so `adb install -r` updates an installed release APK without uninstalling it.
+  Without `keystore.properties`, debug builds fall back to the default debug keystore.
 - Without `keystore.properties`, `assembleRelease` produces an unsigned APK (controlled, not an error).
   A signed release APK requires `keystore.properties` to be present locally.
 

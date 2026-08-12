@@ -12,7 +12,7 @@ cd F:\001_Coding_Projekte\RSS_Reader_Android\rss_reader_full_project
 
 ## 2. Committen und pushen
 
-- Aenderungen committen (`version.properties` + `app/build.gradle.kts`)
+- Aenderungen committen (nur `version.properties`)
 - Push zu GitHub und GitLab
 
 ## 3. Tag setzen und pushen

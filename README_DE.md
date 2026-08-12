@@ -54,7 +54,10 @@ Sie werden zur Buildzeit aus dem betriebssystemgebundenen Anmeldeinformations-Sp
 - Die Signing-Passwoerter liegen ausschliesslich im OS-Credential-Store, nie in Projektdateien.
 - Der Release-Key (`*.jks`, z.B. `signing/rss-reader-release.jks`) muss ausserhalb des
   Repositories verwaltet und separat gesichert werden.
-- Debug-Builds benoetigen KEIN `keystore.properties` und funktionieren ohne Signing-Konfiguration.
+- Debug-Builds werden, sofern `keystore.properties` vorhanden ist, mit demSELBEN Release-Key
+  signiert wie die Release-APK. Dadurch aktualisiert `adb install -r` eine installierte
+  Release-Version ohne Deinstallation. Ohne `keystore.properties` faellt der Debug-Build auf
+  den Standard-Debug-Keystore zurueck.
 - Ohne `keystore.properties` erzeugt `assembleRelease` eine unsignierte APK (kontrolliert, kein Fehler).
   Fuer eine signierte Release-APK muss `keystore.properties` lokal vorhanden sein.
 

@@ -70,6 +70,7 @@ import de.lolo.rssreader.debug.DebugLogger
 import de.lolo.rssreader.data.db.FeedSummary
 import de.lolo.rssreader.data.errors.RssReaderException
 import de.lolo.rssreader.data.errors.toUserMessage
+import de.lolo.rssreader.data.network.hasWifiConnection
 import de.lolo.rssreader.data.repository.FeedRepository
 import de.lolo.rssreader.data.repository.RefreshRunStats
 import de.lolo.rssreader.data.repository.RepositoryDiagnosticsSnapshot
@@ -194,7 +195,7 @@ fun HomeScreen(
             }
             return
         }
-        val hasWifiConnection = hasWifiRefreshConnection(context)
+        val hasWifiConnection = hasWifiConnection(context, requireInternetCapability = false)
         if (shouldBlockRefreshForWifiOnlySetting(settings.refreshOnlyOnWifi, hasWifiConnection)) {
             if (manualTrigger) {
                 errorMessage = wifiOnlyRefreshMessage(context)

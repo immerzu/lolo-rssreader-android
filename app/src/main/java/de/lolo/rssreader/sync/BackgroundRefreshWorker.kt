@@ -9,6 +9,7 @@ import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import de.lolo.rssreader.BuildConfig
 import de.lolo.rssreader.RssReaderApplication
+import de.lolo.rssreader.data.network.hasWifiConnection
 import de.lolo.rssreader.data.repository.RefreshRunStats
 import de.lolo.rssreader.data.settings.AppPreferences
 import de.lolo.rssreader.debug.DebugLogger
@@ -124,7 +125,7 @@ internal fun createBackgroundRefreshRuntime(appContext: Context): BackgroundRefr
             )
         },
         hasWifiConnection = {
-            hasWifiConnection(appContext)
+            hasWifiConnection(appContext, requireInternetCapability = true)
         },
         isUnmeteredConnection = {
             isUnmeteredConnection(appContext)
@@ -168,19 +169,5 @@ internal fun isUnmeteredConnection(context: Context): Boolean {
     return !connectivityManager.isActiveNetworkMetered
 }
 
-internal fun hasWifiConnection(context: Context): Boolean {
-    val connectivityManager = context.getSystemService(ConnectivityManager::class.java)
-    val activeNetwork = connectivityManager.activeNetwork ?: return false
-    val capabilities = connectivityManager.getNetworkCapabilities(activeNetwork) ?: return false
-    if (!capabilities.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_INTERNET)) {
-        return false
-    }
-    val hasWifi = capabilities.hasTransport(android.net.NetworkCapabilities.TRANSPORT_WIFI)
-    val hasCellular = capabilities.hasTransport(android.net.NetworkCapabilities.TRANSPORT_CELLULAR)
-    val hasEthernet = capabilities.hasTransport(android.net.NetworkCapabilities.TRANSPORT_ETHERNET)
-    val hasVpn = capabilities.hasTransport(android.net.NetworkCapabilities.TRANSPORT_VPN)
-
-    return hasWifi || (hasVpn && !connectivityManager.isActiveNetworkMetered && !hasCellular && !hasEthernet)
-}
 
 
