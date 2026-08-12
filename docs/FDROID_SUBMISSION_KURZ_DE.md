@@ -1,5 +1,9 @@
 # F-Droid Einreichung kurz
 
+> **Hinweis (Stand 2026-08):** Die Ersteinreichung ist abgeschlossen — die App ist im
+> F-Droid-Katalog und laeuft im Auto-Modus. Der nachfolgende Restpunkt betraf die
+> Ersteinreichung; fuer Updates siehe `FDROID_UPDATE_ANLEITUNG_DE.md`.
+
 Fuer die offizielle F-Droid-Einreichung ist jetzt fast alles vorbereitet.
 
 Wichtigster Restpunkt:

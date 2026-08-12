@@ -6,13 +6,13 @@ Stand dieses Projekts:
 - Release-APK vorhanden
 - Release-AAB vorhanden
 - lokale Release-Signierung eingerichtet
-- `targetSdk = 35`
-- `compileSdk = 35`
+- `targetSdk = 36`
+- `compileSdk = 36`
 
-Release-Dateien:
+Release-Dateien (aktuelle Version siehe `version.properties` im Projektordner):
 
-- APK fuer Tests: `F:\001_Coding_Projekte\RSS_Reader_Android\Ausgabe_APK\RSS-Reader-v1.50.01-93-release.apk`
-- AAB fuer Google Play: `F:\001_Coding_Projekte\RSS_Reader_Android\Ausgabe_APK\RSS-Reader-v1.50.01-93-release.aab`
+- APK fuer Tests: `F:\001_Coding_Projekte\RSS_Reader_Android\Ausgabe_APK\RSS-Reader-v<version>-release.apk`
+- AAB fuer Google Play: `F:\001_Coding_Projekte\RSS_Reader_Android\Ausgabe_APK\RSS-Reader-v<version>-release.aab`
 
 Wichtige lokale Signierdateien:
 
@@ -69,10 +69,9 @@ Empfohlene Testreihenfolge:
 
 Noch sinnvoll vor echter Veroeffentlichung:
 
-1. Android-Gradle-Plugin spaeter auf eine Version anheben, die `compileSdk 35` offiziell stuetzt
-2. App auf mindestens 2-3 echten Geraeten testen
-3. finale Datenschutz-Seite online veroeffentlichen
-4. Store-Texte und Screenshots finalisieren
+1. App auf mindestens 2-3 echten Geraeten testen
+2. finale Datenschutz-Seite online veroeffentlichen
+3. Store-Texte und Screenshots finalisieren
 
 Interner Merksatz:
 

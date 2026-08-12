@@ -1,5 +1,8 @@
 # GitHub Pages Anleitung
 
+> **Hinweis (Stand 2026-08):** Die referenzierte Datei `docs/privacy.html` existiert derzeit
+> noch nicht im Projekt und muss vor der Nutzung erstellt werden.
+
 Diese Dateien sind fuer GitHub Pages vorbereitet:
 
 - `docs/privacy.html`

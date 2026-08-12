@@ -1,55 +1,44 @@
-# F-Droid Kurzcheckliste
+# F-Droid Kurzcheckliste (Auto-Modus)
 
-Diese Liste kannst du bei jedem neuen App-Update abarbeiten.
+Die App ist im offiziellen F-Droid-Katalog und wird automatisch aus Git-Tags gebaut.
+Diese Liste gilt fuer jedes neue App-Update.
 
-## 1. Neue Release-APK bauen
-
-Die neue Datei liegt danach hier:
-
-- `F:\001_Coding_Projekte\RSS_Reader_Android\Ausgabe_APK`
-
-## 2. Release-APK in den lokalen F-Droid-Ordner kopieren
-
-Kopiere die neue `...release.apk` nach:
-
-- `F:\001_Coding_Projekte\RSS_Reader_Android\fdroid_repo\repo`
-
-## 3. F-Droid-Index neu erzeugen
-
-PowerShell:
+## 1. Version anheben
 
 ```powershell
-cd F:\001_Coding_Projekte\RSS_Reader_Android\fdroid_repo
-python -m fdroidserver update -c --rename-apks
+cd F:\001_Coding_Projekte\RSS_Reader_Android\rss_reader_full_project
+.\gradlew.bat bumpReleaseVersion
 ```
 
-## 4. Oeffentlichen GitHub-Ordner aktualisieren
+## 2. Committen und pushen
 
-PowerShell:
+- Aenderungen committen (`version.properties` + `app/build.gradle.kts`)
+- Push zu GitHub und GitLab
+
+## 3. Tag setzen und pushen
 
 ```powershell
-robocopy F:\001_Coding_Projekte\RSS_Reader_Android\fdroid_repo\repo F:\001_Coding_Projekte\RSS_Reader_Android\fdroid_publish_site\repo /MIR
+git tag -a v1.87.29 -m "Release RSS Reader 1.87.29"
+git push origin v1.87.29
 ```
 
-## 5. GitHub-Repo aktualisieren
+Tag-Format exakt `vX.Y.Z` (F-Droid erkennt `^v[\d.]+$`).
 
-Im Repo `lolo-rssreader-fdroid` hochladen bzw. ersetzen:
+## 4. Release-APK bauen und als GitHub-Release-Asset hochladen
 
-- `repo`
-- `index.html` nur falls geaendert
+```powershell
+.\gradlew.bat assembleRelease
+gh release create v1.87.29 "F:\001_Coding_Projekte\RSS_Reader_Android\Ausgabe_APK\RSS-Reader-v1.87.29-release.apk"
+```
 
-Quelle:
+Asset-Name exakt `RSS-Reader-v<version>-release.apk` (wird vom `Binaries:`-Feld erwartet).
 
-- `F:\001_Coding_Projekte\RSS_Reader_Android\fdroid_publish_site`
+## 5. Warten und pruefen
 
-## 6. Warten und pruefen
-
-Danach pruefen:
-
-- `https://immerzu.github.io/lolo-rssreader-fdroid/`
-- `https://immerzu.github.io/lolo-rssreader-fdroid/repo`
+- Build-Status: https://monitor.f-droid.org/ (App `de.lolo.rssreader`)
+- Katalog: https://f-droid.org/packages/de.lolo.rssreader/
 
 ## Wichtig
 
-- Niemals `config.yml` oder `keystore.p12` aus `fdroid_repo` auf GitHub hochladen.
-- Auf GitHub kommt nur der Inhalt von `fdroid_publish_site`.
+- Ein eigener F-Droid-Repo (`fdroid_repo` / `fdroid_publish_site` + GitHub Pages) existiert nicht mehr.
+- Fuer F-Droid reichen Tag + GitHub-Release-Asset; kein manueller fdroiddata-Branch noetig.

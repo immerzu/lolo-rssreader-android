@@ -1,5 +1,5 @@
 1. In den Projektordner gehen:
-cd "F:\Codex\RSS_Reader_Android\rss_reader_full_project"
+cd "F:\001_Coding_Projekte\RSS_Reader_Android\rss_reader_full_project"
 
 2. Vor Aenderungen sichern:
 git add .

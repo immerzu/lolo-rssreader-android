@@ -1,36 +1,40 @@
-# F-Droid-Repo aktualisieren
+# F-Droid-Release aktualisieren (Auto-Modus)
 
-Lokale Arbeitsordner:
+Die App `de.lolo.rssreader` ist im **offiziellen F-Droid-Katalog** und wird dort im
+**Auto-Modus** gepflegt. Ein eigener F-Droid-Repo (frueher geplant ueber `fdroid_repo` /
+`fdroid_publish_site` und GitHub Pages) existiert NICHT und wird nicht mehr verwendet.
 
-- privat: `F:\001_Coding_Projekte\RSS_Reader_Android\fdroid_repo`
-- oeffentlich zum Hochladen: `F:\001_Coding_Projekte\RSS_Reader_Android\fdroid_publish_site`
+## Ablauf pro Release
 
-So spielst du spaetere App-Updates ein:
+1. Version anheben: `.\gradlew.bat bumpReleaseVersion` (im Ordner `rss_reader_full_project`).
+2. Aenderungen committen und pushen (GitHub `immerzu/lolo-rssreader-android` und GitLab).
+3. Annotierten Git-Tag im Format `vX.Y.Z` setzen und nach GitHub pushen:
 
-1. Neue signierte Release-APK bauen.
-2. Die neue APK nach `F:\001_Coding_Projekte\RSS_Reader_Android\fdroid_repo\repo` kopieren.
-3. Im Ordner `F:\001_Coding_Projekte\RSS_Reader_Android\fdroid_repo` ausfuehren:
-   - `python -m fdroidserver update -c --rename-apks`
-4. Danach den Ordner `repo` aus `fdroid_repo` erneut nach `fdroid_publish_site` kopieren.
-5. Optional auch `index.html` im Ordner `fdroid_publish_site` aktualisieren, falls du den Text oder Fingerprint anpassen willst.
-6. Auf GitHub im Repo `lolo-rssreader-fdroid` die geaenderten Dateien committen und pushen.
+   ```powershell
+   git tag -a v1.87.29 -m "Release RSS Reader 1.87.29"
+   git push origin v1.87.29
+   ```
 
-Wichtig:
+   F-Droid `UpdateCheckMode: Tags ^v[\d.]+$` erkennt nur dieses Format.
+4. Signierte Release-APK bauen: `.\gradlew.bat assembleRelease`.
+5. APK als GitHub-Release-Asset unter dem Tag hochladen, Name exakt `RSS-Reader-vX.Y.Z-release.apk`:
 
-- `config.yml` und `keystore.p12` bleiben privat.
-- Auf GitHub kommt nur der Inhalt von `fdroid_publish_site`.
-- Repo-URL:
-  - `https://immerzu.github.io/lolo-rssreader-fdroid/repo`
-- Fingerprint:
-  - `E2 8D B1 9F 26 29 84 19 98 91 FE 7B B9 8D 80 83 09 BB 4F 05 1E 8A 7E F5 B4 4D 9D 30 E5 D4 72 ED`
+   ```powershell
+   gh release create v1.87.29 "F:\001_Coding_Projekte\RSS_Reader_Android\Ausgabe_APK\RSS-Reader-v1.87.29-release.apk"
+   ```
 
-Was du spaeter normalerweise anfasst:
+   Dieses Asset wird vom `Binaries:`-Feld der F-Droid-Metadaten erwartet:
+   `https://github.com/immerzu/lolo-rssreader-android/releases/download/v%v/RSS-Reader-v%v-release.apk`.
+6. Fertig: Die F-Droid-CI erkennt das Tag automatisch (`checkupdates`), baut die Version und
+   veroeffentlicht sie. Kein manueller fdroiddata-Aenderungsbranch / Merge-Request noetig.
 
-- `F:\001_Coding_Projekte\RSS_Reader_Android\fdroid_repo\metadata\de.lolo.rssreader.yml`
-  Hier stehen Name, Summary, Beschreibung und Web-Links der App.
-- `F:\001_Coding_Projekte\RSS_Reader_Android\fdroid_repo\config.yml`
-  Hier stehen Repo-Name, Repo-URL und private Signierdaten.
+## Referenz-Metadaten
 
-Die Website, die Leute spaeter sehen, liegt hier:
+- Aktuelle F-Droid-Metadaten (Vorlage): `docs/fdroid/de.lolo.rssreader.yml`
+- Lokaler fdroiddata-Fork (fuer die Ersteinreichung): `F:\001_Coding_Projekte\RSS_Reader_Android\fdroiddata_fork`
+- Build-Status beobachten: https://monitor.f-droid.org/ (App `de.lolo.rssreader`)
 
-- `https://immerzu.github.io/lolo-rssreader-fdroid/`
+## Wichtig
+
+- Git-Tag und signierte Release-APK muessen auf demselben Commit stehen.
+- Niemals private Signierdateien veroeffentlichen (`config.yml`, `keystore.p12` – betraf den nicht mehr genutzten eigenen Repo).

@@ -22,7 +22,7 @@
 - Build-Tool: Gradle 8.11.1 (Wrapper `gradlew.bat`)
 - Android Gradle Plugin 8.10.0, compileSdk 36, minSdk 26, Java 17
 - Debug-Build: `gradlew.bat assembleDebug` (exportiert APK nach `../Ausgabe_APK/`)
-- Release-Build: `gradlew.bat assembleRelease`
+- Release-Build: `gradlew.bat assembleRelease` (Signierung: Passwörter aus dem Windows-Credential-Manager via `tools/get-signing-secret.ps1`; `keystore.properties` enthält nur `storeFile`/`keyAlias`)
 - Tests: `gradlew.bat testDebugUnitTest`
 - Android Studio starten: `start-android-studio.ps1`
 
@@ -45,7 +45,7 @@
 - Bei Neuerungen Tests unter `app/src/test/` ergänzen (JUnit 4, Robolectric)
 
 ## Git-Hinweise
-- Arbeitsverzeichnis: `F:\Codex\RSS_Reader_Android\rss_reader_full_project`
+- Arbeitsverzeichnis: `F:\001_Coding_Projekte\RSS_Reader_Android\rss_reader_full_project`
 - Vor Änderungen commiten, stabile Stände taggen (siehe `GIT_MERKLISTE_KURZ_DE.txt`)
 - Keine sensiblen Daten committen: `keystore.properties`, `local.properties`
 
@@ -54,7 +54,7 @@
 - Keine Library ohne Grund hinzufügen
 - `keystore.properties` / `local.properties` niemals ändern oder committen
 - Keine Build-Konfiguration ändern, ohne zu verstehen, was Versionierung, Signing und Export beeinflusst
-- ProGuard (Minify) nicht aktivieren ohne Absprache
+- R8/ProGuard/Minify/ShrinkResources/Obfuscation sind **dauerhaft VERBOTEN** (niemals aktivieren, nicht als Vorschlag anbieten)
 
 ## Änderungsrichtlinie
 - **Nur minimale, gezielte Änderungen vornehmen** – keine unnötigen Refactorings, Formatierungen oder Datei-Umstrukturierungen

@@ -1,3 +1,9 @@
+> **Hinweis (Stand 2026-08):** Der hier beschriebene eigene F-Droid-Repo ueber GitHub Pages
+> (`fdroid_repo` / `fdroid_publish_site` / `lolo-rssreader-fdroid`) wurde NICHT eingerichtet und
+> wird nicht verwendet. Die App ist offiziell bei F-Droid im Auto-Modus (Git-Tag + GitHub-Release-Asset).
+> Siehe `FDROID_UPDATE_ANLEITUNG_DE.md`. Die nachfolgenden Schritte sind als historische Anleitung
+> erhalten.
+
 # Eigenes F-Droid-Repo ueber GitHub Pages
 
 Dein lokales F-Droid-Repo liegt hier:

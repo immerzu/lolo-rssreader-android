@@ -1,5 +1,9 @@
 # F-Droid Einreichung
 
+> **Hinweis (Stand 2026-08):** Die App ist inzwischen im offiziellen F-Droid-Katalog und wird
+> im Auto-Modus gepflegt. Fuer Updates reichen Git-Tag + GitHub-Release-Asset (siehe
+> `FDROID_UPDATE_ANLEITUNG_DE.md`). Die nachfolgenden Schritte betreffen die Ersteinreichung.
+
 Der Quellcode fuer die App liegt im Upstream-Repo:
 
 `https://github.com/immerzu/lolo-rssreader-android`

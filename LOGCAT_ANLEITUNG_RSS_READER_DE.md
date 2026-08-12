@@ -57,7 +57,7 @@ Im Log sind vor allem diese Begriffe wichtig:
 
 - `FATAL EXCEPTION`
 - `AndroidRuntime`
-- `Process: com.example.rssreader`
+- `Process: de.lolo.rssreader`
 - `Caused by:`
 
 Wenn du mir die Datei gibst, kann ich den eigentlichen Absturzpunkt meist direkt aus dem Stacktrace herauslesen.
@@ -79,7 +79,7 @@ adb logcat -d > F:\001_Coding_Projekte\RSS_Reader_Android\Ausgabe_APK\rss-reader
 ## 7. Optional: nur relevante Zeilen ansehen
 
 ```powershell
-Get-Content F:\001_Coding_Projekte\RSS_Reader_Android\Ausgabe_APK\rss-reader-crash-log.txt | Select-String "FATAL EXCEPTION|AndroidRuntime|com.example.rssreader|Caused by"
+Get-Content F:\001_Coding_Projekte\RSS_Reader_Android\Ausgabe_APK\rss-reader-crash-log.txt | Select-String "FATAL EXCEPTION|AndroidRuntime|de.lolo.rssreader|Caused by"
 ```
 
 ## Kurzfassung

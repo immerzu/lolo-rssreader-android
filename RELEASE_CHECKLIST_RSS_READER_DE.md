@@ -79,19 +79,22 @@ Zusatzpruefung:
 - App startet auch als Release.
 - Keine offensichtlichen Abstuerze direkt nach Start.
 
-## 6. F-Droid-Release
+## 6. F-Droid-Release (Auto-Modus)
 
-- Release-APK nach `fdroid_repo\repo` kopieren.
-- F-Droid-Index aktualisieren:
+Die App ist im offiziellen F-Droid-Katalog und wird dort im **Auto-Modus** gepflegt
+(`AutoUpdateMode: Version`, `UpdateCheckMode: Tags ^v[\d.]+$`, Referenz-Metadaten unter
+`docs/fdroid/de.lolo.rssreader.yml`). Es gibt keinen eigenen F-Droid-Repo mehr.
 
-```powershell
-cd F:\001_Coding_Projekte\RSS_Reader_Android\fdroid_repo
-python -m fdroidserver update -c --rename-apks
-robocopy F:\001_Coding_Projekte\RSS_Reader_Android\fdroid_repo\repo F:\001_Coding_Projekte\RSS_Reader_Android\fdroid_publish_site\repo /MIR
-```
+Ablauf pro Release:
 
-- Danach `fdroid_publish_site` nach GitHub hochladen.
-- GitHub Pages kurz pruefen.
+1. Git-Tag `vX.Y.Z` (Format `^v[\d.]+$`, z.B. `v1.87.29`) auf den Release-Commit setzen und nach GitHub pushen.
+2. Signierte Release-APK bauen (`assembleRelease`) und als GitHub-Release-Asset mit dem
+   Namen `RSS-Reader-vX.Y.Z-release.apk` unter dem Tag hochladen (z.B. `gh release create vX.Y.Z ...`).
+   Dieses Asset wird vom `Binaries:`-Feld der F-Droid-Metadaten erwartet
+   (`.../releases/download/v%v/RSS-Reader-v%v-release.apk`).
+3. Die F-Droid-CI erkennt das Tag automatisch (`checkupdates`), baut die Version und veröffentlicht sie.
+   Kein manueller fdroiddata-Aenderungsbranch/Merge-Request erforderlich.
+4. Build-Status beobachten: https://monitor.f-droid.org/ (App `de.lolo.rssreader`).
 
 ## 7. Nach dem Release
 

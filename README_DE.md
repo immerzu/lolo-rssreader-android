@@ -36,22 +36,31 @@ Ein vorbereiteter Submission-Text liegt in [docs/FDROID_SUBMISSION_TEMPLATE_EN.m
 Fuer Release-Builds wird eine lokale `keystore.properties` benoetigt.
 Diese Datei ist NICHT Teil des Repositories und darf niemals committed werden.
 
+`keystore.properties` enthaelt nur nicht-geheime Werte (`storeFile`, `keyAlias`).
+Die Signing-Passwoerter werden nirgendwo im Projekt im Klartext gespeichert.
+Sie werden zur Buildzeit aus dem betriebssystemgebundenen Anmeldeinformations-Speicher
+(Windows Credential Manager) ueber `tools/get-signing-secret.ps1` bezogen
+(Ziele: `rssreader_store_password`, `rssreader_key_password`).
+
 1. `keystore.properties.example` nach `keystore.properties` kopieren.
-2. Die Platzhalter durch echte Werte ersetzen.
-3. Sicherstellen, dass `.gitignore` die Datei ausschliesst.
+2. `storeFile` und `keyAlias` eintragen.
+3. Sicherstellen, dass die beiden Credential-Manager-Eintraege `rssreader_store_password`
+   und `rssreader_key_password` existieren. Falls sie aus einem alten Setup noch im
+   Klartext vorliegen, einmalig mit `tools/migrate-signing-secrets.ps1` uebertragen.
+4. Sicherstellen, dass `.gitignore` die Datei ausschliesst.
 
 **Wichtig:**
-- `keystore.properties` enthaelt Signing-Passwoerter und darf nicht versioniert werden.
-- Der Release-Key (`*.jks`) muss ausserhalb des Repositories verwaltet werden.
-- Falls `keystore.properties` bereits geteilt wurde, gelten die enthaltenen Daten als kompromittiert.
+- `keystore.properties` darf nicht versioniert werden (verweist auf Signing-Konfiguration).
+- Die Signing-Passwoerter liegen ausschliesslich im OS-Credential-Store, nie in Projektdateien.
+- Der Release-Key (`*.jks`, z.B. `signing/rss-reader-release.jks`) muss ausserhalb des
+  Repositories verwaltet und separat gesichert werden.
 - Debug-Builds benoetigen KEIN `keystore.properties` und funktionieren ohne Signing-Konfiguration.
 - Ohne `keystore.properties` erzeugt `assembleRelease` eine unsignierte APK (kontrolliert, kein Fehler).
   Fuer eine signierte Release-APK muss `keystore.properties` lokal vorhanden sein.
 
 **R8 / Minify:**
-- `isMinifyEnabled` und `isShrinkResources` bleiben bewusst deaktiviert.
+- `isMinifyEnabled` und `isShrinkResources` sind **dauerhaft VERBOTEN** (niemals aktivieren, nicht als Vorschlag anbieten).
 - Fruehere Aktivierungsversuche haben zu schwerwiegenden Problemen gefuehrt.
-- Keine Aenderung ohne separate, explizite Freigabe.
 
 ## Hinweis zur Gradle-Konfiguration
-Der Wrapper ist fuer diese Maschine bereits vorbereitet und nutzt die lokal abgelegte Gradle-8.7-Distribution.
+Der Wrapper ist fuer diese Maschine bereits vorbereitet und nutzt die lokal abgelegte Gradle-8.11.1-Distribution.
