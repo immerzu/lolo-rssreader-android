@@ -87,7 +87,7 @@ Die App ist im offiziellen F-Droid-Katalog und wird dort im **Auto-Modus** gepfl
 
 Ablauf pro Release:
 
-1. Git-Tag `vX.Y.Z` (Format `^v[\d.]+$`, z.B. `v1.87.29`) auf den Release-Commit setzen und nach GitHub pushen.
+1. Git-Tag `vX.Y.Z` (Format `^v[\d.]+$`, z.B. `v1.87.30`) auf den Release-Commit setzen und nach GitHub pushen.
 2. Signierte Release-APK bauen (`assembleRelease`) und als GitHub-Release-Asset mit dem
    Namen `RSS-Reader-vX.Y.Z-release.apk` unter dem Tag hochladen (z.B. `gh release create vX.Y.Z ...`).
    Dieses Asset wird vom `Binaries:`-Feld der F-Droid-Metadaten erwartet

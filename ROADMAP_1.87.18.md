@@ -1,7 +1,7 @@
 # RSS Reader 1.87.18 – Themenliste
 
 > **Hinweis (Stand 2026-08):** Diese Roadmap ist abgeschlossen. Die seitdem veroeffentlichten
-> Releases (1.87.18–1.87.29) sind in den jeweiligen `RELEASE_NOTES_*.md` dokumentiert.
+> Releases (1.87.18–1.87.30) sind in den jeweiligen `RELEASE_NOTES_*.md` dokumentiert.
 > F-Droid ist inzwischen im Auto-Modus aufgenommen (kein manueller MR-Prozess mehr).
 
 Kein Release vor Abschluss des F-Droid-Prozesses für 1.87.17.

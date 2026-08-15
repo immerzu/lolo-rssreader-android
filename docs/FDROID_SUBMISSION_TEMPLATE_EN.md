@@ -8,7 +8,7 @@ The final release tag and GitHub release already exist for this version.
 
 Current release:
 
-`1.87.29 / 158`
+`1.87.30 / 159`
 
 ## Suggested submission text
 
@@ -26,7 +26,7 @@ Application ID: de.lolo.rssreader
 License: Apache-2.0
 Source code: https://github.com/immerzu/lolo-rssreader-android
 Issue tracker: https://github.com/immerzu/lolo-rssreader-android/issues
-Current release tag: v1.87.29
+Current release tag: v1.87.30
 
 Short description:
 Compact RSS reader with OPML, favorites, offline reading, and dark mode.
@@ -44,9 +44,9 @@ Build:
 - Gradle-based Android project
 - Standard release build from repository root
 - Command: ./gradlew assembleRelease
-- Current release version: 1.87.29
-- Current release versionCode: 158
-- Final release tag: v1.87.29
+- Current release version: 1.87.30
+- Current release versionCode: 159
+- Final release tag: v1.87.30
 
 Metadata:
 - Fastlane metadata is included in the upstream repository under:
