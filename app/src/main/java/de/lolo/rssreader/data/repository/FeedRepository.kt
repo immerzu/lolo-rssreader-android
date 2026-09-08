@@ -10,6 +10,8 @@ import de.lolo.rssreader.data.db.FeedDao
 import de.lolo.rssreader.data.db.FeedEntity
 import de.lolo.rssreader.data.db.FeedSummary
 import de.lolo.rssreader.data.errors.RssReaderException
+import de.lolo.rssreader.data.network.ArticleFullTextExtractor
+import de.lolo.rssreader.data.network.ExtractedArticleContent
 import de.lolo.rssreader.data.network.FeedFetcher
 import de.lolo.rssreader.data.network.FeedParser
 import de.lolo.rssreader.data.opml.OpmlCodec
@@ -66,7 +68,8 @@ class FeedRepository(
     private val articleDao: ArticleDao,
     private val fetcher: FeedFetcher,
     private val parser: FeedParser,
-    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
+    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+    private val fullTextExtractor: ArticleFullTextExtractor = ArticleFullTextExtractor()
 ) {
     // Fresh databases at the current schema version never create the old FTS triggers.
     // MIGRATION_7_8 removes that historical v6 -> v7 trigger legacy from supported upgrades.
@@ -341,6 +344,16 @@ class FeedRepository(
 
     suspend fun getFeed(feedId: Long) = runOnIo { feedDao.getById(feedId) }
     suspend fun getArticle(articleId: Long) = runOnIo { articleDao.getById(articleId) }
+
+    /**
+     * Laedt den Volltext eines Artikels aus der Originalseite nach. Wird nur auf
+     * ausdrueckliche Nutzeraktion in der Leseransicht aufgerufen; Fehler werden
+     * an den Aufrufer weitergereicht, damit dieser auf den Feed-Inhalt zurueckfallen kann.
+     */
+    suspend fun fetchArticleFullText(articleUrl: String): ExtractedArticleContent {
+        return runOnIo { fullTextExtractor.fetch(articleUrl) }
+    }
+
     suspend fun markRead(articleId: Long) {
         runOnIo { articleDao.markRead(articleId) }
     }

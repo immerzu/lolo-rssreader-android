@@ -35,7 +35,8 @@ class SettingsRepository(context: Context) {
                 ?: EntrySortOrder.NEWEST_FIRST,
             articleBodyTextSizeOffset = preferences[ARTICLE_BODY_TEXT_SIZE_OFFSET]
                 ?.coerceIn(-2, 2)
-                ?: 0
+                ?: 0,
+            markReadOnScroll = preferences[MARK_READ_ON_SCROLL] ?: false
         )
     }
 
@@ -89,6 +90,10 @@ class SettingsRepository(context: Context) {
         }
     }
 
+    suspend fun setMarkReadOnScroll(value: Boolean) {
+        updatePreference(MARK_READ_ON_SCROLL, value)
+    }
+
     suspend fun getCurrentSettings(): AppPreferences = settings.first()
 
     private suspend fun updatePreference(key: Preferences.Key<Boolean>, value: Boolean) {
@@ -109,6 +114,7 @@ class SettingsRepository(context: Context) {
         val THEME_MODE = stringPreferencesKey("theme_mode")
         val ENTRY_SORT_ORDER = stringPreferencesKey("entry_sort_order")
         val ARTICLE_BODY_TEXT_SIZE_OFFSET = intPreferencesKey("article_body_text_size_offset")
+        val MARK_READ_ON_SCROLL = booleanPreferencesKey("mark_read_on_scroll")
     }
 }
 

@@ -191,4 +191,18 @@
     <string name="article_list_filter_show_all_cd">Alle Artikel anzeigen</string>
     <string name="article_list_no_unread_articles">Keine ungelesenen Artikel.</string>
     <string name="feed_list_refresh_failed_cd">Letzte Aktualisierung fehlgeschlagen</string>
+    <!-- Feature: Teilen -->
+    <string name="article_share_cd">Artikel teilen</string>
+    <string name="article_share_action">Teilen</string>
+    <string name="article_share_chooser_title">Artikel teilen</string>
+
+    <!-- Feature: Volltext von der Originalseite -->
+    <string name="article_reader_full_text_cd">Volltext laden</string>
+    <string name="article_reader_full_text_show_feed">Feed-Text</string>
+    <string name="article_reader_full_text_show_full">Volltext</string>
+
+    <!-- Feature: Beim Scrollen als gelesen markieren -->
+    <string name="settings_section_reading">Lesen</string>
+    <string name="settings_mark_read_on_scroll_title">Beim Scrollen als gelesen markieren</string>
+    <string name="settings_mark_read_on_scroll_subtitle">Artikel werden als gelesen markiert, sobald sie in der Artikelliste durchlaufen wurden.</string>
 </resources>

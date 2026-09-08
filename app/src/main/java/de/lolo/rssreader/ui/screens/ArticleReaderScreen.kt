@@ -41,10 +41,13 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.Article
 import androidx.compose.material.icons.filled.OpenInBrowser
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -81,10 +84,13 @@ import coil.compose.AsyncImage
 import de.lolo.rssreader.R
 import de.lolo.rssreader.data.db.ArticleNavigationEntry
 import de.lolo.rssreader.data.db.ArticleEntity
+import de.lolo.rssreader.data.network.ExtractedArticleContent
 import de.lolo.rssreader.data.repository.FeedRepository
 import de.lolo.rssreader.debug.DebugLogger
+import de.lolo.rssreader.ui.shareArticle
 import java.io.ByteArrayInputStream
 import java.util.WeakHashMap
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.flowOf
@@ -144,6 +150,44 @@ fun ArticleReaderScreen(
         }
     }
     val openInBrowser = { openArticleInBrowser(context, article?.link) }
+    var fullTextState by remember(currentArticleId) { mutableStateOf<FullTextState>(FullTextState.Idle) }
+    var showFullText by remember(currentArticleId) { mutableStateOf(false) }
+    val loadFullText: () -> Unit = {
+        val targetArticle = article
+        val targetUrl = targetArticle?.link?.trim().orEmpty()
+        if (targetArticle == null || targetUrl.isBlank()) {
+            // Kein Artikellink: stiller Fallback auf den Feed-Inhalt, keine Meldung.
+            fullTextState = FullTextState.Idle
+            DebugLogger.w(TAG, "Volltext nicht moeglich: kein Artikellink, articleId=${targetArticle?.id}")
+        } else if (fullTextState !is FullTextState.Loading) {
+            fullTextState = FullTextState.Loading
+            scope.launch {
+                DebugLogger.i(TAG, "Volltext wird geladen: articleId=${targetArticle.id}")
+                runCatching { repository.fetchArticleFullText(targetUrl) }
+                    .onSuccess { content ->
+                        fullTextState = FullTextState.Success(content)
+                        showFullText = true
+                        DebugLogger.i(
+                            TAG,
+                            "Volltext geladen: articleId=${targetArticle.id}, chars=${content.plainText.length}, images=${content.imageUrls.size}"
+                        )
+                    }
+                    .onFailure { throwable ->
+                        if (throwable is CancellationException) {
+                            throw throwable
+                        }
+                        // Stiller Fallback: kein Banner, keine Meldung - der Feed-Inhalt bleibt stehen.
+                        fullTextState = FullTextState.Idle
+                        showFullText = false
+                        DebugLogger.w(
+                            TAG,
+                            "Volltext fehlgeschlagen, Fallback auf Feed-Inhalt: articleId=${targetArticle.id}",
+                            throwable
+                        )
+                    }
+            }
+        }
+    }
     val triggerSwipe: (SwipeDirection) -> Unit = { direction ->
         when (direction) {
             SwipeDirection.ToNewer -> {
@@ -249,6 +293,48 @@ fun ArticleReaderScreen(
                 },
                 actions = {
                     if (!article?.link.isNullOrBlank()) {
+                        // Ein einziges Volltext-Symbol (A4-Blatt) mit kombinierter Funktion:
+                        // Idle -> laden, Success -> zwischen Volltext und Kurzfassung umschalten.
+                        val fullTextLoaded = fullTextState is FullTextState.Success
+                        val fullTextLoading = fullTextState is FullTextState.Loading
+                        val fullTextContentDescriptionRes = when {
+                            !fullTextLoaded -> R.string.article_reader_full_text_cd
+                            showFullText -> R.string.article_reader_full_text_show_feed
+                            else -> R.string.article_reader_full_text_show_full
+                        }
+                        IconButton(
+                            onClick = {
+                                when {
+                                    fullTextLoading -> Unit
+                                    fullTextLoaded -> showFullText = !showFullText
+                                    else -> loadFullText()
+                                }
+                            },
+                            enabled = !fullTextLoading
+                        ) {
+                            if (fullTextLoading) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(20.dp),
+                                    strokeWidth = 2.dp
+                                )
+                            } else {
+                                Icon(
+                                    Icons.AutoMirrored.Filled.Article,
+                                    contentDescription = stringResource(fullTextContentDescriptionRes),
+                                    tint = if (fullTextLoaded && showFullText) {
+                                        MaterialTheme.colorScheme.primary
+                                    } else {
+                                        MaterialTheme.colorScheme.onSurfaceVariant
+                                    }
+                                )
+                            }
+                        }
+                        IconButton(onClick = { shareArticle(context, article?.title, article?.link) }) {
+                            Icon(
+                                Icons.Default.Share,
+                                contentDescription = stringResource(R.string.article_share_cd)
+                            )
+                        }
                         IconButton(onClick = openInBrowser) {
                             Icon(
                                 Icons.Default.OpenInBrowser,
@@ -353,13 +439,23 @@ fun ArticleReaderScreen(
                             )
                         }
                     }
-                    val articleHtml = remember(currentArticle, showImages, colorScheme, effectiveArticleBodyTextSizeOffset) {
+                    val fullTextContent = (fullTextState as? FullTextState.Success)
+                        ?.content
+                        ?.takeIf { showFullText }
+                    val articleHtml = remember(
+                        currentArticle,
+                        showImages,
+                        colorScheme,
+                        effectiveArticleBodyTextSizeOffset,
+                        fullTextContent
+                    ) {
                         buildReaderHtml(
                             article = currentArticle,
                             showImages = showImages,
                             colorScheme = colorScheme,
                             articleBodyTextSizeOffset = effectiveArticleBodyTextSizeOffset,
-                            loadProfile = readerLoadProfile
+                            loadProfile = readerLoadProfile,
+                            contentHtmlOverride = fullTextContent?.html
                         )
                     }
                     val articleHtmlContent = remember(currentArticle?.link, articleHtml, readerLoadProfile, isFeedHeavy) {
@@ -690,7 +786,8 @@ private fun buildReaderHtml(
     showImages: Boolean,
     colorScheme: ColorScheme,
     articleBodyTextSizeOffset: Int,
-    loadProfile: ReaderLoadProfile
+    loadProfile: ReaderLoadProfile,
+    contentHtmlOverride: String? = null
 ): String? {
     article ?: return null
     val prefersDark = colorScheme.background.luminance() < 0.5f
@@ -712,7 +809,7 @@ private fun buildReaderHtml(
     } else {
         ""
     }
-    val rawBody = article.contentHtml.ifBlank {
+    val rawBody = (contentHtmlOverride ?: article.contentHtml).ifBlank {
         article.plainText
             .lineSequence()
             .map(TextUtils::htmlEncode)
@@ -1694,3 +1791,14 @@ internal fun resolveArticleLinkForExternalOpen(rawHref: String?, articleUrl: Str
 }
 
 
+
+
+/**
+ * Zustand des optionalen Volltext-Nachladens in der Leseransicht.
+ * Standard ist [Idle]: es wird nichts geladen und der Feed-Inhalt angezeigt.
+ */
+internal sealed interface FullTextState {
+    data object Idle : FullTextState
+    data object Loading : FullTextState
+    data class Success(val content: ExtractedArticleContent) : FullTextState
+}

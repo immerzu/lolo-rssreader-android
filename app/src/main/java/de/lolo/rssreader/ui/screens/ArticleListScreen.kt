@@ -69,6 +69,7 @@ import de.lolo.rssreader.data.settings.AppPreferences
 import de.lolo.rssreader.data.settings.EntrySortOrder
 import de.lolo.rssreader.debug.DebugLogger
 import de.lolo.rssreader.ui.formatRelativeTime
+import de.lolo.rssreader.ui.shareArticle
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.delay
@@ -153,6 +154,35 @@ fun ArticleListScreen(
         initialFirstVisibleItemIndex = savedFirstVisibleItemIndex,
         initialFirstVisibleItemScrollOffset = savedFirstVisibleItemScrollOffset
     )
+    // Artikel, die beim Scrollen durchlaufen wurden, optional automatisch als gelesen markieren.
+    // Standard ist AUS; das Verhalten greift nicht, solange der Filter "nur ungelesen" aktiv ist,
+    // weil markierte Artikel sonst waehrend des Scrollens aus der Liste verschwinden wuerden.
+    val scrollMarkedArticleIds = remember(feedId) { mutableSetOf<Long>() }
+    val latestVisibleArticles by rememberUpdatedState(visibleArticles)
+    LaunchedEffect(settings.markReadOnScroll, showUnreadOnly, feedId) {
+        if (!settings.markReadOnScroll || showUnreadOnly) {
+            return@LaunchedEffect
+        }
+        snapshotFlow { listState.firstVisibleItemIndex }
+            .distinctUntilChanged()
+            .collect { listIndex ->
+                val targets = articlesToMarkReadOnScroll(
+                    articles = latestVisibleArticles,
+                    firstVisibleArticleIndex = firstVisibleArticleIndexFor(listIndex, hasHeaderItem = true),
+                    alreadyMarkedIds = scrollMarkedArticleIds
+                )
+                targets.forEach { article ->
+                    scrollMarkedArticleIds += article.id
+                    runCatching { repository.markRead(article.id) }
+                        .onFailure { throwable ->
+                            if (throwable is CancellationException) {
+                                throw throwable
+                            }
+                            scrollMarkedArticleIds -= article.id
+                        }
+                }
+            }
+    }
     fun showRefreshIndicatorBriefly() {
         val token = refreshIndicatorToken + 1
         refreshIndicatorToken = token
@@ -595,6 +625,14 @@ fun ArticleListScreen(
                 },
                 dismissButton = {
                     Row {
+                        TextButton(
+                            onClick = {
+                                shareArticle(context, selectedArticle.title, selectedArticle.link)
+                                selectedArticleId = null
+                            }
+                        ) {
+                            Text(stringResource(R.string.article_share_action))
+                        }
                         TextButton(
                             onClick = {
                                 selectedArticleId = null

@@ -60,6 +60,14 @@ sealed class RssReaderException(
         cause = cause
     )
 
+    class FullTextUnavailable : RssReaderException(
+        userMessage = "Auf der Originalseite wurde kein lesbarer Artikeltext gefunden."
+    )
+
+    class ArticleTooLarge(val actualSizeBytes: Long, val limitBytes: Long) : RssReaderException(
+        userMessage = "Die Originalseite ist fuer eine sichere Verarbeitung zu gross."
+    )
+
     class DuplicateFeed : RssReaderException(
         userMessage = "Dieser Feed ist bereits vorhanden."
     )
