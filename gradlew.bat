@@ -24,10 +24,15 @@
 @rem Set local scope for the variables with windows NT shell
 if "%OS%"=="Windows_NT" setlocal
 
+@rem Die global gesetzte Umgebungsvariable JAVA_TOOL_OPTIONS=-Djava.net.preferIPv4Stack=true
+@rem erzwingt eine reine IPv4-Namensaufloesung. Google Maven (maven.google.com/dl.google.com)
+@rem antwortet ueber IPv4 mit HTTP 404 und ueber IPv6 mit HTTP 200, wodurch die
+@rem Plugin-Aufloesung fehlschlaegt. Der IPv4-Zwang wird hier nur fuer diesen Aufruf
+@rem neutralisiert; die globale Variable bleibt unveraendert.
 if defined JAVA_TOOL_OPTIONS (
-    set JAVA_TOOL_OPTIONS=%JAVA_TOOL_OPTIONS% -Djava.net.preferIPv4Stack=true
+    set JAVA_TOOL_OPTIONS=%JAVA_TOOL_OPTIONS% -Djava.net.preferIPv4Stack=false
 ) else (
-    set JAVA_TOOL_OPTIONS=-Djava.net.preferIPv4Stack=true
+    set JAVA_TOOL_OPTIONS=-Djava.net.preferIPv4Stack=false
 )
 
 set DIRNAME=%~dp0
@@ -40,7 +45,7 @@ set APP_HOME=%DIRNAME%
 for %%i in ("%APP_HOME%") do set APP_HOME=%%~fi
 
 @rem Add default JVM options here. You can also use JAVA_OPTS and GRADLE_OPTS to pass JVM options to this script.
-set DEFAULT_JVM_OPTS="-Xmx64m" "-Xms64m" "-Djava.net.preferIPv4Stack=true"
+set DEFAULT_JVM_OPTS="-Xmx64m" "-Xms64m" "-Djava.net.preferIPv4Stack=false"
 
 @rem Find java.exe
 if defined JAVA_HOME goto findJavaFromJavaHome
