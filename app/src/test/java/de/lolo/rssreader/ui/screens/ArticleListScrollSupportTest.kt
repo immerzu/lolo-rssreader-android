@@ -71,6 +71,37 @@ class ArticleListScrollSupportTest {
     }
 
     @Test
+    fun marksOnlyTheFirstArticleWhenItHasJustBeenScrolledPast() {
+        val articles = listOf(article(1), article(2), article(3))
+
+        val result = articlesToMarkReadOnScroll(articles, firstVisibleArticleIndex = 1, alreadyMarkedIds = emptySet())
+
+        assertEquals(listOf(1L), result.map { it.id })
+    }
+
+    @Test
+    fun returnsEmptyForAnEmptyArticleList() {
+        val result = articlesToMarkReadOnScroll(
+            articles = emptyList(),
+            firstVisibleArticleIndex = 3,
+            alreadyMarkedIds = emptySet()
+        )
+
+        assertTrue(result.isEmpty())
+    }
+
+    @Test
+    fun neverMarksTheArticleThatIsCurrentlyVisible() {
+        val articles = listOf(article(1), article(2), article(3), article(4))
+
+        val result = articlesToMarkReadOnScroll(articles, firstVisibleArticleIndex = 3, alreadyMarkedIds = emptySet())
+
+        // Artikel 4 (Index 3) ist sichtbar und bleibt ungelesen.
+        assertEquals(listOf(1L, 2L, 3L), result.map { it.id })
+        assertTrue(result.none { it.id == 4L })
+    }
+
+    @Test
     fun convertsListIndexToArticleIndexWithAndWithoutHeader() {
         assertEquals(0, firstVisibleArticleIndexFor(listIndex = 0, hasHeaderItem = true))
         assertEquals(0, firstVisibleArticleIndexFor(listIndex = 1, hasHeaderItem = true))

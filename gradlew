@@ -65,9 +65,9 @@
 # Attempt to set APP_HOME
 
 if [ -n "$JAVA_TOOL_OPTIONS" ]; then
-    JAVA_TOOL_OPTIONS="$JAVA_TOOL_OPTIONS -Djava.net.preferIPv4Stack=true"
+    JAVA_TOOL_OPTIONS="$JAVA_TOOL_OPTIONS -Djava.net.preferIPv4Stack=false"
 else
-    JAVA_TOOL_OPTIONS="-Djava.net.preferIPv4Stack=true"
+    JAVA_TOOL_OPTIONS="-Djava.net.preferIPv4Stack=false"
 fi
 export JAVA_TOOL_OPTIONS
 
@@ -207,7 +207,7 @@ fi
 
 
 # Add default JVM options here. You can also use JAVA_OPTS and GRADLE_OPTS to pass JVM options to this script.
-DEFAULT_JVM_OPTS='"-Xmx64m" "-Xms64m" "-Djava.net.preferIPv4Stack=true"'
+DEFAULT_JVM_OPTS='"-Xmx64m" "-Xms64m" "-Djava.net.preferIPv4Stack=false"'
 
 # Collect all arguments for the java command:
 #   * DEFAULT_JVM_OPTS, JAVA_OPTS, JAVA_OPTS, and optsEnvironmentVar are not allowed to contain shell fragments,

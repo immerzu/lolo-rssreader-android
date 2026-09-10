@@ -201,17 +201,6 @@ fun SettingsScreen(
             }
         }
 
-        SettingsCard(title = stringResource(R.string.settings_section_reading)) {
-            SettingsToggleRow(
-                title = stringResource(R.string.settings_mark_read_on_scroll_title),
-                subtitle = stringResource(R.string.settings_mark_read_on_scroll_subtitle),
-                checked = settings.markReadOnScroll,
-                onCheckedChange = {
-                    scope.launch { settingsRepository.setMarkReadOnScroll(it) }
-                }
-            )
-        }
-
         SettingsCard(title = stringResource(R.string.settings_section_appearance)) {
             if (BuildConfig.DEBUG) {
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {

@@ -154,13 +154,13 @@ fun ArticleListScreen(
         initialFirstVisibleItemIndex = savedFirstVisibleItemIndex,
         initialFirstVisibleItemScrollOffset = savedFirstVisibleItemScrollOffset
     )
-    // Artikel, die beim Scrollen durchlaufen wurden, optional automatisch als gelesen markieren.
-    // Standard ist AUS; das Verhalten greift nicht, solange der Filter "nur ungelesen" aktiv ist,
-    // weil markierte Artikel sonst waehrend des Scrollens aus der Liste verschwinden wuerden.
+    // Artikel, die in der Liste durchlaufen wurden, werden automatisch als gelesen markiert.
+    // Das greift nicht, solange der Filter "nur ungelesen" aktiv ist, weil markierte Artikel
+    // sonst waehrend des Scrollens unter dem Finger aus der Liste verschwinden wuerden.
     val scrollMarkedArticleIds = remember(feedId) { mutableSetOf<Long>() }
     val latestVisibleArticles by rememberUpdatedState(visibleArticles)
-    LaunchedEffect(settings.markReadOnScroll, showUnreadOnly, feedId) {
-        if (!settings.markReadOnScroll || showUnreadOnly) {
+    LaunchedEffect(showUnreadOnly, feedId) {
+        if (showUnreadOnly) {
             return@LaunchedEffect
         }
         snapshotFlow { listState.firstVisibleItemIndex }

@@ -202,7 +202,4 @@
     <string name="article_reader_full_text_show_full">Full text</string>
 
     <!-- Feature: Mark as read while scrolling -->
-    <string name="settings_section_reading">Reading</string>
-    <string name="settings_mark_read_on_scroll_title">Mark as read while scrolling</string>
-    <string name="settings_mark_read_on_scroll_subtitle">Articles are marked as read once they are scrolled past in the article list.</string>
 </resources>
