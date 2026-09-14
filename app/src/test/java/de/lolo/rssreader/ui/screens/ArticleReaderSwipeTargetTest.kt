@@ -61,4 +61,23 @@ class ArticleReaderSwipeTargetTest {
         // wird erst beim Verlassen markiert - daher hier keine Markierung beim Laden.
         assertFalse(shouldMarkReadOnArticleLoad(currentArticleId = 8L, entryArticleId = 5L))
     }
+
+    @Test
+    fun marksAnArticleThatWasNotMarkedInThisReaderSessionYet() {
+        assertTrue(shouldMarkArticleRead(articleId = 5L, alreadyMarkedIds = emptySet()))
+        assertTrue(shouldMarkArticleRead(articleId = 5L, alreadyMarkedIds = setOf(4L, 6L)))
+    }
+
+    @Test
+    fun doesNotMarkTheSameArticleTwiceInOneReaderSession() {
+        // Deckt den Fall ab, dass ein Artikel bereits durch Oeffnen oder Wischen markiert
+        // wurde und die Leseransicht danach verlassen wird.
+        assertFalse(shouldMarkArticleRead(articleId = 5L, alreadyMarkedIds = setOf(5L)))
+    }
+
+    @Test
+    fun doesNotMarkInvalidArticleIds() {
+        assertFalse(shouldMarkArticleRead(articleId = 0L, alreadyMarkedIds = emptySet()))
+        assertFalse(shouldMarkArticleRead(articleId = -1L, alreadyMarkedIds = emptySet()))
+    }
 }

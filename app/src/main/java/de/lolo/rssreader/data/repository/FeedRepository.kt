@@ -19,6 +19,9 @@ import de.lolo.rssreader.data.opml.OpmlFeedEntry
 import de.lolo.rssreader.debug.DebugLogger
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import java.io.InputStream
 import java.io.OutputStream
 import java.net.URI
@@ -96,6 +99,9 @@ class FeedRepository(
 
     @Volatile
     private var refreshInProgress = false
+    // Eigener Scope fuer Schreibvorgaenge, die nicht an einen Composable-Lebenszyklus
+    // gebunden sein duerfen (Markieren beim Verlassen der Leseransicht).
+    private val backgroundWriteScope = CoroutineScope(SupervisorJob() + ioDispatcher)
     private val ftsMaintenance = FtsMaintenance(database) { droppedTriggers ->
         DebugLogger.i(TAG, "fts_mode mode=manual droppedTriggers=$droppedTriggers")
     }
@@ -356,6 +362,23 @@ class FeedRepository(
 
     suspend fun markRead(articleId: Long) {
         runOnIo { articleDao.markRead(articleId) }
+    }
+
+    /**
+     * Markiert einen Artikel als gelesen, ohne auf das Ergebnis zu warten.
+     *
+     * Wird beim Verlassen der Leseransicht genutzt: Der Aufruf erfolgt aus einem
+     * Composable-Abbau (onDispose) bzw. aus einem Lifecycle-Callback heraus, wo kein
+     * an die Komposition gebundener Coroutine-Scope mehr zur Verfuegung steht.
+     * Fehler werden verschluckt (der Artikel bleibt dann ungelesen).
+     */
+    fun markReadInBackground(articleId: Long) {
+        if (articleId <= 0L) {
+            return
+        }
+        backgroundWriteScope.launch {
+            runCatching { markRead(articleId) }
+        }
     }
 
     suspend fun markUnread(articleId: Long) {

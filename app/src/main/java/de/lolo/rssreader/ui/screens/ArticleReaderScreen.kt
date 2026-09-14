@@ -66,6 +66,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -75,9 +76,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import coil.compose.AsyncImage
@@ -152,6 +156,10 @@ fun ArticleReaderScreen(
     val openInBrowser = { openArticleInBrowser(context, article?.link) }
     var fullTextState by remember(currentArticleId) { mutableStateOf<FullTextState>(FullTextState.Idle) }
     var showFullText by remember(currentArticleId) { mutableStateOf(false) }
+    // Artikel, die in dieser Reader-Sitzung bereits als gelesen markiert wurden.
+    // Verhindert Doppelmarkierungen, wenn mehrere Ausloeser (Oeffnen, Wischen, Verlassen)
+    // denselben Artikel betreffen.
+    val markedReadArticleIds = remember { mutableSetOf<Long>() }
     val loadFullText: () -> Unit = {
         val targetArticle = article
         val targetUrl = targetArticle?.link?.trim().orEmpty()
@@ -195,8 +203,9 @@ fun ArticleReaderScreen(
             scope.launch {
                 // Waagerechtes Weiterwischen: der verlassene Artikel gilt als gelesen.
                 // Bei erstem/letztem Artikel ist targetArticleId null -> kein Wechsel, keine Markierung.
-                withContext(Dispatchers.IO) {
-                    runCatching { repository.markRead(leavingArticleId) }
+                if (shouldMarkArticleRead(leavingArticleId, markedReadArticleIds)) {
+                    markedReadArticleIds += leavingArticleId
+                    withContext(Dispatchers.IO) { runCatching { repository.markRead(leavingArticleId) } }
                 }
                 swipeDirection = direction
                 currentArticleId = targetArticleId
@@ -217,8 +226,13 @@ fun ArticleReaderScreen(
         if (loadedArticle != null) {
             DebugLogger.i(TAG, "Artikel geladen: articleId=${loadedArticle.id}, title=${loadedArticle.title.take(80)}")
             // Oeffnen markiert wie bisher den Einstiegsartikel. Beim Weiterwischen uebernimmt
-            // triggerSwipe die Markierung des verlassenen Artikels (kein doppelter Pfad).
-            if (shouldMarkReadOnArticleLoad(currentArticleId, articleId)) {
+            // triggerSwipe die Markierung des verlassenen Artikels, beim Verlassen der
+            // Leseransicht markiert markVisibleArticleAsReadOnExit den zuletzt sichtbaren.
+            if (
+                shouldMarkReadOnArticleLoad(currentArticleId, articleId) &&
+                shouldMarkArticleRead(currentArticleId, markedReadArticleIds)
+            ) {
+                markedReadArticleIds += currentArticleId
                 withContext(Dispatchers.IO) { repository.markRead(currentArticleId) }
             }
             val feed = withContext(Dispatchers.IO) { repository.getFeed(loadedArticle.feedId) }
@@ -250,10 +264,38 @@ fun ArticleReaderScreen(
         }
     }
 
+    // Der zuletzt tatsaechlich im Reader sichtbar geladene Artikel. Wird beim Verlassen
+    // der Leseransicht markiert (siehe markVisibleArticleAsReadOnExit).
+    val latestLoadedArticleId by rememberUpdatedState(article?.id ?: 0L)
+    fun markVisibleArticleAsReadOnExit() {
+        val visibleArticleId = latestLoadedArticleId
+        if (shouldMarkArticleRead(visibleArticleId, markedReadArticleIds)) {
+            markedReadArticleIds += visibleArticleId
+            repository.markReadInBackground(visibleArticleId)
+        }
+    }
+
     DisposableEffect(Unit) {
         onDispose {
             destroyWebView(activeWebView)
             activeWebView = null
+        }
+    }
+
+    // Verlassen der Leseransicht: deckt sowohl den Navigations-Ausstieg (Zurueck-Pfeil,
+    // Back-Taste, Systemgeste -> onDispose) als auch das In-den-Hintergrund-Gehen
+    // (Home-Button -> ON_STOP) ab. Der Set-Guard sorgt fuer genau eine Markierung.
+    val readerLifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(readerLifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_STOP) {
+                markVisibleArticleAsReadOnExit()
+            }
+        }
+        readerLifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            readerLifecycleOwner.lifecycle.removeObserver(observer)
+            markVisibleArticleAsReadOnExit()
         }
     }
 
@@ -1772,6 +1814,16 @@ internal fun determineHorizontalSwipeDirection(
  */
 internal fun shouldMarkReadOnArticleLoad(currentArticleId: Long, entryArticleId: Long): Boolean =
     currentArticleId == entryArticleId
+
+/**
+ * Entscheidet, ob ein Artikel jetzt als gelesen markiert werden soll.
+ *
+ * `false` bei ungueltiger ID oder wenn der Artikel in dieser Reader-Sitzung bereits
+ * markiert wurde - dadurch sind Doppelmarkierungen ausgeschlossen, wenn mehrere
+ * Ausloeser (Oeffnen, Weiterwischen, Verlassen der Leseransicht) zusammentreffen.
+ */
+internal fun shouldMarkArticleRead(articleId: Long, alreadyMarkedIds: Set<Long>): Boolean =
+    articleId > 0L && articleId !in alreadyMarkedIds
 
 /**
  * Ermittelt den Artikel, zu dem eine waagerechte Wischgeste in der Leseransicht wechselt.
