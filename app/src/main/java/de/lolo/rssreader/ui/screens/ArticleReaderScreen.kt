@@ -189,24 +189,18 @@ fun ArticleReaderScreen(
         }
     }
     val triggerSwipe: (SwipeDirection) -> Unit = { direction ->
-        when (direction) {
-            SwipeDirection.ToNewer -> {
-                if (newerArticleId != null) {
-                    scope.launch {
-                        swipeDirection = SwipeDirection.ToNewer
-                        currentArticleId = newerArticleId!!
-                    }
+        val targetArticleId = resolveSwipeTargetArticleId(direction, newerArticleId, olderArticleId)
+        if (targetArticleId != null) {
+            val leavingArticleId = currentArticleId
+            scope.launch {
+                // Waagerechtes Weiterwischen: der verlassene Artikel gilt als gelesen.
+                // Bei erstem/letztem Artikel ist targetArticleId null -> kein Wechsel, keine Markierung.
+                withContext(Dispatchers.IO) {
+                    runCatching { repository.markRead(leavingArticleId) }
                 }
+                swipeDirection = direction
+                currentArticleId = targetArticleId
             }
-            SwipeDirection.ToOlder -> {
-                if (olderArticleId != null) {
-                    scope.launch {
-                        swipeDirection = SwipeDirection.ToOlder
-                        currentArticleId = olderArticleId!!
-                    }
-                }
-            }
-            SwipeDirection.None -> Unit
         }
     }
 
@@ -222,7 +216,11 @@ fun ArticleReaderScreen(
         article = loadedArticle
         if (loadedArticle != null) {
             DebugLogger.i(TAG, "Artikel geladen: articleId=${loadedArticle.id}, title=${loadedArticle.title.take(80)}")
-            withContext(Dispatchers.IO) { repository.markRead(currentArticleId) }
+            // Oeffnen markiert wie bisher den Einstiegsartikel. Beim Weiterwischen uebernimmt
+            // triggerSwipe die Markierung des verlassenen Artikels (kein doppelter Pfad).
+            if (shouldMarkReadOnArticleLoad(currentArticleId, articleId)) {
+                withContext(Dispatchers.IO) { repository.markRead(currentArticleId) }
+            }
             val feed = withContext(Dispatchers.IO) { repository.getFeed(loadedArticle.feedId) }
             isFeedHeavy = feed?.heavy == true
             if (isFeedHeavy) {
@@ -1766,8 +1764,33 @@ internal fun determineHorizontalSwipeDirection(
     }
 }
 
-internal fun resolveArticleLinkForExternalOpen(rawHref: String?, articleUrl: String?): String? {
-    val href = rawHref?.trim().orEmpty()
+/**
+ * Beim Laden eines Artikels wird nur der Einstiegsartikel (Oeffnen aus der Liste) als
+ * gelesen markiert. Alle weiteren Artikel werden beim waagerechten Weiterwischen durch
+ * [resolveSwipeTargetArticleId]/`triggerSwipe` markiert, sobald sie verlassen werden -
+ * dadurch gibt es keinen doppelten Markier-Pfad fuer denselben Ausloeser.
+ */
+internal fun shouldMarkReadOnArticleLoad(currentArticleId: Long, entryArticleId: Long): Boolean =
+    currentArticleId == entryArticleId
+
+/**
+ * Ermittelt den Artikel, zu dem eine waagerechte Wischgeste in der Leseransicht wechselt.
+ *
+ * Liefert `null`, wenn keine Richtung erkannt wurde oder in diese Richtung kein Artikel
+ * existiert (erster bzw. letzter Artikel). In diesem Fall findet kein Wechsel statt und
+ * es wird auch kein Artikel als gelesen markiert.
+ */
+internal fun resolveSwipeTargetArticleId(
+    direction: SwipeDirection,
+    newerArticleId: Long?,
+    olderArticleId: Long?
+): Long? = when (direction) {
+    SwipeDirection.ToNewer -> newerArticleId
+    SwipeDirection.ToOlder -> olderArticleId
+    SwipeDirection.None -> null
+}
+
+internal fun resolveArticleLinkForExternalOpen(rawHref: String?, articleUrl: String?): String? {    val href = rawHref?.trim().orEmpty()
     if (href.isBlank()) return null
     val lower = href.lowercase()
     if (lower.startsWith("javascript:") || lower.startsWith("intent:") ||
