@@ -156,6 +156,15 @@ android {
     }
 }
 
+// Reproduzierbare Release-Builds: F-Droid baut jede Version selbst mit Debian-OpenJDK 21 und
+// vergleicht die erzeugte APK byteweise mit unserer Release-APK (Binaries). Ohne feste Toolchain
+// kompiliert der Build mit dem gerade laufenden JDK (lokal 17) und erzeugt abweichendes DEX
+// (classes2.dex) -> der F-Droid-CI-Job "fdroid build" schlaegt fehl und die Version erscheint nie.
+// jvmTarget/compileOptions bleiben bewusst auf 17 (Android/D8); fixiert wird nur das ausfuehrende JDK.
+kotlin {
+    jvmToolchain(21)
+}
+
 tasks.matching { it.name == "compileReleaseArtProfile" }.configureEach {
     enabled = false
 }
