@@ -27,6 +27,7 @@ import okhttp3.Response
 import okhttp3.ResponseBody.Companion.toResponseBody
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -44,6 +45,7 @@ class FeedRepositoryRefreshIntegrationTest {
     private lateinit var articleDao: ArticleDao
     private lateinit var repository: FeedRepository
     private lateinit var responseQueues: ConcurrentHashMap<String, ConcurrentLinkedQueue<QueuedHttpResponse>>
+    private lateinit var sentConditionalRequests: ConcurrentLinkedQueue<String>
     private var nextDisplayOrder = 1
 
     @Before
@@ -55,10 +57,13 @@ class FeedRepositoryRefreshIntegrationTest {
         feedDao = database.feedDao()
         articleDao = database.articleDao()
         responseQueues = ConcurrentHashMap()
+        sentConditionalRequests = ConcurrentLinkedQueue()
 
         val client = OkHttpClient.Builder()
             .addInterceptor { chain ->
                 val url = chain.request().url.toString()
+                sentConditionalRequests +=
+                    "${chain.request().header("If-None-Match")}|${chain.request().header("If-Modified-Since")}"
                 val queuedResponse = responseQueues[url]?.poll()
                     ?: error("No queued response for $url")
                 Response.Builder()
@@ -66,11 +71,17 @@ class FeedRepositoryRefreshIntegrationTest {
                     .protocol(Protocol.HTTP_1_1)
                     .code(queuedResponse.code)
                     .message(if (queuedResponse.code in 200..299) "OK" else "Error")
-                    .body(
-                        queuedResponse.body.toResponseBody(
-                            queuedResponse.contentType?.toMediaType()
+                    .apply {
+                        queuedResponse.etag?.let { header("ETag", it) }
+                        queuedResponse.lastModified?.let { header("Last-Modified", it) }
+                        // OkHttp verlangt von Interceptoren eine Response mit Body; 304 wird
+                        // deshalb mit leerem Body beantwortet.
+                        body(
+                            queuedResponse.body.toResponseBody(
+                                queuedResponse.contentType?.toMediaType()
+                            )
                         )
-                    )
+                    }
                     .build()
             }
             .build()
@@ -1163,6 +1174,276 @@ class FeedRepositoryRefreshIntegrationTest {
         assertEquals(0, articleDao.countFtsMaintenanceTriggers())
     }
 
+    @Test
+    fun refreshFeedReloadsArticlesWhenLocalArticleSetIsEmptyDespiteStoredEtag() = runTest {
+        val feedUrl = "https://example.com/feed-empty-etag.xml"
+        val feedId = feedDao.insert(
+            FeedEntity(
+                title = "Leerer Feed",
+                url = feedUrl,
+                displayOrder = nextDisplayOrder++,
+                etag = "\"etag-leer\"",
+                lastModified = "Sat, 10 Oct 2026 08:00:00 GMT"
+            )
+        )
+
+        enqueueSuccessWithEtag(
+            feedUrl,
+            rssXml("refill-1", "Wieder da", "Riga Tipps"),
+            "\"etag-leer\""
+        )
+        sentConditionalRequests.clear()
+
+        val inserted = repository.refreshFeed(feedId)
+
+        assertEquals(1, inserted)
+        assertEquals(1, articleDao.countArticles())
+        assertEquals(1, articleDao.countSearchIndexRows())
+        assertEquals(listOf("Wieder da"), searchTitles("Riga", "riga*"))
+        assertEquals(listOf("null|null"), sentConditionalRequests.toList())
+    }
+
+    @Test
+    fun refreshFeedSkipsUnchangedFeedWhenLocalArticlesExist() = runTest {
+        val feedUrl = "https://example.com/feed-keeps-skip.xml"
+        val feedId = insertFeed(feedUrl)
+
+        enqueueSuccessWithEtag(
+            feedUrl,
+            rssXml("skip-1", "Bleibt stabil", "Bern Stabil"),
+            "\"etag-gleich\""
+        )
+        assertEquals(1, repository.refreshFeed(feedId))
+
+        enqueueSuccessWithEtag(
+            feedUrl,
+            rssXml("skip-1", "Bleibt stabil", "Bern Stabil"),
+            "\"etag-gleich\""
+        )
+        sentConditionalRequests.clear()
+
+        val secondRun = repository.refreshFeed(feedId)
+
+        assertEquals(0, secondRun)
+        assertEquals(1, articleDao.countArticles())
+        assertEquals(listOf("\"etag-gleich\"|null"), sentConditionalRequests.toList())
+    }
+
+    @Test
+    fun refreshFeedKeepsSkippingNotModifiedFeedWhenLocalArticlesExist() = runTest {
+        val feedUrl = "https://example.com/feed-keeps-304-skip.xml"
+        val feedId = insertFeed(feedUrl)
+
+        enqueueSuccessWithEtag(
+            feedUrl,
+            rssXml("keep-1", "Bleibt auch stabil", "Oslo Stabil"),
+            "\"etag-304\""
+        )
+        assertEquals(1, repository.refreshFeed(feedId))
+
+        enqueue(
+            url = feedUrl,
+            response = QueuedHttpResponse(code = 304, body = "", contentType = null)
+        )
+        sentConditionalRequests.clear()
+
+        val secondRun = repository.refreshFeed(feedId)
+
+        assertEquals(0, secondRun)
+        assertEquals(1, articleDao.countArticles())
+        assertEquals(listOf("\"etag-304\"|null"), sentConditionalRequests.toList())
+    }
+
+    @Test
+    fun refreshFeedBypassesHeavyThrottleWhenLocalArticleSetIsEmpty() = runTest {
+        val feedUrl = "https://example.com/feed-heavy-empty.xml"
+        val feedId = feedDao.insert(
+            FeedEntity(
+                title = "Schwerer leerer Feed",
+                url = feedUrl,
+                displayOrder = nextDisplayOrder++,
+                lastFetchedAt = System.currentTimeMillis(),
+                heavy = true
+            )
+        )
+
+        enqueueSuccess(feedUrl, rssXml("heavy-1", "Schwer wieder da", "Prag Tipps"))
+
+        val inserted = repository.refreshFeed(feedId)
+
+        assertEquals(1, inserted)
+        assertEquals(1, articleDao.countArticles())
+    }
+
+    @Test
+    fun refreshFeedKeepsHeavyThrottleWhenLocalArticlesExist() = runTest {
+        val feedUrl = "https://example.com/feed-heavy-with-articles.xml"
+        val feedId = feedDao.insert(
+            FeedEntity(
+                title = "Schwerer Feed mit Bestand",
+                url = feedUrl,
+                displayOrder = nextDisplayOrder++,
+                lastFetchedAt = System.currentTimeMillis(),
+                heavy = true
+            )
+        )
+        articleDao.insertAll(
+            listOf(
+                ArticleEntity(
+                    feedId = feedId,
+                    uniqueKey = "heavy-bestand",
+                    title = "Bestand",
+                    link = "https://example.com/articles/heavy-bestand",
+                    plainText = "Prag Bestand",
+                    contentHtml = "<p>Prag Bestand</p>",
+                    imageUrls = ""
+                )
+            )
+        )
+
+        val inserted = repository.refreshFeed(feedId)
+
+        assertEquals(0, inserted)
+        assertEquals(1, articleDao.countArticles())
+        assertTrue(sentConditionalRequests.isEmpty())
+    }
+
+    @Test
+    fun deleteAllReadEntriesResetsConditionalStateOnlyForAffectedFeeds() = runTest {
+        val affectedUrl = "https://example.com/feed-delete-read-affected.xml"
+        val untouchedUrl = "https://example.com/feed-delete-read-untouched.xml"
+        val affectedFeedId = insertFeed(affectedUrl)
+        val untouchedFeedId = insertFeed(untouchedUrl)
+
+        enqueueSuccessWithEtag(
+            affectedUrl,
+            rssXml("affected-1", "Gelesener Eintrag", "Kopenhagen Alt"),
+            "\"etag-affected\""
+        )
+        enqueueSuccessWithEtag(
+            untouchedUrl,
+            rssXml("untouched-1", "Ungelesener Eintrag", "Lyon Stabil"),
+            "\"etag-untouched\""
+        )
+        assertEquals(2, repository.refreshAll().newArticles)
+
+        repository.markAllRead(affectedFeedId)
+        val deleted = repository.deleteAllReadEntries()
+
+        assertEquals(1, deleted)
+        assertNull(feedDao.getById(affectedFeedId)?.etag)
+        assertEquals("\"etag-untouched\"", feedDao.getById(untouchedFeedId)?.etag)
+        assertEquals(1, articleDao.countArticles())
+
+        enqueueSuccessWithEtag(
+            affectedUrl,
+            rssXml("affected-1", "Wieder da", "Kopenhagen Neu"),
+            "\"etag-affected\""
+        )
+        sentConditionalRequests.clear()
+
+        val inserted = repository.refreshFeed(affectedFeedId)
+
+        assertEquals(1, inserted)
+        assertEquals(1, articleDao.countByFeed(affectedFeedId))
+        assertEquals(1, articleDao.countByFeed(untouchedFeedId))
+        assertEquals(listOf("Wieder da"), searchTitles("Kopenhagen", "kopenhagen*"))
+        assertEquals(listOf("null|null"), sentConditionalRequests.toList())
+    }
+
+    @Test
+    fun resetFeedUpdatedAtClearsFetchStateAndMarksAllArticlesUnread() = runTest {
+        val feedUrl = "https://example.com/feed-reset-state.xml"
+        val feedId = insertFeed(feedUrl)
+
+        enqueueSuccessWithEtag(
+            feedUrl,
+            rssXmlWithTwoItems(
+                firstUniqueKey = "reset-state-1",
+                firstTitle = "Erster Eintrag",
+                firstPlainText = "Prag Eins",
+                secondUniqueKey = "reset-state-2",
+                secondTitle = "Zweiter Eintrag",
+                secondPlainText = "Wien Zwei"
+            ),
+            "\"etag-state\"",
+            lastModified = "Sat, 10 Oct 2026 08:00:00 GMT"
+        )
+        assertEquals(2, repository.refreshFeed(feedId))
+        assertNotNull(feedDao.getById(feedId)?.etag)
+        assertNotNull(feedDao.getById(feedId)?.lastModified)
+        assertNotNull(feedDao.getById(feedId)?.lastFetchedAt)
+
+        val initialArticles = articleDao.observeByFeed(feedId).first()
+        initialArticles.forEach { repository.markRead(it.id) }
+        repository.setFavorite(initialArticles.first().id, true)
+        assertTrue(articleDao.observeByFeed(feedId).first().all { it.isRead })
+
+        repository.resetFeedUpdatedAt(feedId)
+
+        val resetFeed = feedDao.getById(feedId)
+        assertNull(resetFeed?.etag)
+        assertNull(resetFeed?.lastModified)
+        assertNull(resetFeed?.lastFetchedAt)
+
+        val resetArticles = articleDao.observeByFeed(feedId).first()
+        assertEquals(2, resetArticles.size)
+        assertTrue(resetArticles.all { !it.isRead })
+        assertTrue(resetArticles.first { it.isFavorite }.isFavorite)
+    }
+
+    @Test
+    fun resetFeedUpdatedAtForcesRegularFetchWhenLocalArticlesExist() = runTest {
+        val feedUrl = "https://example.com/feed-reset-refetch.xml"
+        val feedId = insertFeed(feedUrl)
+
+        enqueueSuccessWithEtag(
+            feedUrl,
+            rssXml("reset-refetch", "Altbestand", "Prag Alt"),
+            "\"etag-refetch\""
+        )
+        assertEquals(1, repository.refreshFeed(feedId))
+        assertNotNull(feedDao.getById(feedId)?.etag)
+
+        repository.resetFeedUpdatedAt(feedId)
+        sentConditionalRequests.clear()
+
+        enqueueSuccessWithEtag(
+            feedUrl,
+            rssXml("reset-refetch", "Neu geladen", "Prag Neu"),
+            "\"etag-refetch\""
+        )
+        repository.refreshFeed(feedId)
+
+        val article = articleDao.observeByFeed(feedId).first().single()
+        assertEquals("Neu geladen", article.title)
+        assertEquals("Prag Neu", article.plainText)
+        assertFalse(article.isRead)
+        assertEquals(listOf("null|null"), sentConditionalRequests.toList())
+    }
+
+    @Test
+    fun resetFeedUpdatedAtLeavesOtherFeedsUntouched() = runTest {
+        val resetUrl = "https://example.com/feed-reset-scope-a.xml"
+        val otherUrl = "https://example.com/feed-reset-scope-b.xml"
+        val resetFeedId = insertFeed(resetUrl)
+        val otherFeedId = insertFeed(otherUrl)
+
+        enqueueSuccessWithEtag(resetUrl, rssXml("scope-a", "Feed A", "Prag A"), "\"etag-a\"")
+        enqueueSuccessWithEtag(otherUrl, rssXml("scope-b", "Feed B", "Wien B"), "\"etag-b\"")
+        assertEquals(2, repository.refreshAll().newArticles)
+
+        val otherArticle = articleDao.observeByFeed(otherFeedId).first().single()
+        repository.markRead(otherArticle.id)
+
+        repository.resetFeedUpdatedAt(resetFeedId)
+
+        assertEquals("\"etag-b\"", feedDao.getById(otherFeedId)?.etag)
+        assertNotNull(feedDao.getById(otherFeedId)?.lastFetchedAt)
+        assertTrue(articleDao.observeByFeed(otherFeedId).first().single().isRead)
+        assertNull(feedDao.getById(resetFeedId)?.etag)
+    }
+
     private suspend fun insertFeed(url: String, wifiOnly: Boolean = false): Long {
         return feedDao.insert(
             FeedEntity(
@@ -1191,6 +1472,24 @@ class FeedRepositoryRefreshIntegrationTest {
         )
     }
 
+    private fun enqueueSuccessWithEtag(
+        url: String,
+        xml: String,
+        etag: String,
+        lastModified: String? = null
+    ) {
+        enqueue(
+            url = url,
+            response = QueuedHttpResponse(
+                code = 200,
+                body = xml,
+                contentType = "application/rss+xml; charset=UTF-8",
+                etag = etag,
+                lastModified = lastModified
+            )
+        )
+    }
+
     private fun enqueueError(url: String, code: Int, times: Int) {
         repeat(times) {
             enqueue(
@@ -1213,6 +1512,8 @@ class FeedRepositoryRefreshIntegrationTest {
         return OkHttpClient.Builder()
             .addInterceptor { chain ->
                 val url = chain.request().url.toString()
+                sentConditionalRequests +=
+                    "${chain.request().header("If-None-Match")}|${chain.request().header("If-Modified-Since")}"
                 val queuedResponse = responseQueues[url]?.poll()
                     ?: error("No queued response for $url")
                 Response.Builder()
@@ -1220,11 +1521,17 @@ class FeedRepositoryRefreshIntegrationTest {
                     .protocol(Protocol.HTTP_1_1)
                     .code(queuedResponse.code)
                     .message(if (queuedResponse.code in 200..299) "OK" else "Error")
-                    .body(
-                        queuedResponse.body.toResponseBody(
-                            queuedResponse.contentType?.toMediaType()
+                    .apply {
+                        queuedResponse.etag?.let { header("ETag", it) }
+                        queuedResponse.lastModified?.let { header("Last-Modified", it) }
+                        // OkHttp verlangt von Interceptoren eine Response mit Body; 304 wird
+                        // deshalb mit leerem Body beantwortet.
+                        body(
+                            queuedResponse.body.toResponseBody(
+                                queuedResponse.contentType?.toMediaType()
+                            )
                         )
-                    )
+                    }
                     .build()
             }
             .build()
@@ -1334,7 +1641,9 @@ class FeedRepositoryRefreshIntegrationTest {
 private data class QueuedHttpResponse(
     val code: Int,
     val body: String,
-    val contentType: String?
+    val contentType: String?,
+    val etag: String? = null,
+    val lastModified: String? = null
 )
 
 private class FailingInsertArticleDao(

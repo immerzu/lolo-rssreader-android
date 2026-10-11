@@ -52,6 +52,9 @@ interface ArticleDao {
     @Query("SELECT COUNT(*) FROM articles")
     suspend fun countArticles(): Int
 
+    @Query("SELECT COUNT(*) FROM articles WHERE feedId = :feedId")
+    suspend fun countByFeed(feedId: Long): Int
+
     @Query("SELECT * FROM articles WHERE feedId = :feedId AND uniqueKey IN (:uniqueKeys)")
     suspend fun getByFeedAndUniqueKeys(feedId: Long, uniqueKeys: List<String>): List<ArticleEntity>
 

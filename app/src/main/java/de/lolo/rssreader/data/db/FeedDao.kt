@@ -68,6 +68,22 @@ interface FeedDao {
     @Query("UPDATE feeds SET lastRefreshFailed = 0, lastFetchedAt = :fetchedAt WHERE id = :feedId")
     suspend fun markRefreshed(feedId: Long, fetchedAt: Long)
 
+    // Setzt die bedingten Abruf-Header (If-None-Match/If-Modified-Since) eines Feeds zurueck,
+    // damit der naechste Abruf wieder den vollstaendigen Inhalt anfordert.
+    @Query("UPDATE feeds SET etag = NULL, lastModified = NULL WHERE id = :feedId")
+    suspend fun resetConditionalState(feedId: Long)
+
+    @Query(
+        """
+        UPDATE feeds SET etag = NULL, lastModified = NULL
+        WHERE id IN (
+            SELECT DISTINCT feedId FROM articles
+            WHERE isRead = 1 AND isFavorite = 0
+        )
+        """
+    )
+    suspend fun resetConditionalStateForFeedsWithReadArticles()
+
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insert(feed: FeedEntity): Long
 

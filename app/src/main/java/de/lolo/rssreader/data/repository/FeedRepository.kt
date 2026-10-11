@@ -398,7 +398,11 @@ class FeedRepository(
     }
 
     suspend fun markAllReadGlobally(): Int {
-        return runOnIo { articleDao.markAllReadGlobally() }
+        return runOnIo {
+            val affectedArticles = articleDao.markAllReadGlobally()
+            DebugLogger.i(TAG, "mark_all_read beendet: betroffene_artikel=$affectedArticles")
+            affectedArticles
+        }
     }
 
     suspend fun markAllUnreadGlobally(): Int {
@@ -410,11 +414,23 @@ class FeedRepository(
     }
 
     suspend fun deleteAllReadEntries(): Int {
-        return deleteArticlesWithSearchCleanup { articleDao.deleteAllRead() }
+        return deleteArticlesWithSearchCleanup(
+            invalidateConditionalState = {
+                feedDao.resetConditionalStateForFeedsWithReadArticles()
+                DebugLogger.i(TAG, "refresh_state_reset scope=feedsMitGelesenenEintraegen")
+            },
+            deleteAction = { articleDao.deleteAllRead() }
+        )
     }
 
     suspend fun deleteFeedReadEntries(feedId: Long): Int {
-        return deleteArticlesWithSearchCleanup { articleDao.deleteReadByFeedId(feedId) }
+        return deleteArticlesWithSearchCleanup(
+            invalidateConditionalState = {
+                feedDao.resetConditionalState(feedId)
+                DebugLogger.i(TAG, "refresh_state_reset scope=feed feedId=$feedId")
+            },
+            deleteAction = { articleDao.deleteReadByFeedId(feedId) }
+        )
     }
 
     suspend fun deleteAllEntries(): Int {
@@ -481,8 +497,21 @@ class FeedRepository(
 
     suspend fun resetFeedUpdatedAt(feedId: Long) {
         runOnIo {
-            val feed = feedDao.getById(feedId) ?: return@runOnIo
-            feedDao.update(feed.copy(lastFetchedAt = null))
+            database.withTransaction {
+                val feed = feedDao.getById(feedId) ?: return@withTransaction
+                // lastFetchedAt steuert das Heavy-Throttling; etag/lastModified steuern die
+                // bedingten Abruf-Header. Ohne deren Ruecksetzung wuerde der naechste Abruf
+                // weiter im Skip-Pfad (304 bzw. 200 mit gleichem ETag) landen.
+                feedDao.update(
+                    feed.copy(lastFetchedAt = null, etag = null, lastModified = null)
+                )
+                val affectedArticles = articleDao.markAllUnread(feedId)
+                DebugLogger.i(
+                    TAG,
+                    "reset_fetch_state feedId=$feedId etagGenullt=true lastModifiedGenullt=true" +
+                        " lastFetchedAtGenullt=true artikelAufUngelesen=$affectedArticles"
+                )
+            }
         }
     }
 
@@ -603,9 +632,22 @@ class FeedRepository(
     }
 
     private suspend fun refreshFeedInternal(feed: FeedEntity): Int {
+        // Ein Feed ohne lokal gespeicherte Artikel muss vollstaendig aufgebaut werden. Nach
+        // "Alle gelesenen Eintraege loeschen" fehlen die Artikel, waehrend etag/lastModified
+        // unveraendert im Feed-Datensatz stehen. Ohne diese Pruefung wuerde der Skip-Pfad
+        // (304 bzw. 200 mit gleichem ETag) den Feed dauerhaft leer lassen.
+        val hasLocalArticles = articleDao.countByFeed(feed.id) > 0
+        if (!hasLocalArticles) {
+            DebugLogger.i(
+                TAG,
+                "refreshFeedInternal: Skip-Pfade deaktiviert (kein lokaler Artikelbestand):" +
+                    " feedId=${feed.id} etagVorhanden=${feed.etag != null}" +
+                    " lastModifiedVorhanden=${feed.lastModified != null} heavy=${feed.heavy}"
+            )
+        }
         // Heavy-Feed-Throttling: Mindestintervall zwischen Refreshes, um Bandbreite
         // und Akku zu schonen. Gilt für automatische und manuelle Refreshes.
-        if (feed.heavy && feed.lastFetchedAt != null) {
+        if (feed.heavy && feed.lastFetchedAt != null && hasLocalArticles) {
             val elapsed = System.currentTimeMillis() - feed.lastFetchedAt
             if (elapsed < HEAVY_FEED_MIN_REFRESH_INTERVAL_MS) {
                 DebugLogger.i(
@@ -617,19 +659,28 @@ class FeedRepository(
         }
         val fetchResult = fetchAndParseFeed(
             url = feed.url,
-            etag = feed.etag,
-            lastModified = feed.lastModified
+            etag = feed.etag.takeIf { hasLocalArticles },
+            lastModified = feed.lastModified.takeIf { hasLocalArticles }
         )
         if (fetchResult is de.lolo.rssreader.data.network.FeedFetchResult.NotModified) {
             feedDao.markRefreshed(feed.id, System.currentTimeMillis())
-            DebugLogger.i(TAG, "refreshFeedInternal: Feed unveraendert (304): feedId=${feed.id}")
+            DebugLogger.i(
+                TAG,
+                "refreshFeedInternal: Feed unveraendert (304): feedId=${feed.id}" +
+                    if (hasLocalArticles) {
+                        ""
+                    } else {
+                        " (Hinweis: 304 trotz leerem Artikelbestand, es wurde kein bedingter Abruf gesendet)"
+                    }
+            )
             return 0
         }
         val success = fetchResult as de.lolo.rssreader.data.network.FeedFetchResult.Success
         // ETag-Fast-Path: Wenn der Server 200 liefert, aber denselben ETag wie beim letzten
         // Abruf, ist der Feed inhaltlich unverändert. Parsing, Artikel-Update und FTS werden
-        // übersprungen – nur lastFetchedAt wird aktualisiert.
-        if (feed.etag != null && success.etag != null && feed.etag == success.etag) {
+        // übersprungen – nur lastFetchedAt wird aktualisiert. Ohne lokalen Artikelbestand
+        // darf der Vergleich nicht greifen, sonst bleibt der Feed leer.
+        if (hasLocalArticles && feed.etag != null && success.etag != null && feed.etag == success.etag) {
             feedDao.markRefreshed(feed.id, System.currentTimeMillis())
             DebugLogger.i(TAG, "refreshFeedInternal: Feed inhaltlich unveraendert (200 + gleicher ETag): feedId=${feed.id}")
             return 0
@@ -876,10 +927,12 @@ class FeedRepository(
     }
 
     private suspend fun deleteArticlesWithSearchCleanup(
+        invalidateConditionalState: suspend () -> Unit = {},
         deleteAction: suspend () -> Int
     ): Int = runOnIo {
         ensureManualSearchIndexMaintenance()
         database.withTransaction {
+            invalidateConditionalState()
             val deletedArticles = deleteAction()
             if (shouldDeleteStaleSearchIndexEntriesAfterDeletion(deletedArticles)) {
                 articleDao.deleteStaleSearchIndexEntries()
