@@ -28,4 +28,4 @@ Fehlerbehebung: Nach „Alle Feeds als gelesen markieren" und „Alle gelesenen 
 ## Veröffentlichung und F-Droid-Status
 - Tag: `v1.87.37` (annotiert), an GitHub und GitLab gepusht.
 - GitHub-Release: `RSS Reader 1.87.37` (nicht Draft, nicht Prerelease).
-- F-Droid: AutoUpdate aktiv (`AutoUpdateMode: Version`, `UpdateCheckMode: Tags ^v[\d.]+$`) — kein manueller Merge-Request; der `checkupdates`-Lauf zieht die Version selbstständig nach. Veröffentlichter Stand zum Zeitpunkt des Releases: 1.87.36 / 165.
+- F-Droid: kein manueller Merge-Request. Die Metadaten führen `AutoUpdateMode: Version` und `UpdateCheckMode: Tags ^v[\d.]+$`; erwartet wird, dass der `checkupdates`-Lauf die Version selbstständig nachzieht. Stand der Beobachtung (11.10.2026): noch kein Bot-Merge-Request vorhanden. Veröffentlichter Stand zum Zeitpunkt des Releases: 1.87.36 / 165.
