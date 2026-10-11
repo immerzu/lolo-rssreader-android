@@ -98,9 +98,7 @@ android {
                 signingConfig = signingConfigs.getByName("release")
             }
             isMinifyEnabled = false
-            // Fuer spaetere Release-Haertung bei Bedarf vorsichtig aktivieren:
-            // isMinifyEnabled = true
-            // isShrinkResources = true
+            // R8/Minify/ShrinkResources dauerhaft deaktiviert, niemals aktivieren.
             vcsInfo.include = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
