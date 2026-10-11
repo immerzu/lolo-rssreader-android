@@ -19,7 +19,8 @@ See [LICENSE](LICENSE) for details.
 - Simple settings
 
 ## Getting Started
-Open with Android Studio and use the `rss_reader_full_project` folder as the project.
+Open with Android Studio and use this repository root as the project — the Gradle project *is* the repository
+(in the maintainer's local working copy the same folder is named `rss_reader_full_project`).
 Alternatively, `start-android-studio.ps1` launches Android Studio already configured with the local JDK/SDK paths.
 
 ## Build

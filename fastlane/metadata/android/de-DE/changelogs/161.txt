@@ -1,0 +1,4 @@
+Version 1.87.32: Volltext, Lesefortschritt und Teilen.
+- Volltext der Originalseite in der Artikelansicht nachladen
+- Artikel beim Durchlaufen der Liste als gelesen markieren
+- Artikel über das Android-Teilen-Menü weitergeben

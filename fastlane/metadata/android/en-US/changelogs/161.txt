@@ -1,0 +1,4 @@
+Version 1.87.32: Full text, read progress and sharing.
+- Load the full text of the original page in the article view
+- Mark articles as read while scrolling through the list
+- Share articles via the Android share sheet

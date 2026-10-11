@@ -1,0 +1,3 @@
+Version 1.87.28: Security and robustness improvements.
+- Fixed JavaScript injection in the article view
+- Hardened parser, OPML import/export and release signing

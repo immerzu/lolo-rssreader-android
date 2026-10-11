@@ -1,0 +1,3 @@
+Version 1.87.33: Cleanup.
+- Removed the mark-as-read-while-scrolling setting
+- Aligned the Unix gradlew with the Windows configuration

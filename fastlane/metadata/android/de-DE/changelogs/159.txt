@@ -1,0 +1,5 @@
+Version 1.87.30: Interne Verbesserungen ohne sichtbare Funktionsänderung.
+- Versionsnummer zentral aus version.properties
+- WLAN-Erkennung zentralisiert
+- Gradle-Versionskatalog eingeführt
+- Debug-Builds mit demselben Schlüssel wie Release-Builds signiert

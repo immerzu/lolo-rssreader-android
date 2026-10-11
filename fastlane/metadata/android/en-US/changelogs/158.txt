@@ -1,0 +1,5 @@
+Version 1.87.29: Security hardening.
+- No HTTPS downgrade on redirects anymore
+- Cleartext HTTP forbidden in the network security config
+- Feed URLs are validated as http/https
+- Credentials masked in log output

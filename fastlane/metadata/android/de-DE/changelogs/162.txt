@@ -1,0 +1,3 @@
+Version 1.87.33: Aufräumen.
+- Einstellung `Beim Scrollen als gelesen markieren` entfernt
+- Unix-gradlew an die Windows-Konfiguration angeglichen

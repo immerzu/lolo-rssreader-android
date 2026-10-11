@@ -87,8 +87,12 @@ class FeedFetcher(
                         contentTypeHeader = response.header("Content-Type")
                     )
 
+                    // RFC 7232, Abschnitt 2.3: Ein Entity-Tag ist `[ "W/" ] DQUOTE *etagc DQUOTE`,
+                    // die Anfuehrungszeichen gehoeren also zum Wert. Der Header wird unveraendert
+                    // gespeichert und spaeter ebenso als `If-None-Match` gesendet; entfernt man die
+                    // Quotes, ist der Wert grammatikalisch ungueltig und konforme Server antworten
+                    // mit 200 statt 304 (der 304-Fast-Path greift dann nicht).
                     val responseEtagRaw = response.header("ETag").orEmpty()
-                        .replace("\"", "")
                         .takeIf { it.isNotBlank() }
                     val responseLastModified = response.header("Last-Modified")
                         .takeIf { !it.isNullOrBlank() }

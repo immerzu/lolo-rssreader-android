@@ -1,0 +1,3 @@
+Version 1.87.35: Read progress when leaving the article view.
+- The last visible article is marked as read when leaving
+- Applies to the back arrow, back button, system gesture and Home/app switch

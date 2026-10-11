@@ -1,0 +1,5 @@
+Version 1.87.30: Internal improvements, no visible behaviour change.
+- Version number read centrally from version.properties
+- Wi-Fi detection centralised
+- Gradle version catalog introduced
+- Debug builds signed with the same key as release builds

@@ -1,0 +1,5 @@
+Version 1.87.29: Sicherheits-Härtung.
+- Kein HTTPS-Downgrade bei Weiterleitungen mehr
+- Klartext-HTTP im Netzwerkprofil verboten
+- Feed-URLs werden auf http/https geprüft
+- Zugangsdaten in Logausgaben maskiert

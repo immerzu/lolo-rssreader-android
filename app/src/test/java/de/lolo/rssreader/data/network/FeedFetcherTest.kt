@@ -411,6 +411,52 @@ class FeedFetcherTest {
     }
 
     @Test
+    fun fetchReturnsStrongEntityTagUnchangedIncludingQuotes() {
+        val client = OkHttpClient.Builder()
+            .addInterceptor { chain ->
+                Response.Builder()
+                    .request(chain.request())
+                    .protocol(Protocol.HTTP_1_1)
+                    .code(200)
+                    .message("OK")
+                    .header("ETag", "\"abc123\"")
+                    .body(
+                        """<?xml version="1.0" encoding="UTF-8"?><rss version="2.0"><channel><title>ok</title></channel></rss>"""
+                            .toResponseBody("application/rss+xml; charset=UTF-8".toMediaType())
+                    )
+                    .build()
+            }
+            .build()
+
+        val success = runBlocking { FeedFetcher(client).fetch("https://example.com/feed.xml") } as FeedFetchResult.Success
+
+        assertEquals("\"abc123\"", success.etag)
+    }
+
+    @Test
+    fun fetchReturnsWeakEntityTagUnchangedIncludingWeakPrefix() {
+        val client = OkHttpClient.Builder()
+            .addInterceptor { chain ->
+                Response.Builder()
+                    .request(chain.request())
+                    .protocol(Protocol.HTTP_1_1)
+                    .code(200)
+                    .message("OK")
+                    .header("ETag", "W/\"weak-1\"")
+                    .body(
+                        """<?xml version="1.0" encoding="UTF-8"?><rss version="2.0"><channel><title>ok</title></channel></rss>"""
+                            .toResponseBody("application/rss+xml; charset=UTF-8".toMediaType())
+                    )
+                    .build()
+            }
+            .build()
+
+        val success = runBlocking { FeedFetcher(client).fetch("https://example.com/feed.xml") } as FeedFetchResult.Success
+
+        assertEquals("W/\"weak-1\"", success.etag)
+    }
+
+    @Test
     fun fetchPreservesLatin1PayloadWhenContentTypeDeclaresCharset() {
         val xml = """
             <?xml version="1.0" encoding="ISO-8859-1"?>

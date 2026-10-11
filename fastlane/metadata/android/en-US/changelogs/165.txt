@@ -1,0 +1,2 @@
+Version 1.87.36: Reproducible build.
+- Build toolchain pinned to JDK 21 (no functional changes)

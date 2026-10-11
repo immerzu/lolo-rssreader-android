@@ -1,0 +1,3 @@
+Version 1.87.35: Lesefortschritt beim Verlassen der Artikelansicht.
+- Der zuletzt sichtbare Artikel wird beim Verlassen als gelesen markiert
+- Gilt für Zurück-Pfeil, Zurück-Taste, Systemgeste und Home/App-Wechsel

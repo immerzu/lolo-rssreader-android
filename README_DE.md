@@ -19,7 +19,7 @@ Details siehe [LICENSE](LICENSE).
 - einfache Einstellungen
 
 ## Projektstart
-Mit Android Studio oeffnen und den Ordner `rss_reader_full_project` als Projekt verwenden.
+Mit Android Studio oeffnen und dieses Repository-Wurzelverzeichnis als Projekt verwenden — das Gradle-Projekt ist das Repository selbst (im lokalen Arbeitsordner des Maintainers heisst derselbe Ordner `rss_reader_full_project`).
 Alternativ startet `start-android-studio.ps1` Android Studio bereits mit den lokalen JDK-/SDK-Pfaden.
 
 ## Build
