@@ -33,7 +33,7 @@ Nein. Nach dem aktuellen Stand sendet RSS Reader keine Nutzerdaten an einen eige
 
 ### Kommunikation mit Drittanbietern
 
-Die App ruft RSS- und Atom-Feeds direkt von den vom Nutzer eingetragenen Feed-Adressen ab. Dabei findet eine direkte Verbindung zwischen dem Geraet des Nutzers und dem jeweiligen Feed-Anbieter bzw. der Website statt.
+Die App ruft RSS- und Atom-Feeds direkt von den vom Nutzer eingetragenen Feed-Adressen ab. Dabei findet eine direkte Verbindung zwischen dem Geraet des Nutzers und dem jeweiligen Feed-Anbieter bzw. der Website statt. Auf ausdruecklichen Wunsch laedt die App zusaetzlich den Volltext eines Artikels direkt von dessen Original-URL (Funktion "Volltext laden"); auch dabei entsteht eine direkte Verbindung zum jeweiligen Website-Betreiber, ohne Zwischenschaltung eines Servers des Entwicklers.
 
 Je nach Anbieter koennen dabei technisch notwendige Verbindungsdaten an den jeweiligen Feed-Server uebermittelt werden, zum Beispiel:
 

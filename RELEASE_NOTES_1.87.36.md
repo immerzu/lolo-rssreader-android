@@ -20,7 +20,7 @@ F-Droid baut jede Version selbst mit JDK 21 und vergleicht byteweise gegen das R
 - Keine R8-/Minify-Änderungen (dauerhaft deaktiviert), keine Datenbankmigrationen, keine funktionalen Änderungen.
 
 ## Validierung
-- testDebugUnitTest (335 Tests, 0 Fehler, 1 übersprungen)
+- testDebugUnitTest (335 Tests, 0 Fehler, 1 übersprungen — Stand des Release-Laufs am 16.09.2026; danach kamen zwei ETag-Tests hinzu, Ist-Stand am 11.10.2026: 338 / 0 / 0 / 1)
 - Kontrollbuild auf dem 1.87.35-Stand ergab bit-identisch den JDK-21-Build (`classes2.dex` `e3aa25c1…`)
 - Methodenvergleich über 53.664 Methoden: 0 Abweichungen zum JDK-21-Muster
 

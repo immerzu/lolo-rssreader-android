@@ -28,7 +28,7 @@ Nach der Vorbereitung erfolgt die offizielle Einreichung ueber GitLab/F-Droid:
 
 Empfohlener Weg:
 
-1. Git-Tag `vX.YY.ZZ` auf den einzureichenden Commit setzen und pushen.
+1. Git-Tag `vX.Y.Z` auf den einzureichenden Commit setzen und pushen.
 2. Die vorbereitete Metadatei unter `docs/fdroid/de.lolo.rssreader.yml` als Basis fuer `fdroiddata/metadata/de.lolo.rssreader.yml` verwenden — **massgeblich ist heute die Datei im offiziellen Projekt**: `https://gitlab.com/fdroid/fdroiddata/-/raw/master/metadata/de.lolo.rssreader.yml` (die Repo-Kopie wird mit ihr synchron gehalten, Stand 11.10.2026: 1.87.36 / 165).
 3. Den vorbereiteten englischen Einreichungstext aus `docs/FDROID_SUBMISSION_TEMPLATE_EN.md` in GitLab verwenden.
 4. Falls kein direkter Merge Request gewuenscht ist, den gleichen Inhalt in die Submission Queue einstellen.

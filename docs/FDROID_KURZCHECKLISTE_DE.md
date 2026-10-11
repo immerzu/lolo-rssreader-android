@@ -20,6 +20,7 @@ cd F:\001_Coding_Projekte\RSS_Reader_Android\rss_reader_full_project
 ```powershell
 git tag -a v1.87.36 -m "Release RSS Reader 1.87.36"
 git push origin v1.87.36
+git push gitlab v1.87.36
 ```
 
 Tag-Format exakt `vX.Y.Z` (F-Droid erkennt `^v[\d.]+$`).
@@ -36,8 +37,8 @@ Asset-Name exakt `RSS-Reader-v<version>-release.apk` (wird vom `Binaries:`-Feld 
 
 ## 5. Warten und pruefen
 
-- Build-Status: https://monitor.f-droid.org/ (App `de.lolo.rssreader`); Log je Version:
-  `https://monitor.f-droid.org/builds/log/de.lolo.rssreader/<versionCode>`
+- Build-Status: https://monitor.f-droid.org/ (Startseite; App-Uebersicht `/builds/de.lolo.rssreader/` = **404**);
+  Log je Version: `https://monitor.f-droid.org/builds/log/de.lolo.rssreader/<versionCode>`
 - Katalog: https://f-droid.org/packages/de.lolo.rssreader/
 - Index/Version: https://f-droid.org/api/v1/packages/de.lolo.rssreader (`suggestedVersionCode`)
 

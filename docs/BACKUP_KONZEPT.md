@@ -4,7 +4,7 @@ Stand: 2026-05-10 — **historisches Konzept; alle Zahlen und Pfade unten sind d
 
 > **Ist-Stand am 11.10.2026 (belegt):**
 > - Repo `rss_reader_full_project`: `origin` (GitHub) und `gitlab` fuehren **nur** den Branch `main`;
->   `HEAD` = `origin/main` = `gitlab/main` = `d201e7d`, Arbeitsbaum sauber (keine offenen Aenderungen).
+>   `HEAD` = `origin/main` = `gitlab/main` = `283030f3cdd718b02ce833893e335defabc8ecab`, Arbeitsbaum sauber (keine offenen Aenderungen).
 > - Tags: **38** insgesamt, davon **37 Versionstags** von `v1.50.09-101` bis `v1.87.36`, dazu `backup-20260830`.
 > - `fdroiddata_fork` **existiert lokal nicht mehr** (geloescht am 30.08.2026); der Fork lebt nur als
 >   GitLab-Remote `https://gitlab.com/immerzu46/fdroiddata`.

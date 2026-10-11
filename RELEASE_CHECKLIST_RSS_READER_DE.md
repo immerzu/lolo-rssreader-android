@@ -101,7 +101,9 @@ Ablauf pro Release:
    ⚠️ Ein **roter** offen liegender Bot-MR **blockiert** den Zyklus vollstaendig (belegt 11.–16.09.2026). Dann
    Index (`suggestedVersionCode`) und `CurrentVersion` in `fdroiddata` pruefen; ein manueller MR aus dem eigenen
    Fork ist nur der Notnagel (Ablauf: Skill `fdroid-release-rssreader`).
-4. Build-Status beobachten: https://monitor.f-droid.org/ (App `de.lolo.rssreader`).
+4. Build-Status beobachten: https://monitor.f-droid.org/ (Startseite). Achtung: die App-Uebersicht
+   `https://monitor.f-droid.org/builds/de.lolo.rssreader/` liefert **HTTP 404** (geprueft 11.10.2026) —
+   Logs je Version: `https://monitor.f-droid.org/builds/log/de.lolo.rssreader/<versionCode>`.
 
 ## 7. Nach dem Release
 

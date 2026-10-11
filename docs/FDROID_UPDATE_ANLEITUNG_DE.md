@@ -13,6 +13,7 @@ Die App `de.lolo.rssreader` ist im **offiziellen F-Droid-Katalog** und wird dort
    ```powershell
    git tag -a v1.87.36 -m "Release RSS Reader 1.87.36"
    git push origin v1.87.36
+   git push gitlab v1.87.36
    ```
 
    F-Droid `UpdateCheckMode: Tags ^v[\d.]+$` erkennt nur dieses Format.
@@ -39,8 +40,9 @@ Die App `de.lolo.rssreader` ist im **offiziellen F-Droid-Katalog** und wird dort
 - Lokale Referenzkopie davon: `docs/fdroid/de.lolo.rssreader.yml` (Stand 11.10.2026: 1.87.36 / 165)
 - Eigener fdroiddata-Fork (nur fuer Notnagel-MRs): `https://gitlab.com/immerzu46/fdroiddata`
   (der frueher lokale Klon `fdroiddata_fork` wurde am 30.08.2026 geloescht)
-- Build-Status beobachten: https://monitor.f-droid.org/ (App `de.lolo.rssreader`);
-  Logs je Version: `https://monitor.f-droid.org/builds/log/de.lolo.rssreader/<versionCode>`
+- Build-Status beobachten: https://monitor.f-droid.org/ (Startseite; die App-Uebersicht
+  `/builds/de.lolo.rssreader/` liefert **404** — Logs je Version nutzen):
+  `https://monitor.f-droid.org/builds/log/de.lolo.rssreader/<versionCode>`
 
 ## Wichtig
 
