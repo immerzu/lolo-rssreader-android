@@ -9,6 +9,6 @@ RELEASE-CHECKLISTE KURZ
 7. Debug-Test ok?
    .\gradlew.bat testDebugUnitTest
 8. Release gebaut?
-   .\gradlew.bat assembleRelease
+   .\gradlew.bat exportReleaseApk
 9. Release-APK in Ausgabe_APK vorhanden und installiert?
 10. Stand nach Release per Git commit/tag gesichert?

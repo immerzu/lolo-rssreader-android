@@ -31,4 +31,4 @@ Dieses Release enthält vier interne Verbesserungen ohne sichtbare Funktionsänd
 ## Veröffentlichung und F-Droid-Status
 - Tag: `v1.87.30` (annotiert)
 - GitHub-Release: `RSS Reader 1.87.30` (mit Asset `RSS-Reader-v1.87.30-release.apk`)
-- F-Droid: AutoUpdate aktiv (`AutoUpdateMode: Version`, `UpdateCheckMode: Tags ^v[\d.]+$`). Der Tag `v1.87.30` löst den automatischen Build aus.
+- F-Droid: AutoUpdate aktiv (`AutoUpdateMode: Version`, `UpdateCheckMode: Tags ^v[\d.]+$`). Der Tag `v1.87.30` löst den automatischen Build aus. (Ergebnis: 1.87.30 wurde am 14.08.2026 veröffentlicht. ⚠️ Erfahrung vom 16.09.2026: Ein roter, offen liegender Bot-MR blockiert den Zyklus — siehe `RELEASE_NOTES_1.87.36.md`.)

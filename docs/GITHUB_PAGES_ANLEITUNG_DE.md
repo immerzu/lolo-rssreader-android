@@ -1,11 +1,13 @@
 # GitHub Pages Anleitung
 
-> **Hinweis (Stand 2026-08):** Die referenzierte Datei `docs/privacy.html` existiert derzeit
-> noch nicht im Projekt und muss vor der Nutzung erstellt werden.
+> **Hinweis (Stand 2026-08, ergaenzt 11.10.2026):** Der hier beschriebene Weg wurde **nicht** genutzt.
+> Die Datenschutzseite liegt in einem eigenen Repository:
+> `https://github.com/immerzu/lolo-rssreader-privacy/blob/main/privacy.html`
+> (siehe `docs/PrivacyLink für GooglePlay.txt`). Die Datei `docs/privacy.html` gibt es im Projekt nicht.
 
-Diese Dateien sind fuer GitHub Pages vorbereitet:
+Diese Dateien waren fuer GitHub Pages vorbereitet (historisch, nicht umgesetzt):
 
-- `docs/privacy.html`
+- `docs/privacy.html` (existiert nicht)
 
 So stellst du die Datenschutzseite online:
 

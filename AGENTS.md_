@@ -1,4 +1,4 @@
-﻿# AGENTS.md – RSS Reader (Android)
+# AGENTS.md – RSS Reader (Android)
 
 ## Projekt
 - Android-App in Kotlin + Jetpack Compose, Package `de.lolo.rssreader`, Application-ID `de.lolo.rssreader`
@@ -16,13 +16,18 @@
 - `docs/` – F-Droid-Einreichung, Release-Vorgaben
 - `tools/` – PowerShell/Cmd-Log-Helfer für Gerätetests
 - `fastlane/metadata/android/` – Store-Metadaten für F-Droid
-- `signing/` – Keystore (via `keystore.properties`)
+- `signing/` – Keystore (via `keystore.properties`); **gitignored** und nicht Teil des Repos, muss ausserhalb gesichert werden
 
 ## Build & Ausführung
 - Build-Tool: Gradle 8.11.1 (Wrapper `gradlew.bat`)
-- Android Gradle Plugin 8.10.0, compileSdk 36, minSdk 26, Java 17
+- Android Gradle Plugin 8.10.0, compileSdk 36, minSdk 26, Java 17 (Bytecode-Major 61)
+- Kotlin-Toolchain fest auf **JDK 21** verankert (`kotlin { jvmToolchain(21) }` in `app/build.gradle.kts`).
+  Ohne auffindbares JDK 21 bricht jeder Build ab mit „No locally installed toolchains match".
+  Nachweis: `gradlew.bat -q javaToolchains --no-daemon` (muss „Language Version: 21" zeigen)
 - Debug-Build: `gradlew.bat assembleDebug` (exportiert APK nach `../Ausgabe_APK/`)
-- Release-Build: `gradlew.bat assembleRelease` (Signierung: Passwörter aus dem Windows-Credential-Manager via `tools/get-signing-secret.ps1`; `keystore.properties` enthält nur `storeFile`/`keyAlias`)
+- Release-Build: `gradlew.bat exportReleaseApk` (signiert und exportiert nach `../Ausgabe_APK/`;
+  `assembleRelease` allein laesst die APK in `app/build/outputs/apk/release/` liegen)
+  (Signierung: Passwörter aus dem Windows-Credential-Manager via `tools/get-signing-secret.ps1`; `keystore.properties` enthält nur `storeFile`/`keyAlias`)
 - Tests: `gradlew.bat testDebugUnitTest`
 - Android Studio starten: `start-android-studio.ps1`
 
@@ -33,7 +38,7 @@
 
 ## Release-Prozess
 - Checkliste: `RELEASE_CHECKLIST_RSS_READER_DE.md`
-- Vor Release: Funktionstest auf Gerät, Unit-Tests, assembleDebug + assembleRelease
+- Vor Release: Funktionstest auf Gerät, Unit-Tests, `assembleDebug` + `exportReleaseApk` (signiert, nach `../Ausgabe_APK/`; `assembleRelease` allein laesst die APK in `app/build/outputs/apk/release/`)
 - Release-APK erscheint unter `../Ausgabe_APK/RSS-Reader-v...-release.apk`
 
 ## Code-Stil

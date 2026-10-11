@@ -11,28 +11,36 @@ Die App `de.lolo.rssreader` ist im **offiziellen F-Droid-Katalog** und wird dort
 3. Annotierten Git-Tag im Format `vX.Y.Z` setzen und nach GitHub pushen:
 
    ```powershell
-   git tag -a v1.87.30 -m "Release RSS Reader 1.87.30"
-   git push origin v1.87.30
+   git tag -a v1.87.36 -m "Release RSS Reader 1.87.36"
+   git push origin v1.87.36
    ```
 
    F-Droid `UpdateCheckMode: Tags ^v[\d.]+$` erkennt nur dieses Format.
-4. Signierte Release-APK bauen: `.\gradlew.bat assembleRelease`.
+4. Signierte Release-APK bauen: `.\gradlew.bat exportReleaseApk` (legt sie in `Ausgabe_APK\` ab;
+   `assembleRelease` allein laesst sie in `app\build\outputs\apk\release\` liegen).
 5. APK als GitHub-Release-Asset unter dem Tag hochladen, Name exakt `RSS-Reader-vX.Y.Z-release.apk`:
 
    ```powershell
-   gh release create v1.87.30 "F:\001_Coding_Projekte\RSS_Reader_Android\Ausgabe_APK\RSS-Reader-v1.87.30-release.apk"
+   gh release create v1.87.36 "F:\001_Coding_Projekte\RSS_Reader_Android\Ausgabe_APK\RSS-Reader-v1.87.36-release.apk"
    ```
 
    Dieses Asset wird vom `Binaries:`-Feld der F-Droid-Metadaten erwartet:
    `https://github.com/immerzu/lolo-rssreader-android/releases/download/v%v/RSS-Reader-v%v-release.apk`.
-6. Fertig: Die F-Droid-CI erkennt das Tag automatisch (`checkupdates`), baut die Version und
-   veroeffentlicht sie. Kein manueller fdroiddata-Aenderungsbranch / Merge-Request noetig.
+6. Der `checkupdates`-Bot erkennt das Tag, traegt die Version in `fdroiddata` ein und legt einen Merge Request
+   an; **F-Droid merged selbst, sobald die CI gruen ist** (`fdroid build` **und** `check apk` = success).
+   ⚠️ Ein **roter**, offen liegender Bot-MR **blockiert** den Zyklus vollstaendig (belegt 11.–16.09.2026:
+   fuenf Tage Stillstand auf 1.87.32/161). Wenn nach ~48 h nichts passiert: Index
+   (`https://f-droid.org/api/v1/packages/de.lolo.rssreader`) und `CurrentVersion` in `fdroiddata` pruefen.
+   Ein manueller MR aus dem eigenen Fork ist nur der Notnagel (Ablauf im Skill `fdroid-release-rssreader`).
 
 ## Referenz-Metadaten
 
-- Aktuelle F-Droid-Metadaten (Vorlage): `docs/fdroid/de.lolo.rssreader.yml`
-- Lokaler fdroiddata-Fork (fuer die Ersteinreichung): `F:\001_Coding_Projekte\RSS_Reader_Android\fdroiddata_fork`
-- Build-Status beobachten: https://monitor.f-droid.org/ (App `de.lolo.rssreader`)
+- F-Droid-Metadaten des offiziellen Projekts (maßgeblich): `https://gitlab.com/fdroid/fdroiddata/-/raw/master/metadata/de.lolo.rssreader.yml`
+- Lokale Referenzkopie davon: `docs/fdroid/de.lolo.rssreader.yml` (Stand 11.10.2026: 1.87.36 / 165)
+- Eigener fdroiddata-Fork (nur fuer Notnagel-MRs): `https://gitlab.com/immerzu46/fdroiddata`
+  (der frueher lokale Klon `fdroiddata_fork` wurde am 30.08.2026 geloescht)
+- Build-Status beobachten: https://monitor.f-droid.org/ (App `de.lolo.rssreader`);
+  Logs je Version: `https://monitor.f-droid.org/builds/log/de.lolo.rssreader/<versionCode>`
 
 ## Wichtig
 

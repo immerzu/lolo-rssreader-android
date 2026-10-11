@@ -24,7 +24,8 @@ Alternativ startet `start-android-studio.ps1` Android Studio bereits mit den lok
 
 ## Build
 Per Android Studio ueber `Build > Build APK(s)` oder lokal ueber `gradlew.bat assembleDebug`.
-Vor einem Release-Kandidaten zusaetzlich `gradlew.bat assembleRelease` ausfuehren und die Checkliste in [RELEASE_CHECKLIST_RSS_READER_DE.md](RELEASE_CHECKLIST_RSS_READER_DE.md) verwenden.
+Vor einem Release-Kandidaten zusaetzlich `gradlew.bat exportReleaseApk` ausfuehren (baut, signiert und legt die
+APK nach `../Ausgabe_APK/`) und die Checkliste in [RELEASE_CHECKLIST_RSS_READER_DE.md](RELEASE_CHECKLIST_RSS_READER_DE.md) verwenden.
 
 ## F-Droid Metadaten
 Store-Metadaten fuer F-Droid liegen unter `fastlane/metadata/android/`.
@@ -54,7 +55,7 @@ Sie werden zur Buildzeit aus dem betriebssystemgebundenen Anmeldeinformations-Sp
 - Die Signing-Passwoerter liegen ausschliesslich im OS-Credential-Store, nie in Projektdateien.
 - Der Release-Key (`*.jks`, z.B. `signing/rss-reader-release.jks`) muss ausserhalb des
   Repositories verwaltet und separat gesichert werden.
-- Debug-Builds werden, sofern `keystore.properties` vorhanden ist, mit demSELBEN Release-Key
+- Debug-Builds werden, sofern `keystore.properties` vorhanden ist, mit dem SELBEN Release-Key
   signiert wie die Release-APK. Dadurch aktualisiert `adb install -r` eine installierte
   Release-Version ohne Deinstallation. Ohne `keystore.properties` faellt der Debug-Build auf
   den Standard-Debug-Keystore zurueck.
@@ -67,3 +68,6 @@ Sie werden zur Buildzeit aus dem betriebssystemgebundenen Anmeldeinformations-Sp
 
 ## Hinweis zur Gradle-Konfiguration
 Der Wrapper ist fuer diese Maschine bereits vorbereitet und nutzt die lokal abgelegte Gradle-8.11.1-Distribution.
+Die Kotlin-Toolchain ist im Build auf **JDK 21** fixiert (`kotlin { jvmToolchain(21) }` in `app/build.gradle.kts`);
+ohne ein auffindbares JDK 21 bricht der Build mit „No locally installed toolchains match" ab. Der Java-Bytecode
+bleibt bei 17 (`jvmTarget`/`compileOptions`). Nachweis: `.\gradlew.bat -q javaToolchains --no-daemon`.

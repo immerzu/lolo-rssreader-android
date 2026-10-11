@@ -1,14 +1,15 @@
 # RSS Reader 1.87.18 – Themenliste
 
 > **Hinweis (Stand 2026-08):** Diese Roadmap ist abgeschlossen. Die seitdem veroeffentlichten
-> Releases (1.87.18–1.87.30) sind in den jeweiligen `RELEASE_NOTES_*.md` dokumentiert.
-> F-Droid ist inzwischen im Auto-Modus aufgenommen (kein manueller MR-Prozess mehr).
+> Releases (1.87.18–1.87.36) sind in den jeweiligen `RELEASE_NOTES_*.md` dokumentiert.
+> F-Droid laeuft im Auto-Modus (`AutoUpdateMode: Version`); ein **manueller** Notnagel-MR war im
+> Sept. 2026 dennoch noetig (!49133) — siehe `RELEASE_NOTES_1.87.36.md`.
 
 Kein Release vor Abschluss des F-Droid-Prozesses für 1.87.17.
 
 ## Offen aus 1.87.17
 
-- [ ] F-Droid MR #38595: CI + Maintainer-Feedback abwarten
+- [x] (historisch, erledigt) F-Droid MR #38595: CI + Maintainer-Feedback abgewartet
 - [ ] HTTP-Warnung (http://-Feed) auf echtem Gerät visuell prüfen
 - [x] ArticleListScreen-Fixes (Key + Shadow) auf Gerät bestätigt – Zittern aber nicht behoben
 

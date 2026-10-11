@@ -1,6 +1,19 @@
 # Backup-Konzept – RSS Reader Android
 
-Stand: 2026-05-10
+Stand: 2026-05-10 — **historisches Konzept; alle Zahlen und Pfade unten sind der damalige Stand.**
+
+> **Ist-Stand am 11.10.2026 (belegt):**
+> - Repo `rss_reader_full_project`: `origin` (GitHub) und `gitlab` fuehren **nur** den Branch `main`;
+>   `HEAD` = `origin/main` = `gitlab/main` = `d201e7d`, Arbeitsbaum sauber (keine offenen Aenderungen).
+> - Tags: **38** insgesamt, davon **37 Versionstags** von `v1.50.09-101` bis `v1.87.36`, dazu `backup-20260830`.
+> - `fdroiddata_fork` **existiert lokal nicht mehr** (geloescht am 30.08.2026); der Fork lebt nur als
+>   GitLab-Remote `https://gitlab.com/immerzu46/fdroiddata`.
+> - `audit_release_comparison/` **existiert nicht mehr**.
+> - `!Backups/` **existiert nicht** — die unten beschriebenen Vollbackups wurden dort nie abgelegt;
+>   die Sicherung stuetzt sich auf Tags und die beiden Remotes.
+> - Der Gradle-Build braucht ein auffindbares **JDK 21** (`kotlin { jvmToolchain(21) }`);
+>   die Release-APK entsteht mit `.\gradlew.bat exportReleaseApk` in `Ausgabe_APK\`.
+> - `version.properties` = **1.87.36 / 165**.
 
 ## 1. Datenquellen
 
@@ -11,7 +24,7 @@ Stand: 2026-05-10
 | `rss_reader_full_project` | GitHub `immerzu/lolo-rssreader-android` | main, codex/translate-experiment, backup-mr-*, codex/release-* (3 remote) | v1.50.09–v1.87.16 (22) |
 | `fdroiddata_fork` | GitLab `immerzu46/fdroiddata` | master, codex/update-*, backup-mr-* | keine |
 
-**Push-Status:** Beide Repos sind auf dem aktuellen Stand (bis auf 5 uncommittete Änderungen im Projekt, siehe 1.2).
+**Push-Status (Stand 2026-05-10):** Beide Repos waren auf dem damaligen Stand (bis auf 5 uncommittete Änderungen im Projekt, siehe 1.2).
 
 ### 1.2 Nicht versionierte Arbeitsdateien
 
@@ -23,7 +36,7 @@ Stand: 2026-05-10
 | **Memory** | `memory/` | Projektkontext-Gedächtnis | ~6 KB |
 | **Audit** | `audit_release_comparison/` | Release-Vergleichsdaten | ~18 MB |
 
-### 1.3 Aktuelle uncommittete Änderungen
+### 1.3 Uncommittete Änderungen (Stand 2026-05-10, historisch)
 
 5 Dateien modifiziert (Härtung + UI):
 - `AndroidManifest.xml` – usesCleartextTraffic="false"

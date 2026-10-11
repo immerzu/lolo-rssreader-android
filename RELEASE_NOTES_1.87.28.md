@@ -40,5 +40,5 @@ Folgende Aufgaben wurden erfolgreich ausgeführt:
 - Tag: `v1.87.28` (annotiert)
 - GitHub-Release: `RSS Reader 1.87.28`
 - GitHub `main` und GitLab `main` zeigen auf denselben Release-Commit.
-- F-Droid: AutoUpdate aktiv (`AutoUpdateMode: Version`, `UpdateCheckMode: Tags ^v[\d.]+$`). Nach Veröffentlichung des Tags auf GitHub erkennt der F-Droid-`checkupdates`-Lauf die neue Version automatisch; kein manueller fdroiddata-Merge-Request erforderlich.
+- F-Droid: AutoUpdate aktiv (`AutoUpdateMode: Version`, `UpdateCheckMode: Tags ^v[\d.]+$`). Nach Veröffentlichung des Tags auf GitHub erkennt der F-Droid-`checkupdates`-Lauf die neue Version; **in der Regel** ist kein manueller fdroiddata-Merge-Request erforderlich. ⚠️ Erfahrung vom 16.09.2026: Ein **roter, offen liegender Bot-MR blockiert** den Zyklus; für 1.87.36 war deshalb ein manueller MR nötig (siehe `RELEASE_NOTES_1.87.36.md`).
 - Öffentlicher F-Droid-Stand zum Release-Zeitpunkt: noch `1.87.27` / `156`; `1.87.28` wird durch den AutoUpdate-Prozess nachgeholt.

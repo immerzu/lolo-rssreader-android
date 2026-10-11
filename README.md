@@ -25,7 +25,8 @@ Alternatively, `start-android-studio.ps1` launches Android Studio already config
 
 ## Build
 Via Android Studio through `Build > Build APK(s)` or locally via `gradlew.bat assembleDebug`.
-Before a release candidate, additionally run `gradlew.bat assembleRelease` and use the checklist in [RELEASE_CHECKLIST_RSS_READER_DE.md](RELEASE_CHECKLIST_RSS_READER_DE.md).
+Before a release candidate, additionally run `gradlew.bat exportReleaseApk` (builds, signs and copies the APK
+into `../Ausgabe_APK/`) and use the checklist in [RELEASE_CHECKLIST_RSS_READER_DE.md](RELEASE_CHECKLIST_RSS_READER_DE.md).
 
 ## F-Droid Metadata
 Store metadata for F-Droid is located under `fastlane/metadata/android/`.
@@ -64,3 +65,6 @@ via `tools/get-signing-secret.ps1` (targets: `rssreader_store_password`, `rssrea
 
 ## Gradle Configuration Note
 The wrapper is already prepared for this machine and uses the locally stored Gradle 8.11.1 distribution.
+The Kotlin toolchain is pinned to **JDK 21** (`kotlin { jvmToolchain(21) }` in `app/build.gradle.kts`);
+without a discoverable JDK 21 the build fails with "No locally installed toolchains match". The Java
+bytecode level stays at 17 (`jvmTarget`/`compileOptions`). Check with `gradlew.bat -q javaToolchains --no-daemon`.
