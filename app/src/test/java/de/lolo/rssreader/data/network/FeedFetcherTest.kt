@@ -457,6 +457,28 @@ class FeedFetcherTest {
     }
 
     @Test
+    fun fetchSendsStoredEntityTagUnchangedAsIfNoneMatch() {
+        var sentIfNoneMatch: String? = null
+        val client = OkHttpClient.Builder()
+            .addInterceptor { chain ->
+                sentIfNoneMatch = chain.request().header("If-None-Match")
+                Response.Builder()
+                    .request(chain.request())
+                    .protocol(Protocol.HTTP_1_1)
+                    .code(304)
+                    .message("Not Modified")
+                    .body("".toResponseBody(null))
+                    .build()
+            }
+            .build()
+
+        val result = runBlocking { FeedFetcher(client).fetch("https://example.com/feed.xml", etag = "\"abc123\"") }
+
+        assertEquals("\"abc123\"", sentIfNoneMatch)
+        assertTrue(result is FeedFetchResult.NotModified)
+    }
+
+    @Test
     fun fetchPreservesLatin1PayloadWhenContentTypeDeclaresCharset() {
         val xml = """
             <?xml version="1.0" encoding="ISO-8859-1"?>
