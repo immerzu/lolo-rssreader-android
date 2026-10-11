@@ -66,6 +66,19 @@ Sie werden zur Buildzeit aus dem betriebssystemgebundenen Anmeldeinformations-Sp
 - `isMinifyEnabled` und `isShrinkResources` sind **dauerhaft VERBOTEN** (niemals aktivieren, nicht als Vorschlag anbieten).
 - Fruehere Aktivierungsversuche haben zu schwerwiegenden Problemen gefuehrt.
 
+## Archiv (`_archiv`)
+
+Dokumente und Altlasten, die nicht mehr zum aktiven Projekt gehoeren, liegen in einem `_archiv`-Ordner:
+
+- `_archiv/` (Repo-Wurzel) und `docs/archiv/`: ausgemusterte Einzeldokumente und Duplikate
+  (weitere Release-Checklisten, Entwuerfe, Roadmap, Git-Merkliste, GitHub-Pages-Anleitungen).
+- `_archiv/` in der Workspace-Wurzel (`F:\001_Coding_Projekte\RSS_Reader_Android\_archiv\`): lokale Altlasten
+  (Build-Logs, Prompt-Dateien, `verify_tmp/`).
+
+Alles unter einem `_archiv`-Ordner ist **nicht** Teil des aktiven Projekts und wird nicht mehr gepflegt.
+Die beiden Repo-Ordner stehen in `.gitignore` und werden daher nicht versioniert; die Dateien bleiben als
+Wiederherstellungsreserve auf der Platte. Dort wird nichts geloescht und nichts ohne ausdrueckliche Freigabe abgelegt.
+
 ## Hinweis zur Gradle-Konfiguration
 Der Wrapper ist fuer diese Maschine bereits vorbereitet und nutzt die lokal abgelegte Gradle-8.11.1-Distribution.
 Die Kotlin-Toolchain ist im Build auf **JDK 21** fixiert (`kotlin { jvmToolchain(21) }` in `app/build.gradle.kts`);

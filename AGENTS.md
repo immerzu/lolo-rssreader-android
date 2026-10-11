@@ -41,6 +41,18 @@
 - Vor Release: Funktionstest auf Gerät, Unit-Tests, `assembleDebug` + `exportReleaseApk` (signiert, nach `../Ausgabe_APK/`; `assembleRelease` allein laesst die APK in `app/build/outputs/apk/release/`)
 - Release-APK erscheint unter `../Ausgabe_APK/RSS-Reader-v...-release.apk`
 
+## F-Droid-Vorgehen
+- `AutoUpdateMode: Version` + `UpdateCheckMode: Tags ^v[\d.]+$`: Der `checkupdates`-Bot traegt die neue Version
+  selbst ein und legt einen Merge Request an; **einen Bot-MR merged F-Droid selbst, sobald die CI gruen ist**
+  (`fdroid build` **und** `check apk` = success).
+- ⚠️ Ein **roter, offen liegender Bot-MR blockiert** den Zyklus vollstaendig (belegt 11.–16.09.2026: fuenf Tage
+  Stillstand auf 1.87.32/161). Dann Index (`https://f-droid.org/api/v1/packages/de.lolo.rssreader`) und
+  `CurrentVersion` in `fdroiddata` pruefen; ein manueller MR aus dem eigenen Fork ist **nur der Notnagel**
+  (so geschehen bei !49133, gemergt am 16.09.2026).
+- Die Release-APK muss mit **JDK 21** entstehen (Toolchain ist fixiert) — sonst scheitert der
+  Reproducible-Build-Vergleich gegen das `Binaries`-Asset.
+- Details: `RELEASE_CHECKLIST_RSS_READER_DE.md` Abschnitt 6 und `memory/plattform_repositories.md` Abschnitt 9.
+
 ## Code-Stil
 - Kotlin, kein Java-Code mehr
 - Compose-UI mit Navigation-Compose, Material3-Theming in `ui/theme/RssReaderTheme.kt`
@@ -51,8 +63,23 @@
 
 ## Git-Hinweise
 - Arbeitsverzeichnis: `F:\001_Coding_Projekte\RSS_Reader_Android\rss_reader_full_project`
-- Vor Änderungen commiten, stabile Stände taggen (siehe `GIT_MERKLISTE_KURZ_DE.txt`)
+- Remotes: `origin` = https://github.com/immerzu/lolo-rssreader-android.git (oeffentlich),
+  `gitlab` = https://gitlab.com/immerzu46/lolo-rssreader-android.git (privat) — Commits, Tags und Releases
+  immer an **beide** Remotes pushen
+- Vor Änderungen commiten, stabile Stände taggen (siehe `_archiv\GIT_MERKLISTE_KURZ_DE.txt`)
 - Keine sensiblen Daten committen: `keystore.properties`, `local.properties`
+
+## _archiv (Altlasten — nicht Teil des aktiven Projekts)
+- `_archiv\` (Repo-Wurzel) und `docs\archiv\`: abgelegte Einzel- und Duplikatdokumente
+  (u. a. `RELEASE_CHECKLIST.md`, `RELEASE_CHECKLIST_KURZ_DE.txt`, `PLAY_RELEASE_CHECKLIST_DE.md`,
+  `ROADMAP_1.87.18.md`, `GIT_MERKLISTE_KURZ_DE.txt`, `EXPORT_SECURITY.md`, `LOGCAT_ANLEITUNG_RSS_READER_DE.md`,
+  `DATENSCHUTZ_ENTWURF_DE.md`, `STORE_LISTING_DRAFT_DE.md`, `WORDPRESS_FEED_ANALYSIS_DE.md`,
+  `GITHUB_PAGES_ANLEITUNG_DE.md`, `FDROID_GITHUB_PAGES_ANLEITUNG_DE.md`).
+- Workspace-Archiv (ausserhalb des Repos): `F:\001_Coding_Projekte\RSS_Reader_Android\_archiv\` mit Altlasten
+  wie Log-Dateien, Prompt-Dateien und `verify_tmp\`.
+- **Regel:** Was im `_archiv` liegt, ist **nicht** Teil des aktiven Projekts und wird nicht mehr gepflegt.
+  Beide Repo-Ordner sind per `.gitignore` aus dem Git-Index genommen (physisch bleiben die Dateien erhalten).
+- **Keine neuen Ablagen ohne ausdrueckliche Nutzerfreigabe**; im `_archiv` wird nichts geloescht.
 
 ## Was nicht zu tun ist
 - Keine neue Gradle-, AGP- oder Kotlin-Version ohne ausdrückliche Anweisung einführen

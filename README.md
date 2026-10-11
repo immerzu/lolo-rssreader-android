@@ -63,6 +63,19 @@ via `tools/get-signing-secret.ps1` (targets: `rssreader_store_password`, `rssrea
 - `isMinifyEnabled` and `isShrinkResources` are **permanently forbidden** (never enable, never propose).
 - Previous attempts to enable them caused severe problems.
 
+## Archive (`_archiv`)
+
+Documents and leftovers that are no longer part of the active project live in an `_archiv` folder:
+
+- `_archiv/` (repository root) and `docs/archiv/`: retired one-off documents and duplicates
+  (further release checklists, drafts, roadmap, git cheat sheet, GitHub Pages guides).
+- `_archiv/` in the workspace root (`F:\001_Coding_Projekte\RSS_Reader_Android\_archiv\`): local leftovers
+  (build logs, prompt files, `verify_tmp/`).
+
+Everything under an `_archiv` folder is **not** part of the active project and is no longer maintained.
+The two repository folders are listed in `.gitignore` and therefore not tracked; the files stay on disk
+as a recovery reserve. Nothing there is deleted, and no new files are added without explicit approval.
+
 ## Gradle Configuration Note
 The wrapper is already prepared for this machine and uses the locally stored Gradle 8.11.1 distribution.
 The Kotlin toolchain is pinned to **JDK 21** (`kotlin { jvmToolchain(21) }` in `app/build.gradle.kts`);

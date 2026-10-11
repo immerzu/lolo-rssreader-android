@@ -29,3 +29,7 @@ adbkey.pub
 *.log
 *.tmp
 *.bak
+
+# Archive folders (kept on disk, removed from the index)
+_archiv/
+docs/archiv/
