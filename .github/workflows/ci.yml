@@ -30,13 +30,12 @@ jobs:
           java-version: '21'
 
       # compileSdk/targetSdk 36 benoetigen Platform 36 und Build-Tools 36.0.0.
+      # Die Action erwartet eine leerzeichengetrennte Liste in EINER Zeile.
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
         with:
           accept-android-sdk-licenses: true
-          packages: |
-            platforms;android-36
-            build-tools;36.0.0
+          packages: 'platforms;android-36 build-tools;36.0.0'
 
       - name: Make gradlew executable
         run: chmod +x ./gradlew
