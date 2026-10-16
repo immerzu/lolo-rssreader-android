@@ -1,0 +1,114 @@
+name: CI
+
+# Nur die benoetigten Trigger: Pushes auf main und Pull Requests gegen main.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Minimale Rechte: die Pipeline liest nur den Code.
+# Kein Schreiben auf das Repository, keine Secrets, keine Releases, keine Pushes.
+permissions:
+  contents: read
+
+jobs:
+  test-and-lint:
+    name: Unit tests and Android Lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Das Projekt verankert die Kotlin-Toolchain auf JDK 21 (kotlin { jvmToolchain(21) }).
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      # compileSdk/targetSdk 36 benoetigen Platform 36 und Build-Tools 36.0.0.
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          accept-android-sdk-licenses: true
+          packages: |
+            platforms;android-36
+            build-tools;36.0.0
+
+      - name: Make gradlew executable
+        run: chmod +x ./gradlew
+
+      # Fehlschlagende Tests lassen den Job fehlschlagen (Standardverhalten).
+      - name: Run unit tests (:app:testDebugUnitTest)
+        run: ./gradlew :app:testDebugUnitTest --no-daemon
+
+      # Lint-Fehler lassen den Job fehlschlagen; die 24 bestehenden Warnungen bleiben sichtbar.
+      - name: Run Android Lint (:app:lintDebug)
+        run: ./gradlew :app:lintDebug --no-daemon
+
+      # Ergebnisse nachvollziehbar in der Job-Zusammenfassung dokumentieren (auch bei Fehlern).
+      - name: Summarize test and lint results
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import glob, os, xml.etree.ElementTree as ET
+
+          lines = ["## CI results", ""]
+
+          test_files = sorted(glob.glob("app/build/test-results/testDebugUnitTest/TEST-*.xml"))
+          if test_files:
+              total = failures = errors = skipped = 0
+              for path in test_files:
+                  root = ET.parse(path).getroot()
+                  total += int(root.get("tests", 0))
+                  failures += int(root.get("failures", 0))
+                  errors += int(root.get("errors", 0))
+                  skipped += int(root.get("skipped", 0))
+              lines.append(
+                  f"- Unit tests: **{total}** run, **{failures}** failures, "
+                  f"**{errors}** errors, **{skipped}** skipped ({len(test_files)} classes)"
+              )
+          else:
+              lines.append("- Unit tests: no JUnit XML report found")
+
+          lint_xml = "app/build/reports/lint-results-debug.xml"
+          if os.path.exists(lint_xml):
+              issues = ET.parse(lint_xml).getroot().findall("issue")
+              lint_errors = sum(1 for i in issues if i.get("severity") == "Error")
+              lint_warnings = sum(1 for i in issues if i.get("severity") == "Warning")
+              lines.append(
+                  f"- Android Lint: **{len(issues)}** issues, "
+                  f"**{lint_errors}** errors, **{lint_warnings}** warnings"
+              )
+          else:
+              lines.append("- Android Lint: no report found")
+
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as handle:
+              handle.write("\n".join(lines) + "\n")
+          PY
+
+      # Berichte werden auch bei fehlgeschlagenen Test-/Lint-Schritten hochgeladen.
+      # Keine Keystores, Zugangsdaten oder Release-Artefakte.
+      - name: Upload unit test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-test-reports
+          if-no-files-found: warn
+          path: |
+            app/build/test-results/testDebugUnitTest/**
+            app/build/reports/tests/testDebugUnitTest/**
+
+      - name: Upload lint reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lint-reports
+          if-no-files-found: warn
+          path: |
+            app/build/reports/lint-results-debug.html
+            app/build/reports/lint-results-debug.xml
+            app/build/reports/lint-results-debug.txt
