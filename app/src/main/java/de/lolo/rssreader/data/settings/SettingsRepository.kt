@@ -12,7 +12,9 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 
-private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "rss_reader_settings")
+// `internal` statt `private`, damit Tests den (jetzt ungenutzten) Alt-Key `show_unread_only`
+// simulieren und belegen koennen, dass er keinen Feed-Zustand mehr beeinflusst.
+internal val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "rss_reader_settings")
 
 class SettingsRepository(context: Context) {
     private val appContext = context.applicationContext
@@ -37,6 +39,23 @@ class SettingsRepository(context: Context) {
                 ?.coerceIn(-2, 2)
                 ?: 0
         )
+    }
+
+    /**
+     * Feedbezogener Filterzustand „Nur ungelesene Artikel".
+     *
+     * Der Wert ist ausschliesslich an die uebergebene [feedId] gebunden; ohne gespeicherten
+     * Wert (neuer Feed oder Bestandsinstallation) gilt `false`. Der frueher globale Key
+     * `show_unread_only` wird bewusst nicht mehr gelesen.
+     */
+    fun unreadOnlyFilterForFeed(feedId: Long): Flow<Boolean> =
+        appContext.dataStore.data.map { preferences ->
+            preferences[unreadOnlyFilterKey(feedId)] ?: false
+        }
+
+    /** Speichert den Filterzustand ausschliesslich fuer [feedId]; andere Feeds bleiben unberuehrt. */
+    suspend fun setUnreadOnlyFilterForFeed(feedId: Long, value: Boolean) {
+        updatePreference(unreadOnlyFilterKey(feedId), value)
     }
 
     suspend fun setRefreshOnStart(value: Boolean) {
@@ -109,6 +128,16 @@ class SettingsRepository(context: Context) {
         val THEME_MODE = stringPreferencesKey("theme_mode")
         val ENTRY_SORT_ORDER = stringPreferencesKey("entry_sort_order")
         val ARTICLE_BODY_TEXT_SIZE_OFFSET = intPreferencesKey("article_body_text_size_offset")
+
+        /**
+         * Praefix des feedbezogenen Filter-Keys. Der alte globale Key `show_unread_only`
+         * bleibt bewusst ungenutzt im DataStore liegen (kein destruktiver Reset) und
+         * bestimmt keinen Feed-Zustand mehr.
+         */
+        const val UNREAD_ONLY_FEED_KEY_PREFIX = "show_unread_only_feed_"
+
+        fun unreadOnlyFilterKey(feedId: Long): Preferences.Key<Boolean> =
+            booleanPreferencesKey("$UNREAD_ONLY_FEED_KEY_PREFIX$feedId")
     }
 }
 

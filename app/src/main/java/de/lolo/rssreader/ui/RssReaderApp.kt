@@ -61,6 +61,7 @@ fun RssReaderApp(
     var lastBackgroundedAtElapsedMs by remember { mutableLongStateOf(0L) }
     var foregroundRefreshInProgress by remember { mutableStateOf(false) }
     var isFirstSettingsLoad by remember { mutableStateOf(true) }
+    var showUnreadOnlySaveFailedForFeed by remember { mutableStateOf<Long?>(null) }
 
     fun launchForegroundRefreshIfNeeded(nowElapsedMs: Long) {
         val loadedSettings = latestSettings ?: return
@@ -250,11 +251,35 @@ fun RssReaderApp(
                     arguments = listOf(navArgument("feedId") { type = NavType.LongType })
                 ) { backStackEntry ->
                     val feedId = backStackEntry.arguments?.getLong("feedId") ?: return@composable
+                    // Feedbezogener Filterzustand (Issue #12): eigener DataStore-Key je feedId.
+                    val unreadOnlyPreference by remember(feedId) {
+                        settingsRepository.unreadOnlyFilterForFeed(feedId)
+                    }.collectAsState(initial = null)
                     ArticleListScreen(
                         feedId = feedId,
                         repository = repository,
                         settings = settings ?: AppPreferences(),
                         entrySortOrder = settings?.entrySortOrder ?: AppPreferences().entrySortOrder,
+                        showUnreadOnlyPreference = unreadOnlyPreference,
+                        showUnreadOnlySaveFailed = showUnreadOnlySaveFailedForFeed == feedId,
+                        onShowUnreadOnlyChange = { value ->
+                            scope.launch {
+                                runCatching { settingsRepository.setUnreadOnlyFilterForFeed(feedId, value) }
+                                    .onSuccess {
+                                        if (showUnreadOnlySaveFailedForFeed == feedId) {
+                                            showUnreadOnlySaveFailedForFeed = null
+                                        }
+                                    }
+                                    .onFailure { throwable ->
+                                        showUnreadOnlySaveFailedForFeed = feedId
+                                        DebugLogger.w(
+                                            "RssReaderApp",
+                                            "Filterzustand 'Nur ungelesene' konnte nicht gespeichert werden: feedId=$feedId",
+                                            throwable
+                                        )
+                                    }
+                            }
+                        },
                         onOpenArticle = { articleId ->
                             navController.navigate(Screen.Reader.create(articleId))
                         },

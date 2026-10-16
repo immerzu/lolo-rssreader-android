@@ -53,12 +53,20 @@ Wenn alles sauber ist, ist auch der Release-Build einmal technisch gegengeprueft
 
 ```powershell
 cd F:\001_Coding_Projekte\RSS_Reader_Android\rss_reader_full_project
-.\gradlew.bat exportReleaseApk
+.\gradlew.bat exportReleaseApk --no-daemon --rerun-tasks
 ```
 
 Voraussetzung: Gradle findet ein **JDK 21** (`kotlin { jvmToolchain(21) }`); Nachweis mit
-`.\gradlew.bat -q javaToolchains --no-daemon`. `exportReleaseApk` legt die signierte APK in `Ausgabe_APK\` ab
+`.\gradlew.bat -q javaToolchains --no-daemon` (muss `Language Version: 21` zeigen,
+`Detected by: Gradle property 'org.gradle.java.installations.paths'`).
+`exportReleaseApk` legt die signierte APK in `Ausgabe_APK\` ab
 (`assembleRelease` allein laesst sie in `app\build\outputs\apk\release\`).
+
+**Pflicht: `--rerun-tasks` verwenden.** Ein inkrementeller Release-Build kann Bytecode aus einem
+frueheren Lauf mit falschem JDK weiterverwenden. Belegt am 16.10.2026: `exportReleaseApk` ohne
+`--rerun-tasks` lieferte die JDK-17-Spalte (`HomeScreen` 3576, `FeedConfigScreen` 880), mit
+`--rerun-tasks` die korrekte JDK-21-Spalte (3298 / 790). Ein solches Artefakt darf **nicht**
+veroeffentlicht werden (F-Droid-Repro-Build wird rot).
 
 Optional fuer Play Store:
 
@@ -83,6 +91,31 @@ Zusatzpruefung:
 - App startet auch als Release.
 - Keine offensichtlichen Abstuerze direkt nach Start.
 
+### 5a. Artefakt-Nachweise (Pflicht vor dem Tag)
+
+Erst wenn alle vier Nachweise vorliegen, darf getaggt und veroeffentlicht werden:
+
+1. **Tatsaechlich eingesetzte Toolchain** — `.\gradlew.bat -q javaToolchains --no-daemon`
+   muss `Language Version: 21` zeigen (nicht nur „vorhanden", sondern vom Build genutzt).
+2. **DEX-Kontrolle gegen die Referenzwerte** — aus der fertigen APK `classes2.dex` entpacken und
+   `dexdump -d` auswerten:
+
+   | Methode | JDK 21 (richtig) | JDK 17 (falsch) |
+   |---|---|---|
+   | `HomeScreenKt; HomeScreen` | **3298** insns | 3576 |
+   | `FeedConfigScreenKt; FeedConfigScreen` | **790** insns | 880 |
+
+   JDK-17-Werte ⇒ **nicht veroeffentlichen**, Toolchain/Aufruffolge pruefen und mit
+   `exportReleaseApk --rerun-tasks` neu bauen.
+3. **SHA-256 und Signatur** — `Get-FileHash -Algorithm SHA256` gegen den dokumentierten Wert;
+   `apksigner verify --print-certs` muss das Zertifikat
+   `2fb2657d3215dce8bc1b5a7ad84cf083ea6f3e3cde242fdb65e21d81a3b61e02` zeigen
+   (muss `AllowedAPKSigningKeys` in der fdroiddata-YAML entsprechen).
+4. **Test-Report im richtigen Zeitfenster** — `app\build\reports\tests\testDebugUnitTest\` muss
+   **zwischen** dem Versions-Bump (`version.properties`) und der APK-Erstellung liegen; zusaetzlich
+   pruefen, dass keine Build-Input-Datei juenger ist als die APK.
+
+
 ## 6. F-Droid-Release (Auto-Modus)
 
 Die App ist im offiziellen F-Droid-Katalog und wird dort im **Auto-Modus** gepflegt
@@ -104,6 +137,13 @@ Ablauf pro Release:
 4. Build-Status beobachten: https://monitor.f-droid.org/ (Startseite). Achtung: die App-Uebersicht
    `https://monitor.f-droid.org/builds/de.lolo.rssreader/` liefert **HTTP 404** (geprueft 11.10.2026) —
    Logs je Version: `https://monitor.f-droid.org/builds/log/de.lolo.rssreader/<versionCode>`.
+
+**Der Reproduzierbarkeitsvergleich findet ausschliesslich extern bei F-Droid statt.** Er ist lokal
+nicht nachstellbar; die lokalen Nachweise aus Abschnitt 5a sind notwendige, aber **keine hinreichende**
+Bedingung. Ein erfolgreicher Repro-Build darf erst behauptet werden, wenn der F-Droid-Job
+`fdroid build` **und** `check apk` gruen zeigt (bzw. der Index die neue Version fuehrt).
+Ein **roter, offen liegender** Bot-MR blockiert den Zyklus — dann Maintainer um Schliessung bitten,
+keinen eigenen MR aufmachen.
 
 ## 7. Nach dem Release
 

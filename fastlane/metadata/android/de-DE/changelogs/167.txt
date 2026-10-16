@@ -1,0 +1,5 @@
+Version 1.87.38: Filter "Nur ungelesene Artikel" jetzt pro Feed.
+- Jeder Feed merkt sich seine eigene Filterstellung dauerhaft
+- Einstellungen anderer Feeds bleiben unverändert
+- Zustand bleibt nach vollständigem App-Neustart erhalten
+- Neue Feeds zeigen weiterhin alle Artikel

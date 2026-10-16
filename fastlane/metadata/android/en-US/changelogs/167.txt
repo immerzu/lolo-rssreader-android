@@ -1,0 +1,5 @@
+Version 1.87.38: "Unread only" filter is now per feed.
+- Each feed remembers its own filter state permanently
+- Other feeds keep their own settings
+- State survives a full app restart
+- New feeds still show all articles

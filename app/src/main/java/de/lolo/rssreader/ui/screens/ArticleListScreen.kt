@@ -94,6 +94,10 @@ fun ArticleListScreen(
     repository: FeedRepository,
     settings: AppPreferences,
     entrySortOrder: EntrySortOrder,
+    /** Feedbezogener, persistierter Filterzustand; `null` = noch nicht aus DataStore geladen. */
+    showUnreadOnlyPreference: Boolean?,
+    showUnreadOnlySaveFailed: Boolean,
+    onShowUnreadOnlyChange: (Boolean) -> Unit,
     onOpenArticle: (Long) -> Unit,
     onBack: () -> Unit
 ) {
@@ -129,9 +133,14 @@ fun ArticleListScreen(
         }
     }
     val unreadCount = remember(articles) { articles.count { !it.isRead } }
-    var showUnreadOnly by rememberSaveable { mutableStateOf(false) }
+    // Der persistierte, feedbezogene Wert (DataStore) ist die Quelle der Wahrheit;
+    // [unreadOnlyFilterOverride] haelt nur die unmittelbare Reaktion auf einen Toggle,
+    // bis der neue Wert zurueckfliesst. Der Override ist an die feedId gebunden, damit
+    // ein Feed-Wechsel keinen fremden Zustand uebernimmt.
+    var unreadOnlyFilterOverride by rememberSaveable(feedId) { mutableStateOf<Boolean?>(null) }
+    val showUnreadOnly = resolveShowUnreadOnly(unreadOnlyFilterOverride, showUnreadOnlyPreference)
     val visibleArticles = remember(sortedArticles, showUnreadOnly) {
-        if (showUnreadOnly) sortedArticles.filter { !it.isRead } else sortedArticles
+        filterArticlesByUnreadOnly(sortedArticles, showUnreadOnly)
     }
     val scope = rememberCoroutineScope()
     var isRefreshing by remember { mutableStateOf(false) }
@@ -143,6 +152,16 @@ fun ArticleListScreen(
     var errorMessage by rememberSaveable { mutableStateOf<String?>(null) }
     var selectedArticleId by rememberSaveable { mutableStateOf<Long?>(null) }
     var refreshStatusText by rememberSaveable { mutableStateOf<String?>(null) }
+    // Sobald der persistierte Filterwert dieses Feeds zurueckfliesst (Erfolg) oder ein
+    // Speicherfehler fuer diesen Feed gemeldet wird, faellt die Ansicht auf den
+    // persistierten Wert zurueck.
+    LaunchedEffect(feedId, showUnreadOnlyPreference, showUnreadOnlySaveFailed) {
+        unreadOnlyFilterOverride = null
+        if (showUnreadOnlySaveFailed) {
+            DebugLogger.w(logTag, "Filterzustand konnte nicht gespeichert werden: feedId=$feedId", null)
+            errorMessage = context.getString(R.string.article_list_filter_save_failed)
+        }
+    }
     // Stale refreshStatusText nach Process-Death zurücksetzen
     if (refreshStatusText != null && (!isRefreshing || refreshStartedAtElapsedMs <= 0L)) {
         refreshStatusText = null
@@ -319,7 +338,15 @@ fun ArticleListScreen(
                 },
                 actions = {
                     IconButton(
-                        onClick = { showUnreadOnly = !showUnreadOnly }
+                        onClick = {
+                            val nextValue = !showUnreadOnly
+                            unreadOnlyFilterOverride = nextValue
+                            DebugLogger.i(
+                                logTag,
+                                "Filter 'Nur ungelesene' geaendert: feedId=$feedId, showUnreadOnly=$nextValue"
+                            )
+                            onShowUnreadOnlyChange(nextValue)
+                        }
                     ) {
                         Icon(
                             Icons.Default.FilterList,
@@ -635,4 +662,25 @@ fun ArticleListScreen(
 }
 
 private const val ARTICLE_LIST_REFRESH_INDICATOR_DURATION_MS = 700L
+
+/**
+ * Wendet den Filter „Nur ungelesene Artikel" an. Reine Funktion, damit die Filterlogik
+ * ohne Compose-UI testbar bleibt; Verhalten unveraendert zur bisherigen Inline-Logik.
+ */
+internal fun filterArticlesByUnreadOnly(
+    articles: List<ArticleEntity>,
+    showUnreadOnly: Boolean
+): List<ArticleEntity> {
+    return if (showUnreadOnly) articles.filter { !it.isRead } else articles
+}
+
+/**
+ * Ermittelt den anzuzeigenden Filterzustand: Der unmittelbare Toggle-Override gewinnt,
+ * danach der persistierte feedbezogene Wert; ist beides unbekannt (DataStore noch nicht
+ * geladen), gilt `false` (alle Artikel) — ohne dabei etwas zu speichern.
+ */
+internal fun resolveShowUnreadOnly(
+    override: Boolean?,
+    preference: Boolean?
+): Boolean = override ?: preference ?: false
 
