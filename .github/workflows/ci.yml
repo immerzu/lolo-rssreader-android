@@ -15,16 +15,17 @@ permissions:
 jobs:
   test-and-lint:
     name: Unit tests and Android Lint
-    runs-on: ubuntu-latest
+    # Fest auf Ubuntu 24.04: das Label `ubuntu-latest` wird ab 19.10.2026 auf Ubuntu 26 umgestellt.
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       # Das Projekt verankert die Kotlin-Toolchain auf JDK 21 (kotlin { jvmToolchain(21) }).
       - name: Set up JDK 21
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: '21'
@@ -32,7 +33,7 @@ jobs:
       # compileSdk/targetSdk 36 benoetigen Platform 36 und Build-Tools 36.0.0.
       # Die Action erwartet eine leerzeichengetrennte Liste in EINER Zeile.
       - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+        uses: android-actions/setup-android@v4
         with:
           accept-android-sdk-licenses: true
           packages: 'platforms;android-36 build-tools;36.0.0'
@@ -93,7 +94,7 @@ jobs:
       # Keine Keystores, Zugangsdaten oder Release-Artefakte.
       - name: Upload unit test reports
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: unit-test-reports
           if-no-files-found: warn
@@ -103,7 +104,7 @@ jobs:
 
       - name: Upload lint reports
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: lint-reports
           if-no-files-found: warn
