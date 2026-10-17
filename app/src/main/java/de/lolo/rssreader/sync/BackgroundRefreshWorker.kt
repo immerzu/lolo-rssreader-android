@@ -14,6 +14,7 @@ import de.lolo.rssreader.data.repository.RefreshRunStats
 import de.lolo.rssreader.data.settings.AppPreferences
 import de.lolo.rssreader.debug.DebugLogger
 import de.lolo.rssreader.notifications.ArticleUpdateNotifier
+import kotlinx.coroutines.CancellationException
 
 class BackgroundRefreshWorker(
     appContext: Context,
@@ -44,6 +45,12 @@ class BackgroundRefreshWorker(
         val result = runCatching {
             runtime.refreshAllInBackground(isUnmeteredNetwork, hasWifiConnection)
         }.getOrElse { throwable ->
+            // Abbruch ist kein Fehler: WorkManager-/Coroutine-Cancellation wird unveraendert
+            // weitergereicht und darf weder protokolliert noch in Result.retry() münden.
+            // (Gleiches Muster wie in RefreshCoordinator und importOpmlEntry.)
+            if (throwable is CancellationException) {
+                throw throwable
+            }
             DebugLogger.w(TAG, "Worker fehlgeschlagen, versuche spaeter erneut", throwable)
             if (BuildConfig.DEBUG) {
                 Log.w(TAG, "Hintergrundaktualisierung komplett fehlgeschlagen", throwable)
@@ -63,6 +70,10 @@ class BackgroundRefreshWorker(
         runCatching {
             maybeShowNotification(settings, result)
         }.onFailure { throwable ->
+            // Auch hier: ein Abbruch wird nicht als Benachrichtigungsfehler verbucht.
+            if (throwable is CancellationException) {
+                throw throwable
+            }
             DebugLogger.w(TAG, "Benachrichtigung nach Hintergrundaktualisierung fehlgeschlagen", throwable)
             if (BuildConfig.DEBUG) {
                 Log.w(TAG, "Benachrichtigung nach Hintergrundaktualisierung fehlgeschlagen", throwable)

@@ -203,10 +203,18 @@ fun ArticleReaderScreen(
             scope.launch {
                 // Waagerechtes Weiterwischen: der verlassene Artikel gilt als gelesen.
                 // Bei erstem/letztem Artikel ist targetArticleId null -> kein Wechsel, keine Markierung.
-                if (shouldMarkArticleRead(leavingArticleId, markedReadArticleIds)) {
-                    markedReadArticleIds += leavingArticleId
-                    withContext(Dispatchers.IO) { runCatching { repository.markRead(leavingArticleId) } }
-                }
+                markArticleReadOnce(
+                    articleId = leavingArticleId,
+                    alreadyMarkedIds = markedReadArticleIds,
+                    markRead = { id -> withContext(Dispatchers.IO) { repository.markRead(id) } },
+                    onFailure = { id, throwable ->
+                        DebugLogger.w(
+                            TAG,
+                            "Artikel konnte nicht als gelesen markiert werden: articleId=$id",
+                            throwable
+                        )
+                    }
+                )
                 swipeDirection = direction
                 currentArticleId = targetArticleId
             }
@@ -228,12 +236,21 @@ fun ArticleReaderScreen(
             // Oeffnen markiert wie bisher den Einstiegsartikel. Beim Weiterwischen uebernimmt
             // triggerSwipe die Markierung des verlassenen Artikels, beim Verlassen der
             // Leseransicht markiert markVisibleArticleAsReadOnExit den zuletzt sichtbaren.
-            if (
-                shouldMarkReadOnArticleLoad(currentArticleId, articleId) &&
-                shouldMarkArticleRead(currentArticleId, markedReadArticleIds)
-            ) {
-                markedReadArticleIds += currentArticleId
-                withContext(Dispatchers.IO) { repository.markRead(currentArticleId) }
+            if (shouldMarkReadOnArticleLoad(currentArticleId, articleId)) {
+                // Der Guard wird erst NACH erfolgreichem Schreiben gesetzt: ein DB-Fehler
+                // laesst den Artikel ungelesen und blockiert keinen spaeteren Versuch.
+                markArticleReadOnce(
+                    articleId = currentArticleId,
+                    alreadyMarkedIds = markedReadArticleIds,
+                    markRead = { id -> withContext(Dispatchers.IO) { repository.markRead(id) } },
+                    onFailure = { id, throwable ->
+                        DebugLogger.w(
+                            TAG,
+                            "Artikel konnte nicht als gelesen markiert werden: articleId=$id",
+                            throwable
+                        )
+                    }
+                )
             }
             val feed = withContext(Dispatchers.IO) { repository.getFeed(loadedArticle.feedId) }
             isFeedHeavy = feed?.heavy == true
@@ -1824,6 +1841,38 @@ internal fun shouldMarkReadOnArticleLoad(currentArticleId: Long, entryArticleId:
  */
 internal fun shouldMarkArticleRead(articleId: Long, alreadyMarkedIds: Set<Long>): Boolean =
     articleId > 0L && articleId !in alreadyMarkedIds
+
+/**
+ * Markiert [articleId] genau einmal als gelesen und meldet, ob das Schreiben geklappt hat.
+ *
+ * - [alreadyMarkedIds] wird **erst nach erfolgreichem Schreiben** ergaenzt. Ein
+ *   fehlgeschlagener Versuch blockiert dadurch keinen erneuten Versuch und gilt nicht
+ *   faelschlich als erledigt.
+ * - [CancellationException] wird unveraendert weitergereicht (kein Verschlucken von
+ *   Coroutine-Abbruch).
+ * - Gewoehnliche Schreibfehler werden ueber [onFailure] gemeldet, aber nicht geworfen:
+ *   ein Datenbankfehler soll die Leseransicht nicht abstuerzen lassen.
+ */
+internal suspend fun markArticleReadOnce(
+    articleId: Long,
+    alreadyMarkedIds: MutableSet<Long>,
+    markRead: suspend (Long) -> Unit,
+    onFailure: (Long, Throwable) -> Unit
+): Boolean {
+    if (!shouldMarkArticleRead(articleId, alreadyMarkedIds)) {
+        return false
+    }
+    return try {
+        markRead(articleId)
+        alreadyMarkedIds += articleId
+        true
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        onFailure(articleId, e)
+        false
+    }
+}
 
 /**
  * Ermittelt den Artikel, zu dem eine waagerechte Wischgeste in der Leseransicht wechselt.

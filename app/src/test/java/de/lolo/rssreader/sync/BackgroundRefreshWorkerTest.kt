@@ -8,6 +8,7 @@ import androidx.work.WorkerParameters
 import androidx.work.testing.TestListenableWorkerBuilder
 import de.lolo.rssreader.data.repository.RefreshRunStats
 import de.lolo.rssreader.data.settings.AppPreferences
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -127,6 +128,49 @@ class BackgroundRefreshWorkerTest {
         )
 
         assertEquals(ListenableWorker.Result.retry(), worker.doWork())
+    }
+
+    @Test
+    fun doWorkPropagatesCancellationInsteadOfRequestingRetry() = runTest {
+        val notifications = mutableListOf<Pair<Int, Int>>()
+        val worker = buildWorker(
+            runtime = testRuntime(
+                refreshResult = null,
+                refreshThrowable = CancellationException("worker stopped"),
+                notificationsEnabled = true,
+                notificationSink = notifications
+            )
+        )
+
+        val thrown = runCatching { worker.doWork() }.exceptionOrNull()
+
+        assertTrue("Abbruch muss unveraendert weitergereicht werden", thrown is CancellationException)
+        assertTrue("Bei Abbruch darf keine Benachrichtigung entstehen", notifications.isEmpty())
+    }
+
+    @Test
+    fun doWorkPropagatesCancellationFromNotificationInsteadOfSwallowingIt() = runTest {
+        // Zweiter Cancellation-Pfad: der Abbruch passiert erst beim Benachrichtigen.
+        val worker = buildWorker(
+            runtime = testRuntime(
+                refreshResult = RefreshRunStats(
+                    refreshedFeeds = 1,
+                    failedFeeds = 0,
+                    retryableFeeds = 0,
+                    newArticles = 3
+                ),
+                notificationsEnabled = true,
+                notificationThrowable = CancellationException("cancelled during notification"),
+                isAppInForeground = false
+            )
+        )
+
+        val thrown = runCatching { worker.doWork() }.exceptionOrNull()
+
+        assertTrue(
+            "Abbruch in der Benachrichtigung muss propagieren und darf nicht verschluckt werden",
+            thrown is CancellationException
+        )
     }
 
     @Test
