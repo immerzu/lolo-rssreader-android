@@ -1,18 +1,16 @@
 name: CI
 
 # Push/PR: Unit-Tests + Lint (unveraendert).
-# Zusaetzlich manuell (workflow_dispatch) und naechtlich (schedule) fuer den Emulator-Job.
+# Zusaetzlich manuell (workflow_dispatch) fuer den Emulator-Job.
+# Kein schedule-Trigger: Emulator-Laeufe starten ausschliesslich auf ausdrueckliche
+# manuelle Ausloesung (RSS-002, Entscheidung 2026-10-17).
 on:
   push:
     branches: [main]
   pull_request:
     branches: [main]
-  # Manuelle Ausloesung (z. B. fuer den Emulator-Job).
+  # Manuelle Ausloesung (der Emulator-Job reagiert ausschliesslich hierauf).
   workflow_dispatch:
-  # Naechtlich 02:17 UTC (= 04:17 CEST), bewusst ausserhalb der Hauptlastzeit
-  # und nicht zur vollen Stunde (GitHub-Empfehlung wegen Lastspitzen).
-  schedule:
-    - cron: '17 2 * * *'
 
 # Minimale Rechte: die Pipeline liest nur den Code.
 # Kein Schreiben auf das Repository, keine Secrets, keine Releases, keine Pushes.
@@ -22,8 +20,8 @@ permissions:
 jobs:
   test-and-lint:
     name: Unit tests and Android Lint
-    # Laeuft unveraendert bei Push und Pull Request — nicht bei schedule/workflow_dispatch,
-    # damit der naechtliche/manuelle Lauf ausschliesslich den Emulator-Job ausfuehrt.
+    # Laeuft unveraendert bei Push und Pull Request — nicht bei workflow_dispatch,
+    # damit ein manueller Lauf ausschliesslich den Emulator-Job ausfuehrt.
     if: github.event_name == 'push' || github.event_name == 'pull_request'
     # Fest auf Ubuntu 24.04: das Label `ubuntu-latest` wird ab 19.10.2026 auf Ubuntu 26 umgestellt.
     runs-on: ubuntu-24.04
@@ -124,10 +122,10 @@ jobs:
             app/build/reports/lint-results-debug.txt
 
   # RSS-002 Phase 2C: instrumentierte Compose-UI-Tests auf einem Emulator.
-  # Startet NUR manuell (workflow_dispatch) oder naechtlich (schedule) — nie bei Push/PR.
+  # Startet AUSSCHLIESSLICH manuell (workflow_dispatch) — nie bei Push/PR.
   instrumented-tests:
     name: Instrumented UI tests (emulator)
-    if: github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
 
