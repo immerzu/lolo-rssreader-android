@@ -185,7 +185,9 @@ jobs:
           emulator-boot-timeout: 600
           sdcard-path-or-size: 512M
           script: |
-            set -o pipefail
+            # Wichtig: Die Action fuehrt dieses script mit `/usr/bin/sh` (dash) aus.
+            # Daher nur POSIX-Konstrukte verwenden — kein `set -o pipefail` (bash-only,
+            # fuehrt unter sh zu Exit 2 und bricht den Lauf vor dem Test ab).
             mkdir -p ci-logs
 
             # Kein APK-Export: connectedDebugAndroidTest haengt nicht an assembleDebug
