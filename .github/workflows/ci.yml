@@ -171,10 +171,12 @@ jobs:
             echo "WARNUNG: /dev/kvm ist NICHT beschreibbar — der Emulator laeuft ggf. ohne Beschleunigung."
           fi
 
-      # Die Action beendet ihren Emulator NACH dem script. Daher werden Testlauf,
-      # Exit-Code und Diagnose (Logcat, Screenshot) innerhalb des script gesichert.
-      # Der urspruengliche Exit-Code des Gradle-Laufs wird am Ende unveraendert
-      # zurueckgegeben — Diagnosefehler duerfen ihn nicht ueberschreiben.
+      # WICHTIG (belegt im Lauf 39017405485): android-emulator-runner fuehrt JEDE Zeile
+      # des `script` als eigene `sh -c`-Invokation aus. Variablen und mehrzeilige
+      # if-Bloecke ueberleben das NICHT — damals stand "connectedDebugAndroidTest exit="
+      # leer und der Schritt endete mit "Syntax error: end of file unexpected", obwohl
+      # alle 4 Tests bestanden ("Starting 4 tests" / "Finished 4 tests" / BUILD SUCCESSFUL).
+      # Deshalb steht die gesamte Logik in EINER Zeile (POSIX, ohne bash-only Konstrukte).
       - name: Run instrumented tests on emulator
         uses: reactivecircus/android-emulator-runner@v2.38.0
         with:
@@ -185,26 +187,7 @@ jobs:
           emulator-boot-timeout: 600
           sdcard-path-or-size: 512M
           script: |
-            # Wichtig: Die Action fuehrt dieses script mit `/usr/bin/sh` (dash) aus.
-            # Daher nur POSIX-Konstrukte verwenden — kein `set -o pipefail` (bash-only,
-            # fuehrt unter sh zu Exit 2 und bricht den Lauf vor dem Test ab).
-            mkdir -p ci-logs
-
-            # Kein APK-Export: connectedDebugAndroidTest haengt nicht an assembleDebug
-            # (siehe lokaler Dry-Run und Projektregel assembleDebug.finalizedBy exportDebugApk).
-            ./gradlew :app:connectedDebugAndroidTest --no-daemon
-            test_status=$?
-            echo "connectedDebugAndroidTest exit=$test_status" | tee ci-logs/test-exit-code.txt
-
-            adb logcat -d > ci-logs/logcat.txt 2>/dev/null || echo "Logcat konnte nicht gesichert werden" > ci-logs/logcat-error.txt
-            adb shell getprop ro.build.version.sdk > ci-logs/emulator-api-level.txt 2>/dev/null || true
-
-            if [ "$test_status" -ne 0 ]; then
-              adb exec-out screencap -p > ci-logs/failure-screen.png 2>/dev/null || true
-              adb shell dumpsys activity > ci-logs/dumpsys-activity.txt 2>/dev/null || true
-            fi
-
-            exit "$test_status"
+            mkdir -p ci-logs; ./gradlew :app:connectedDebugAndroidTest --no-daemon; test_status=$?; echo "connectedDebugAndroidTest exit=$test_status" | tee ci-logs/test-exit-code.txt; adb logcat -d > ci-logs/logcat.txt 2>/dev/null || echo "Logcat konnte nicht gesichert werden" > ci-logs/logcat-error.txt; adb shell getprop ro.build.version.sdk > ci-logs/emulator-api-level.txt 2>/dev/null || true; if [ "$test_status" -ne 0 ]; then adb exec-out screencap -p > ci-logs/failure-screen.png 2>/dev/null || true; adb shell dumpsys activity > ci-logs/dumpsys-activity.txt 2>/dev/null || true; fi; exit "$test_status"
 
       # Ergebnis-Gate + Zusammenfassung (RSS-002 Phase 2C, verbindliche Erfolgskontrolle):
       # Der Job gilt nur als erfolgreich, wenn ALLE folgenden Bedingungen erfuellt sind:
