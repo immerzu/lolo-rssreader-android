@@ -1,11 +1,18 @@
 name: CI
 
-# Nur die benoetigten Trigger: Pushes auf main und Pull Requests gegen main.
+# Push/PR: Unit-Tests + Lint (unveraendert).
+# Zusaetzlich manuell (workflow_dispatch) und naechtlich (schedule) fuer den Emulator-Job.
 on:
   push:
     branches: [main]
   pull_request:
     branches: [main]
+  # Manuelle Ausloesung (z. B. fuer den Emulator-Job).
+  workflow_dispatch:
+  # Naechtlich 02:17 UTC (= 04:17 CEST), bewusst ausserhalb der Hauptlastzeit
+  # und nicht zur vollen Stunde (GitHub-Empfehlung wegen Lastspitzen).
+  schedule:
+    - cron: '17 2 * * *'
 
 # Minimale Rechte: die Pipeline liest nur den Code.
 # Kein Schreiben auf das Repository, keine Secrets, keine Releases, keine Pushes.
@@ -15,6 +22,9 @@ permissions:
 jobs:
   test-and-lint:
     name: Unit tests and Android Lint
+    # Laeuft unveraendert bei Push und Pull Request — nicht bei schedule/workflow_dispatch,
+    # damit der naechtliche/manuelle Lauf ausschliesslich den Emulator-Job ausfuehrt.
+    if: github.event_name == 'push' || github.event_name == 'pull_request'
     # Fest auf Ubuntu 24.04: das Label `ubuntu-latest` wird ab 19.10.2026 auf Ubuntu 26 umgestellt.
     runs-on: ubuntu-24.04
     timeout-minutes: 30
@@ -112,3 +122,219 @@ jobs:
             app/build/reports/lint-results-debug.html
             app/build/reports/lint-results-debug.xml
             app/build/reports/lint-results-debug.txt
+
+  # RSS-002 Phase 2C: instrumentierte Compose-UI-Tests auf einem Emulator.
+  # Startet NUR manuell (workflow_dispatch) oder naechtlich (schedule) — nie bei Push/PR.
+  instrumented-tests:
+    name: Instrumented UI tests (emulator)
+    if: github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+
+    env:
+      # Fuer die Job-Summary; muss zur Emulator-Konfiguration unten passen.
+      EMULATOR_API_LEVEL: '35'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v4
+        with:
+          accept-android-sdk-licenses: true
+          packages: 'platforms;android-36 build-tools;36.0.0'
+
+      - name: Make gradlew executable
+        run: chmod +x ./gradlew
+
+      # KVM ist auf GitHub-hosted Ubuntu-Runnern vorhanden, aber der Runner-User braucht
+      # Zugriff auf /dev/kvm. Ohne diesen Schritt startet der Emulator ohne
+      # Hardwarebeschleunigung (Bootzeiten explodieren) — dokumentiert im Emulator-Runner-README.
+      - name: Enable KVM group perms
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+          echo "--- KVM-Diagnose ---"
+          ls -l /dev/kvm || true
+          if [ -w /dev/kvm ]; then
+            echo "KVM: /dev/kvm ist beschreibbar."
+          else
+            echo "WARNUNG: /dev/kvm ist NICHT beschreibbar — der Emulator laeuft ggf. ohne Beschleunigung."
+          fi
+
+      # Die Action beendet ihren Emulator NACH dem script. Daher werden Testlauf,
+      # Exit-Code und Diagnose (Logcat, Screenshot) innerhalb des script gesichert.
+      # Der urspruengliche Exit-Code des Gradle-Laufs wird am Ende unveraendert
+      # zurueckgegeben — Diagnosefehler duerfen ihn nicht ueberschreiben.
+      - name: Run instrumented tests on emulator
+        uses: reactivecircus/android-emulator-runner@v2.38.0
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          disable-animations: true
+          emulator-boot-timeout: 600
+          sdcard-path-or-size: 512M
+          script: |
+            set -o pipefail
+            mkdir -p ci-logs
+
+            # Kein APK-Export: connectedDebugAndroidTest haengt nicht an assembleDebug
+            # (siehe lokaler Dry-Run und Projektregel assembleDebug.finalizedBy exportDebugApk).
+            ./gradlew :app:connectedDebugAndroidTest --no-daemon
+            test_status=$?
+            echo "connectedDebugAndroidTest exit=$test_status" | tee ci-logs/test-exit-code.txt
+
+            adb logcat -d > ci-logs/logcat.txt 2>/dev/null || echo "Logcat konnte nicht gesichert werden" > ci-logs/logcat-error.txt
+            adb shell getprop ro.build.version.sdk > ci-logs/emulator-api-level.txt 2>/dev/null || true
+
+            if [ "$test_status" -ne 0 ]; then
+              adb exec-out screencap -p > ci-logs/failure-screen.png 2>/dev/null || true
+              adb shell dumpsys activity > ci-logs/dumpsys-activity.txt 2>/dev/null || true
+            fi
+
+            exit "$test_status"
+
+      # Ergebnis-Gate + Zusammenfassung (RSS-002 Phase 2C, verbindliche Erfolgskontrolle):
+      # Der Job gilt nur als erfolgreich, wenn ALLE folgenden Bedingungen erfuellt sind:
+      #   1. Gradle-/Instrumentation-Exit-Code == 0
+      #   2. JUnit-XML vorhanden und auswertbar
+      #   3. genau die vier erwarteten Testfaelle (keine fehlenden, keine unerwarteten)
+      #   4. genau vier Tests ausgefuehrt, davon vier bestanden
+      #   5. keine Failures/Errors/Skipped
+      # Sonst endet der Step mit Exit 1 und der Job wird rot — ein erfolgreicher
+      # Gradle-Lauf ohne vollstaendigen JUnit-Nachweis ist KEIN Erfolg.
+      # Die Summary wird immer geschrieben (auch im Fehlerfall).
+      - name: Validate and summarize instrumented tests
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import glob, os, re, sys, xml.etree.ElementTree as ET
+
+          EXPECTED = {
+              "de.lolo.rssreader.ui.screens.FeedListScreenSmokeTest"
+              ".feedList_whenLoadedAndEmpty_showsEmptyState",
+              "de.lolo.rssreader.ui.screens.ArticleListUnreadFilterUiTest"
+              ".unreadFilter_toggleOnAndOff_showsCorrectArticlesAndLabels",
+              "de.lolo.rssreader.ui.screens.ArticleListUnreadFilterUiTest"
+              ".unreadFilter_isIndependentPerFeed_whenSwitchingFeeds",
+              "de.lolo.rssreader.ui.screens.ArticleListUnreadFilterUiTest"
+              ".unreadFilter_isRestoredByNewRepositoryInstanceOnSameStore",
+          }
+
+          api = os.environ.get("EMULATOR_API_LEVEL", "unbekannt")
+          problems = []
+          lines = ["## Instrumented UI tests", "", f"- Android API level: **{api}**"]
+
+          # 1) Gradle-/Instrumentation-Exit-Code
+          exit_file = "ci-logs/test-exit-code.txt"
+          gradle_exit = None
+          if os.path.exists(exit_file):
+              match = re.search(r"exit=(\d+)", open(exit_file, encoding="utf-8").read())
+              if match:
+                  gradle_exit = int(match.group(1))
+          if gradle_exit is None:
+              problems.append("Gradle-Exit-Code nicht aufgezeichnet")
+          elif gradle_exit != 0:
+              problems.append(f"Gradle-Exit-Code {gradle_exit} != 0")
+          lines.append(f"- `connectedDebugAndroidTest` exit code: "
+                       f"**{gradle_exit if gradle_exit is not None else 'nicht aufgezeichnet'}**")
+
+          # 2) JUnit-XML einsammeln und auswerten
+          # Ein einziges rekursives Pattern; normpath-Dedupe verhindert Doppelzaehlung
+          # (ueberlappende Patterns hatten die XML sonst zweimal gezaehlt -> falsches Rot).
+          pattern = "app/build/outputs/androidTest-results/connected/**/TEST-*.xml"
+          files = sorted({os.path.normpath(p) for p in glob.glob(pattern, recursive=True)})
+
+          total = failures = errors = skipped = 0
+          found = set()
+          if not files:
+              problems.append("keine JUnit-XML-Dateien gefunden")
+              lines.append("- **Keine JUnit-XML-Dateien gefunden** — der Emulator kann gestartet "
+                           "sein, ohne dass die Tests gelaufen sind. Das ist KEIN Erfolgsnachweis.")
+          else:
+              for path in files:
+                  try:
+                      root = ET.parse(path).getroot()
+                  except Exception as exc:  # noqa: BLE001 - jede Unlesbarkeit ist ein Fehler
+                      problems.append(f"JUnit-XML nicht auswertbar: {path} ({exc})")
+                      continue
+                  total += int(root.get("tests", 0))
+                  failures += int(root.get("failures", 0))
+                  errors += int(root.get("errors", 0))
+                  skipped += int(root.get("skipped", 0))
+                  for case in root.iter("testcase"):
+                      name = case.get("name")
+                      cls = case.get("classname")
+                      if name and cls:
+                          found.add(f"{cls}.{name}")
+
+          missing = sorted(EXPECTED - found)
+          unexpected = sorted(found - EXPECTED)
+          passed = total - failures - errors - skipped
+
+          # 3) Exakte Vier-Test-Pruefung
+          if files:
+              if total != 4:
+                  problems.append(f"{total} Tests ausgefuehrt, erwartet 4")
+              if failures != 0:
+                  problems.append(f"{failures} Failures")
+              if errors != 0:
+                  problems.append(f"{errors} Errors")
+              if skipped != 0:
+                  problems.append(f"{skipped} Skipped")
+              if missing:
+                  problems.append("fehlende Testfaelle: " + ", ".join(missing))
+              if unexpected:
+                  problems.append("unerwartete Testfaelle: " + ", ".join(unexpected))
+
+          result = "PASSED" if not problems else "FAILED"
+          lines += [
+              f"- Tests run: **{total}**",
+              f"- Passed: **{passed}**",
+              f"- Failures: **{failures}**",
+              f"- Errors: **{errors}**",
+              f"- Skipped: **{skipped}**",
+              f"- Expected test cases: **4** (missing: {len(missing)}, unexpected: {len(unexpected)})",
+              f"- Overall: **{result}**",
+          ]
+          if problems:
+              lines.append("")
+              lines.append("### Fehler")
+              lines += [f"- {p}" for p in problems]
+
+          for extra in ("ci-logs/logcat.txt", "ci-logs/failure-screen.png"):
+              lines.append(f"- {extra}: {'vorhanden' if os.path.exists(extra) else 'nicht vorhanden'}")
+
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as handle:
+              handle.write("\n".join(lines) + "\n")
+
+          if problems:
+              print("VALIDATION FAILED:")
+              for p in problems:
+                  print(f"  - {p}")
+              sys.exit(1)
+          print("VALIDATION PASSED: 4/4 UI-Tests bestanden.")
+          PY
+
+      # Berichte + Diagnose auch bei fehlgeschlagenen Tests hochladen.
+      # Keine Keystores, Zugangsdaten oder Nutzerdaten.
+      - name: Upload instrumented test reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: instrumented-test-reports
+          if-no-files-found: warn
+          path: |
+            app/build/outputs/androidTest-results/connected/**
+            app/build/reports/androidTests/connected/**
+            ci-logs/**
