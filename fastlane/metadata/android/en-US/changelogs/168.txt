@@ -1,0 +1,5 @@
+Version 1.87.39: safer background refresh and article read marking.
+- A cancelled background refresh is no longer logged or retried as a failed refresh
+- Marking an article as read can no longer crash the reader view on a database error
+- A failed read-marking is retried on the next trigger instead of being treated as done
+- No changes to feeds, filters, navigation or the reader UI
