@@ -87,6 +87,8 @@ android {
         applicationId = "de.lolo.rssreader"
         minSdk = 26
         targetSdk = 36
+        // Instrumentierte Compose-UI-Tests (RSS-002 Phase 2A).
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         // Keep the version directly visible for external scanners like F-Droid.
         versionCode = resolvedVersionCode
         versionName = resolvedVersionName
@@ -205,6 +207,11 @@ dependencies {
     testImplementation(libs.robolectric)
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.androidx.work.testing)
+
+    // Instrumentierte Compose-UI-Tests: ui-test-junit4 versionslos ueber die vorhandene Compose-BOM.
+    androidTestImplementation(platform(libs.androidx.compose.bom))
+    androidTestImplementation(libs.androidx.compose.ui.test.junit4)
+    androidTestImplementation(libs.androidx.test.ext.junit)
 
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
