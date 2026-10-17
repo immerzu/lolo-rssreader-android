@@ -16,10 +16,19 @@ import kotlinx.coroutines.flow.map
 // simulieren und belegen koennen, dass er keinen Feed-Zustand mehr beeinflusst.
 internal val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "rss_reader_settings")
 
-class SettingsRepository(context: Context) {
+class SettingsRepository(
+    context: Context,
+    /**
+     * Nur fuer Tests injizierbar (RSS-002 Phase 2B). Produktiv gilt weiterhin
+     * [Context.dataStore] mit dem Namen `rss_reader_settings`; alle Einstellungen
+     * einer Instanz lesen und schreiben dann denselben Store.
+     */
+    injectedDataStore: DataStore<Preferences>? = null
+) {
     private val appContext = context.applicationContext
+    private val store: DataStore<Preferences> = injectedDataStore ?: appContext.dataStore
 
-    val settings: Flow<AppPreferences> = appContext.dataStore.data.map { preferences ->
+    val settings: Flow<AppPreferences> = store.data.map { preferences ->
         AppPreferences(
             refreshOnStart = preferences[REFRESH_ON_START] ?: false,
             refreshOnlyOnWifi = preferences[REFRESH_ONLY_ON_WIFI] ?: false,
@@ -49,7 +58,7 @@ class SettingsRepository(context: Context) {
      * `show_unread_only` wird bewusst nicht mehr gelesen.
      */
     fun unreadOnlyFilterForFeed(feedId: Long): Flow<Boolean> =
-        appContext.dataStore.data.map { preferences ->
+        store.data.map { preferences ->
             preferences[unreadOnlyFilterKey(feedId)] ?: false
         }
 
@@ -67,7 +76,7 @@ class SettingsRepository(context: Context) {
     }
 
     suspend fun setNotificationsEnabled(value: Boolean) {
-        appContext.dataStore.edit { preferences ->
+        store.edit { preferences ->
             preferences[NOTIFICATIONS_ENABLED] = value
             if (!value) {
                 preferences[NOTIFICATION_PERMISSION_PROMPT_SHOWN] = false
@@ -84,26 +93,26 @@ class SettingsRepository(context: Context) {
     }
 
     suspend fun setRefreshIntervalMinutes(value: Int) {
-        appContext.dataStore.edit { preferences ->
+        store.edit { preferences ->
             preferences[REFRESH_INTERVAL_MINUTES] = value
             preferences.remove(REFRESH_INTERVAL_HOURS)
         }
     }
 
     suspend fun setThemeMode(value: ThemeMode) {
-        appContext.dataStore.edit { preferences ->
+        store.edit { preferences ->
             preferences[THEME_MODE] = value.name
         }
     }
 
     suspend fun setEntrySortOrder(value: EntrySortOrder) {
-        appContext.dataStore.edit { preferences ->
+        store.edit { preferences ->
             preferences[ENTRY_SORT_ORDER] = value.name
         }
     }
 
     suspend fun setArticleBodyTextSizeOffset(value: Int) {
-        appContext.dataStore.edit { preferences ->
+        store.edit { preferences ->
             preferences[ARTICLE_BODY_TEXT_SIZE_OFFSET] = value.coerceIn(-2, 2)
         }
     }
@@ -111,7 +120,7 @@ class SettingsRepository(context: Context) {
     suspend fun getCurrentSettings(): AppPreferences = settings.first()
 
     private suspend fun updatePreference(key: Preferences.Key<Boolean>, value: Boolean) {
-        appContext.dataStore.edit { preferences ->
+        store.edit { preferences ->
             preferences[key] = value
         }
     }
