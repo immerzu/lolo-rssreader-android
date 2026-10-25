@@ -1538,6 +1538,11 @@ private fun configureReaderWebViewSettings(
             mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
             safeBrowsingEnabled = true
         }
+        // Kein Scrollbalken in der Leseansicht: Lange Beitraege werden ohnehin per
+        // Fingerwisch gescrollt; der Indikator liegt nur am rechten Rand und stoert
+        // dort die Wischgeste zum Beitragswechsel.
+        webView.isVerticalScrollBarEnabled = false
+        webView.isHorizontalScrollBarEnabled = false
         DebugLogger.d(
             TAG,
             buildString {
