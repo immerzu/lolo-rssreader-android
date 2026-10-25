@@ -18,9 +18,9 @@ cd F:\001_Coding_Projekte\RSS_Reader_Android\rss_reader_full_project
 ## 3. Tag setzen und pushen
 
 ```powershell
-git tag -a v1.87.36 -m "Release RSS Reader 1.87.36"
-git push origin v1.87.36
-git push gitlab v1.87.36
+git tag -a vX.Y.Z -m "Release RSS Reader X.Y.Z"
+git push origin vX.Y.Z
+git push gitlab vX.Y.Z
 ```
 
 Tag-Format exakt `vX.Y.Z` (F-Droid erkennt `^v[\d.]+$`).
@@ -29,7 +29,7 @@ Tag-Format exakt `vX.Y.Z` (F-Droid erkennt `^v[\d.]+$`).
 
 ```powershell
 .\gradlew.bat exportReleaseApk
-gh release create v1.87.36 "F:\001_Coding_Projekte\RSS_Reader_Android\Ausgabe_APK\RSS-Reader-v1.87.36-release.apk"
+gh release create vX.Y.Z "F:\001_Coding_Projekte\RSS_Reader_Android\Ausgabe_APK\RSS-Reader-vX.Y.Z-release.apk"
 ```
 
 Asset-Name exakt `RSS-Reader-v<version>-release.apk` (wird vom `Binaries:`-Feld erwartet).

@@ -1,0 +1,5 @@
+Version 1.87.39: sicherere Hintergrundaktualisierung und Gelesen-Markierung.
+- Ein abgebrochener Hintergrund-Lauf wird nicht mehr als Fehler protokolliert oder erneut versucht
+- Ein Datenbankfehler beim Markieren als gelesen kann die Leseransicht nicht mehr abstuerzen lassen
+- Eine fehlgeschlagene Markierung wird beim naechsten Ausloeser erneut versucht
+- Keine Aenderungen an Feeds, Filtern, Navigation oder Leser-Oberflaeche

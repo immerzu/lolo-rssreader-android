@@ -11,9 +11,9 @@ Die App `de.lolo.rssreader` ist im **offiziellen F-Droid-Katalog** und wird dort
 3. Annotierten Git-Tag im Format `vX.Y.Z` setzen und nach GitHub pushen:
 
    ```powershell
-   git tag -a v1.87.36 -m "Release RSS Reader 1.87.36"
-   git push origin v1.87.36
-   git push gitlab v1.87.36
+   git tag -a vX.Y.Z -m "Release RSS Reader X.Y.Z"
+   git push origin vX.Y.Z
+   git push gitlab vX.Y.Z
    ```
 
    F-Droid `UpdateCheckMode: Tags ^v[\d.]+$` erkennt nur dieses Format.
@@ -22,7 +22,7 @@ Die App `de.lolo.rssreader` ist im **offiziellen F-Droid-Katalog** und wird dort
 5. APK als GitHub-Release-Asset unter dem Tag hochladen, Name exakt `RSS-Reader-vX.Y.Z-release.apk`:
 
    ```powershell
-   gh release create v1.87.36 "F:\001_Coding_Projekte\RSS_Reader_Android\Ausgabe_APK\RSS-Reader-v1.87.36-release.apk"
+   gh release create vX.Y.Z "F:\001_Coding_Projekte\RSS_Reader_Android\Ausgabe_APK\RSS-Reader-vX.Y.Z-release.apk"
    ```
 
    Dieses Asset wird vom `Binaries:`-Feld der F-Droid-Metadaten erwartet:
