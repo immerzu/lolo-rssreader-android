@@ -1,0 +1,5 @@
+Version 1.87.40: ungestoerte Wischgeste in der Artikelansicht.
+- Der Scrollbalken am rechten Rand wird nicht mehr angezeigt
+- Auch der horizontale WebView-Scrollbalken ist deaktiviert
+- Scrollen per Finger und der Wechsel zwischen Artikeln bleiben unveraendert
+- Keine Datenbankmigration und keine neuen Abhaengigkeiten

@@ -1,0 +1,5 @@
+Version 1.87.40: unobstructed swipe gesture in the article reader.
+- The scrollbar at the right edge is no longer shown
+- The horizontal WebView scrollbar is disabled as well
+- Finger scrolling and switching between articles remain unchanged
+- No database migration and no new dependencies
