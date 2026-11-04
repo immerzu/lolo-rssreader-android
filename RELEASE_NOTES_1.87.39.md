@@ -27,3 +27,14 @@ Reine Härtung von zwei Fehlerpfaden aus dem laufenden Betrieb: Die Hintergrunda
 - Gerätetest auf bq Aquaris X2 Pro (Android 10 / API 29) mit dem Debug-Build 1.87.39/168: Artikel öffnen, Weiterwischen, Leseransicht verlassen, App in den Hintergrund, Ungelesen-Filter — jeweils korrekte Gelesen-Markierung, keine Regression beobachtet. Die erzwungene Cancellation unter einem Android-Systemstopp ist nicht gerätegeprüft; sie ist durch die Unit-Tests abgesichert.
 - Release-Build: signierte APK mit JDK-21-Toolchain erzeugt; JDK-Nachweis am Artefakt (`dexdump -d` auf `classes2.dex`, `insns size` von `HomeScreen`/`FeedConfigScreen` = **3298 / 790** = JDK-21-Spalte).
 - APK: `RSS-Reader-v1.87.39-release.apk`, 13.015.893 B, SHA-256 `304559d2ecde3558b851f05873cbdab49b9d647ff3242bde84439cade17cc95a`, Signaturzertifikat `CN=RSS Reader` (SHA-256 `2fb2657d…`).
+
+## Veröffentlichung und F-Droid-Status
+
+**Veröffentlicht am 2026-10-17** (Stand dieses Abschnitts: 2026-10-30):
+- Annotierter Tag `v1.87.39` (Tag-Objekt `789be3e585dc49d6f5f8f99ea5a87c959c871e0f` → Commit `4a5c6498d099aa01077b74ef0f73a5c3917609d1`), auf **beiden** Remotes.
+- GitHub-Release „RSS Reader 1.87.39" (nicht Draft, nicht Prerelease, veröffentlicht 2026-10-17T11:36:53Z) mit Asset `RSS-Reader-v1.87.39-release.apk` (13.015.893 Bytes, `sha256:304559d2ecde3558b851f05873cbdab49b9d647ff3242bde84439cade17cc95a`).
+
+**F-Droid: ausgeliefert** (belegt am 2026-10-30):
+- Bot-MR **!53039** („bot: Update RSS Reader to 168"), gemergt am **2026-10-18T09:37:28Z**, CI-Pipeline `success`; der Bot-Commit `299cdb0e` trägt `CurrentVersion: 1.87.39` / `CurrentVersionCode: 168`.
+- Build `de.lolo.rssreader:168` am **2026-10-20** (Log 03:33:24–03:35:41): `BUILD SUCCESSFUL`, `compared built binary to supplied reference binary successfully`, erlaubter Signer `2fb2657d…`, `1 build succeeded`.
+- Der F-Droid-Index führt `suggestedVersionCode: **168**` (Pakete 1.87.39/168, 1.87.37/166, 1.87.36/165). **1.87.38/167 fehlt** dort — siehe `RELEASE_NOTES_1.87.38.md`.

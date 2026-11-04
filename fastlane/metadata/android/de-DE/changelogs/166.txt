@@ -1,0 +1,3 @@
+Version 1.87.37: Fehlende Artikel nach dem Löschen gelesener Einträge behoben.
+- Feeds ohne lokalen Artikelbestand werden wieder vollständig abgerufen
+- "Aktualisierungsdatum zurücksetzen" setzt etag/lastModified zurück und markiert die Artikel als ungelesen

@@ -1,0 +1,3 @@
+Version 1.87.37: Fixed missing articles after deleting read entries.
+- Feeds without local articles are fetched in full again instead of being skipped
+- "Reset update date" clears etag/lastModified and marks the articles unread

@@ -29,6 +29,14 @@ Neue Funktion aus GitHub Issue #12: Die Schaltfläche „Nur ungelesene Artikel"
 - Signatur (beide): `2fb2657d3215dce8bc1b5a7ad84cf083ea6f3e3cde242fdb65e21d81a3b61e02`
 
 ## Veröffentlichung und F-Droid-Status
-- **Noch nicht veröffentlicht** (Stand der Vorbereitung: 2026-10-16). Vorgesehen sind: annotierter Tag `v1.87.38` an GitHub und GitLab, GitHub-Release „RSS Reader 1.87.38" mit dem Asset `RSS-Reader-v1.87.38-release.apk`.
-- F-Droid: kein manueller Merge-Request. Die Metadaten führen `AutoUpdateMode: Version` und `UpdateCheckMode: Tags ^v[\d.]+$`; das `Binaries`-Feld erwartet exakt `…/releases/download/v%v/RSS-Reader-v%v-release.apk` — der Dateiname dieses Releases passt dazu. Erwartet wird, dass der `checkupdates`-Lauf die Version nach dem Tag-Push selbstständig nachzieht. Veröffentlichter Stand zum Zeitpunkt der Vorbereitung: **1.87.37 / 166**.
-- Ein erfolgreicher F-Droid-Reproduzierbarkeits-Build ist zum jetzigen Zeitpunkt **nicht** nachgewiesen und wird hier nicht behauptet.
+
+**Veröffentlicht am 2026-10-16** (Stand dieses Abschnitts: 2026-10-30):
+- Annotierter Tag `v1.87.38` (Tag-Objekt `3bf302a10713be8ac66193176c94c19d9a2ec75b` → Commit `a17588b1aa019935966dd7f511b3fa6c8a27e839`), auf **beiden** Remotes.
+- GitHub-Release „RSS Reader 1.87.38" (nicht Draft, nicht Prerelease, veröffentlicht 2026-10-16T05:35:18Z) mit Asset `RSS-Reader-v1.87.38-release.apk` (13.015.889 Bytes, `sha256:90e5ba0db61d310b91cc0c8e78a84d37f1f9919e16e264e88773d316cf22c151`).
+- **JDK-Nachweis am Artefakt** (`dexdump -d` auf `classes2.dex`): `HomeScreen` = **3298**, `FeedConfigScreen` = **790** — JDK-21-Spalte. Ein erster Release-Build mit JDK 17 (`HomeScreen` = 3576, `FeedConfigScreen` = 880; SHA-256 `5E86D570…`) wurde **verworfen und nicht veröffentlicht**; er liegt außerhalb des Repos unter `..\!old\_release_1_87_38_jdk17_verworfen\`.
+
+**F-Droid: diese Version wurde nicht ausgeliefert** (belegt am 2026-10-30):
+- Der Bot erkannte den Tag und legte MR **!52871** („bot: Update RSS Reader to 167") an; gemergt am **2026-10-17T08:11:12Z**, CI-Pipeline `success`.
+- Ein Build für 167 lief **nie** an: `https://monitor.f-droid.org/builds/log/de.lolo.rssreader/167` → **HTTP 404** („no logs available for this build").
+- Der Build-Eintrag wurde am **2026-10-18** mit dem fdroiddata-Commit `286089aa` (Autor `linsui`, Titel „keep latest") wieder **entfernt**. Der F-Droid-Index führt 167 deshalb nicht; auf 1.87.37/166 folgte direkt **1.87.39/168**.
+- Ein Reproduzierbarkeits-Build für 167 ist damit **nicht** nachgewiesen und wird hier nicht behauptet.

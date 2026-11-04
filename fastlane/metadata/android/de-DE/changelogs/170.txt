@@ -1,0 +1,4 @@
+Version 1.87.41: Medien in Artikeln werden einheitlich dargestellt.
+- Videos aus Feeds werden nicht mehr abgeschnitten oder verzerrt
+- Bilder, Audio, Videos und eingebettete Inhalte werden begrenzt und zentriert
+- Keine Aenderung an Feeds, Filtern oder Navigation

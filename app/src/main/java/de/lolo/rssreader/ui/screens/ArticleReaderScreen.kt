@@ -1068,6 +1068,24 @@ private fun buildReaderHtml(
               font-size: 0.92rem;
               line-height: 1.45;
             }
+            /* Universell: Medieninhalte werden auf die verfuegbare Breite begrenzt und
+               horizontal zentriert — unabhaengig davon, welches Element der Feed liefert
+               (Bild, Video, Audio/Podcast, iframe, Canvas, Twitter-Embed). */
+            picture, video, audio, iframe, canvas, twitterwidget {
+              display: block;
+              max-width: 100% !important;
+              margin-left: auto !important;
+              margin-right: auto !important;
+            }
+            /* Inline-SVG nicht auf display:block zwingen (Icons im Fliesstext), nur begrenzen. */
+            svg {
+              max-width: 100% !important;
+              height: auto !important;
+            }
+            audio {
+              width: min(100%, ${imageMaxWidthPx}px) !important;
+              margin: 1em auto 1.15em;
+            }
             iframe {
               display: block;
               width: min(100%, 560px) !important;
@@ -1080,8 +1098,7 @@ private fun buildReaderHtml(
             iframe[src*="youtube.com"],
             iframe[src*="youtu.be"],
             iframe[src*="youtube-nocookie.com"],
-            iframe[src*="player.vimeo.com"],
-            video {
+            iframe[src*="player.vimeo.com"] {
               display: block;
               width: min(100%, ${imageMaxWidthPx}px) !important;
               max-width: 100% !important;
@@ -1092,6 +1109,27 @@ private fun buildReaderHtml(
               border: 0;
               border-radius: 14px;
               background: #000;
+            }
+            /* Feed-Embeds bringen teils feste Breiten mit (WordPress: <div style="width: 640px" class="wp-video">).
+               Ohne diese Regel bezieht sich max-width:100% des Videos auf den breiten Container statt auf den
+               Viewport, und das Video wird rechts abgeschnitten dargestellt. */
+            div[style*="width"], div[style*="height"] {
+              width: auto !important;
+              max-width: 100% !important;
+              height: auto !important;
+            }
+            /* Video ohne max-height-Kappung: eine gedeckelte Hoehe bei voller Breite verzerrt das Seitenverhaeltnis. */
+            video {
+              display: block;
+              width: 100% !important;
+              max-width: 100% !important;
+              height: auto !important;
+              aspect-ratio: 16 / 9;
+              margin: 1em auto 1.15em;
+              border: 0;
+              border-radius: 14px;
+              background: #000;
+              object-fit: contain;
             }
             table {
               display: block;
@@ -1251,6 +1289,7 @@ private fun String.normalizeReaderBodyHtml(loadProfile: ReaderLoadProfile): Stri
     // sonst das Layout zerstören (Text neben grossen Bildern in Mini-Spalte).
     normalizedHtml = readerImgStyleAttributeRegex.replace(normalizedHtml, "$1$2")
     normalizedHtml = readerFigureStyleAttributeRegex.replace(normalizedHtml, "$1$2")
+    normalizedHtml = normalizedHtml.stripVideoSizeAttributes()
     normalizedHtml = readerInteractionAttributeRegex.replace(normalizedHtml, "")
     normalizedHtml = readerMetadataAttributeRegex.replace(normalizedHtml, "")
     normalizedHtml = readerAccessibilityAttributeRegex.replace(normalizedHtml, "")
@@ -1261,6 +1300,21 @@ private fun String.normalizeReaderBodyHtml(loadProfile: ReaderLoadProfile): Stri
     return readerHeavyMediaTagRegex
         .replace(normalizedHtml, "")
         .limitReaderImages(READER_HEAVY_ARTICLE_MAX_IMAGES)
+}
+
+// Entfernt width/height aus <video>-Tags. Ein Regex-Durchlauf trifft nur das erste
+// Attribut, weil der Anker "<video" im bereits konsumierten Bereich liegt; deshalb
+// wird wiederholt, bis sich nichts mehr aendert.
+private fun String.stripVideoSizeAttributes(): String {
+    var current = this
+    repeat(4) {
+        val next = readerVideoSizeAttributeRegex.replace(current, "$1")
+        if (next == current) {
+            return current
+        }
+        current = next
+    }
+    return current
 }
 
 private fun String.requiresReaderJavaScript(): Boolean {
@@ -1709,6 +1763,13 @@ private val readerImgStyleAttributeRegex = Regex(
 )
 private val readerFigureStyleAttributeRegex = Regex(
     "(<figure\\b[^>]*?)\\s+style\\s*=\\s*(?:\"[^\"]*\"|'[^']*')([^>]*?>)",
+    RegexOption.IGNORE_CASE
+)
+// Entfernt feste Breiten-/Hoehenattribute aus <video>-Tags. WordPress-Embeds liefern
+// width="640" height="360"; die Groesse soll aber das Reader-CSS bestimmen, sonst
+// behaelt das Video seine intrinsische Groesse und ragt aus dem Viewport.
+private val readerVideoSizeAttributeRegex = Regex(
+    "(<video\\b[^>]*?)\\s(?:width|height)\\s*=\\s*(?:\"[^\"]*\"|'[^']*'|[^\\s>]+)",
     RegexOption.IGNORE_CASE
 )
 private val readerInteractionAttributeRegex = Regex(

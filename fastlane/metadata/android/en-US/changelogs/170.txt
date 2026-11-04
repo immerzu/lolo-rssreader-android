@@ -1,0 +1,4 @@
+Version 1.87.41: media in articles are rendered consistently.
+- Videos from feeds are no longer cropped or distorted
+- Images, audio, videos and embedded content are limited and centered
+- No changes to feeds, filters or navigation

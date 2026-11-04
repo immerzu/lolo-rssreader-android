@@ -2,11 +2,14 @@
 
 Stand: 2026-05-10 — **historisches Konzept; alle Zahlen und Pfade unten sind der damalige Stand.**
 
-> **Ist-Stand am 11.10.2026 (belegt):**
+> **Ist-Stand am 30.10.2026 (belegt):**
 > - Repo `rss_reader_full_project`: `origin` (GitHub) und `gitlab` fuehren **nur** den Branch `main`;
->   `HEAD` = `origin/main` = `gitlab/main` = `3e8d9cd21f06fbb360a2b71b8d0a0b1748a7a45b` (Stand 11.10.2026,
->   nach `283030f` und `f198b20`), Arbeitsbaum **zum Zeitpunkt der Erhebung** sauber (keine offenen Aenderungen).
-> - Tags: **38** insgesamt, davon **37 Versionstags** von `v1.50.09-101` bis `v1.87.36`, dazu `backup-20260830`.
+>   `HEAD` = `origin/main` = `gitlab/main` = `865952c575eb32885ec2c9d67a124d47c80b9142` („Release v1.87.40 (169)"),
+>   Arbeitsbaum **zum Zeitpunkt der Erhebung** sauber (keine offenen Aenderungen).
+> - Tags: **42** insgesamt, davon **41 mit `v`-Praefix** von `v1.50.09-101` bis `v1.87.40`, dazu `backup-20260830`.
+>   Sieben davon weichen vom reinen Versionstag-Schema `vX.Y.Z` ab: `v1.50.09-101`, `v1.50.11-103`,
+>   `v1.60.20-stable-20260326-120705`, `v1.60.21-release`, `v1.70.01-translate-release`, `v1.70.02-stable`,
+>   `v1.70.03-stable`. Die eigentlichen Release-Tags der App folgen `vX.Y.Z` (seit 1.81.00 durchgehend).
 > - `fdroiddata_fork` **existiert lokal nicht mehr** (geloescht am 30.08.2026); der Fork lebt nur als
 >   GitLab-Remote `https://gitlab.com/immerzu46/fdroiddata`.
 > - `audit_release_comparison/` **existiert nicht mehr**.
@@ -14,7 +17,7 @@ Stand: 2026-05-10 — **historisches Konzept; alle Zahlen und Pfade unten sind d
 >   die Sicherung stuetzt sich auf Tags und die beiden Remotes.
 > - Der Gradle-Build braucht ein auffindbares **JDK 21** (`kotlin { jvmToolchain(21) }`);
 >   die Release-APK entsteht mit `.\gradlew.bat exportReleaseApk` in `Ausgabe_APK\`.
-> - `version.properties` = **1.87.36 / 165**.
+> - `version.properties` = **1.87.40 / 169**.
 
 ## 1. Datenquellen
 

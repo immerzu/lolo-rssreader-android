@@ -124,7 +124,7 @@ Die App ist im offiziellen F-Droid-Katalog und wird dort im **Auto-Modus** gepfl
 
 Ablauf pro Release:
 
-1. Annotierten Git-Tag `vX.Y.Z` (Format `^v[\d.]+$`, z.B. `v1.87.36`) auf den Release-Commit setzen und an GitHub **und** GitLab pushen.
+1. Annotierten Git-Tag `vX.Y.Z` (Format `^v[\d.]+$`, z.B. `v1.87.40`) auf den Release-Commit setzen und an GitHub **und** GitLab pushen.
 2. Signierte Release-APK bauen (`exportReleaseApk` — legt sie in `Ausgabe_APK\` ab) und als GitHub-Release-Asset mit dem
    Namen `RSS-Reader-vX.Y.Z-release.apk` unter dem Tag hochladen (z.B. `gh release create vX.Y.Z ...`).
    Dieses Asset wird vom `Binaries:`-Feld der F-Droid-Metadaten erwartet
@@ -137,6 +137,11 @@ Ablauf pro Release:
 4. Build-Status beobachten: https://monitor.f-droid.org/ (Startseite). Achtung: die App-Uebersicht
    `https://monitor.f-droid.org/builds/de.lolo.rssreader/` liefert **HTTP 404** (geprueft 11.10.2026) —
    Logs je Version: `https://monitor.f-droid.org/builds/log/de.lolo.rssreader/<versionCode>`.
+   Ein **404** dort kann auch bedeuten, dass fuer diese Version **nie ein Build lief** (belegt bei
+   1.87.38/167: Bot-MR !52871 gemergt am 17.10.2026, Build-Log 404, Build-Eintrag am 18.10.2026 durch
+   fdroiddata-Commit `286089aa` „keep latest" entfernt → die Version wurde bei F-Droid **uebersprungen**,
+   der Index ging direkt von 166 auf 168). Eine angenommene, aber nicht gebaute Version ist daher
+   **kein** Beleg fuer eine Auslieferung.
 
 **Der Reproduzierbarkeitsvergleich findet ausschliesslich extern bei F-Droid statt.** Er ist lokal
 nicht nachstellbar; die lokalen Nachweise aus Abschnitt 5a sind notwendige, aber **keine hinreichende**

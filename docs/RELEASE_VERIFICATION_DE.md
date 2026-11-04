@@ -4,7 +4,7 @@
 > (`F:\Codex\...`), der Paketname `com.example.rssreader` und die Version sind der damalige Stand.
 > Heute gilt: Paket `de.lolo.rssreader`, Projektordner
 > `F:\001_Coding_Projekte\RSS_Reader_Android\rss_reader_full_project`, aktuelle Version siehe
-> `version.properties` (derzeit 1.87.36 / 165). Nicht als aktuelles Prüfprotokoll verwenden —
+> `version.properties` (derzeit 1.87.40 / 169). Nicht als aktuelles Prüfprotokoll verwenden —
 > die heutige Nachweiskette beschreibt der Skill `fdroid-release-rssreader` (Ablauf D).
 
 Stand dieser Verifikation:

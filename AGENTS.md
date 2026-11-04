@@ -29,12 +29,14 @@
   `assembleRelease` allein laesst die APK in `app/build/outputs/apk/release/` liegen)
   (Signierung: Passwörter aus dem Windows-Credential-Manager via `tools/get-signing-secret.ps1`; `keystore.properties` enthält nur `storeFile`/`keyAlias`)
 - Tests: `gradlew.bat testDebugUnitTest`
+- CI: `.github/workflows/ci.yml` — bei Push/PR auf `main` Unit-Tests + Android Lint; der Emulator-Job
+  fuer die instrumentierten UI-Tests laeuft **nur manuell** (`workflow_dispatch`, kein Zeitplan)
 - Android Studio starten: `start-android-studio.ps1`
 
 ## Versionierung
 - Version ausschließlich in `version.properties` (VERSION_CODE, VERSION_NAME)
 - Gradle-Task `bumpReleaseVersion` erhöht Version und schreibt ausschließlich `version.properties`
-- Git-Tags für Releases: `v<major>.<minor>.<patch>` (z.B. `v1.87.12`)
+- Git-Tags für Releases: `v<major>.<minor>.<patch>` (z.B. `v1.87.40`)
 
 ## Release-Prozess
 - Checkliste: `RELEASE_CHECKLIST_RSS_READER_DE.md`
@@ -50,7 +52,12 @@
   `CurrentVersion` in `fdroiddata` pruefen; ein manueller MR aus dem eigenen Fork ist **nur der Notnagel**
   (so geschehen bei !49133, gemergt am 16.09.2026).
 - Die Release-APK muss mit **JDK 21** entstehen (Toolchain ist fixiert) — sonst scheitert der
-  Reproducible-Build-Vergleich gegen das `Binaries`-Asset.
+  Reproducible-Build-Vergleich gegen das `Binaries`-Asset. Release-Build immer mit `--rerun-tasks`
+  (inkrementell kann Bytecode aus einem frueheren JDK-Lauf weiterverwendet werden; belegt 16.10.2026).
+- Eine getaggte Version kann bei F-Droid **uebersprungen** werden. Belegt bei 1.87.38/167: Build-Log
+  **404** (nie gebaut), Build-Eintrag am 18.10.2026 durch den fdroiddata-Commit `286089aa` („keep latest")
+  entfernt. Ein gemergter Bot-MR belegt daher **keine** Auslieferung — nur ein Build-Log mit
+  `1 build succeeded` oder ein Index-Eintrag.
 - Details: `RELEASE_CHECKLIST_RSS_READER_DE.md` Abschnitt 6 und `memory/plattform_repositories.md` Abschnitt 9.
 
 ## Code-Stil

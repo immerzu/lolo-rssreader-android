@@ -2,7 +2,7 @@
 
 > **Historical — the app was accepted into the official F-Droid catalogue, the submission is done.**
 > The version numbers below (`1.87.30 / 159`) are the state at submission time. Current state:
-> `1.87.36 / 165` (see `version.properties`); updates run through `AutoUpdateMode: Version`
+> `1.87.40 / 169` (see `version.properties`); updates run through `AutoUpdateMode: Version`
 > (see `docs/FDROID_UPDATE_ANLEITUNG_DE.md`, and `RELEASE_NOTES_1.87.36.md` for the manual MR case).
 
 Use this text as the basis for a new app submission in the official F-Droid GitLab.

@@ -28,6 +28,12 @@ Via Android Studio through `Build > Build APK(s)` or locally via `gradlew.bat as
 Before a release candidate, additionally run `gradlew.bat exportReleaseApk` (builds, signs and copies the APK
 into `../Ausgabe_APK/`) and use the checklist in [RELEASE_CHECKLIST_RSS_READER_DE.md](RELEASE_CHECKLIST_RSS_READER_DE.md).
 
+## Tests and CI
+Unit tests: `gradlew.bat testDebugUnitTest` (JUnit 4 + Robolectric). A GitHub Actions workflow
+[.github/workflows/ci.yml](.github/workflows/ci.yml) runs unit tests and Android Lint on every push and pull
+request to `main`; the emulator job for the instrumented UI tests runs **manually only**
+(`workflow_dispatch`, no schedule).
+
 ## F-Droid Metadata
 Store metadata for F-Droid is located under `fastlane/metadata/android/`.
 A short note on the official submission is in [docs/FDROID_EINREICHUNG_DE.md](docs/FDROID_EINREICHUNG_DE.md).

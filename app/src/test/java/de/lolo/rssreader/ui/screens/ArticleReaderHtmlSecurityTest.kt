@@ -169,6 +169,49 @@ class ArticleReaderHtmlSecurityTest {
     }
 
     @Test
+    fun sanitizeRemovesFixedVideoSizeAttributes() {
+        // Echtes Markup aus einem WordPress-Kommentar-Feed (wp-video-Wrapper mit
+        // fester Breite): width/height am <video> liessen es aus dem Viewport ragen.
+        val sanitized = sanitizeReaderBodyHtmlForTest(
+            """
+                <div class="dco-attachment dco-video-attachment">
+                  <div style="width: 640px;" class="wp-video">
+                    <video class="wp-video-shortcode" width="640" height="360" preload="metadata" controls="controls">
+                      <source type="video/mp4" src="https://example.com/digi-id.mp4?_=1" />
+                    </video>
+                  </div>
+                </div>
+            """.trimIndent()
+        )
+
+        assertFalse(sanitized.contains("""width="640""""))
+        assertFalse(sanitized.contains("""height="360""""))
+        assertTrue(sanitized.contains("<video"))
+        assertTrue(sanitized.contains("controls=\"controls\""))
+        assertTrue(sanitized.contains("digi-id.mp4?_=1"))
+    }
+
+    @Test
+    fun sanitizePreservesAudioAndPictureMediaElements() {
+        // Podcast-Audio und <picture>-Bilder muessen erhalten bleiben; das Reader-CSS
+        // begrenzt und zentriert sie (universelle Medienregel).
+        val sanitized = sanitizeReaderBodyHtmlForTest(
+            """
+                <audio controls="controls" src="https://example.com/podcast.mp3"></audio>
+                <picture>
+                    <source srcset="https://example.com/photo.webp" type="image/webp">
+                    <img src="https://example.com/photo.jpg" alt="">
+                </picture>
+            """.trimIndent()
+        )
+
+        assertTrue(sanitized.contains("<audio"))
+        assertTrue(sanitized.contains("podcast.mp3"))
+        assertTrue(sanitized.contains("<picture"))
+        assertTrue(sanitized.contains("photo.jpg"))
+    }
+
+    @Test
     fun sanitizeRemovesInlineStyleWithFloatFromFigure() {
         val sanitized = sanitizeReaderBodyHtmlForTest(
             """

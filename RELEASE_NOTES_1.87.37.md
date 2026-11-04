@@ -28,4 +28,4 @@ Fehlerbehebung: Nach „Alle Feeds als gelesen markieren" und „Alle gelesenen 
 ## Veröffentlichung und F-Droid-Status
 - Tag: `v1.87.37` (annotiert), an GitHub und GitLab gepusht.
 - GitHub-Release: `RSS Reader 1.87.37` (nicht Draft, nicht Prerelease).
-- F-Droid: kein manueller Merge-Request. Die Metadaten führen `AutoUpdateMode: Version` und `UpdateCheckMode: Tags ^v[\d.]+$`; erwartet wird, dass der `checkupdates`-Lauf die Version selbstständig nachzieht. Stand der Beobachtung (11.10.2026): noch kein Bot-Merge-Request vorhanden. Veröffentlichter Stand zum Zeitpunkt des Releases: 1.87.36 / 165.
+- F-Droid: kein manueller Merge-Request nötig. Die Metadaten führen `AutoUpdateMode: Version` und `UpdateCheckMode: Tags ^v[\d.]+$`; der `checkupdates`-Bot hat die Version selbstständig nachgezogen. **Belegt am 30.10.2026:** Bot-MR **!52157** am **2026-10-12T07:42:06Z** gemergt, fdroiddata-Commit `a8d42bd7` (`CurrentVersion: 1.87.37` / `166`), Build `de.lolo.rssreader:166` am **2026-10-13** erfolgreich (`compared built binary to supplied reference binary successfully`). Der F-Droid-Index führte 166 bis zur Auslieferung von 1.87.39/168.
