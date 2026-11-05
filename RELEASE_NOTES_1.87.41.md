@@ -25,6 +25,13 @@ Medieninhalte in der Artikelansicht werden jetzt einheitlich begrenzt und zentri
 - Gerätetest auf vivo V2405A (Android 16) mit Debug-Build 1.87.40: Video (1:54) vollständig, zentriert und im richtigen Seitenverhältnis — vom Nutzer bestätigt; zusätzlich Volltext-Artikel mit Bild geprüft (volle Breite, zentriert, Text fließt normal).
 - Release-Build: signierte APK mit JDK-21-Toolchain und `--rerun-tasks`; `dexdump -d` auf `classes2.dex` bestätigt `HomeScreen`/`FeedConfigScreen` = **3298 / 790**.
 
+## F-Droid-Status
+
+- Tag `v1.87.41` am 2026-11-04 gesetzt; Bot-MR **!55823** („bot: Update RSS Reader to 170") am
+  **2026-11-05T07:14:52Z** gemergt (fdroiddata-Commit `71081df0`, `CurrentVersion: 1.87.41` / `170`).
+- Der F-Droid-Reproduzierbarkeits-Build stand am 2026-11-05 noch aus (Monitor-Log 404); die
+  Veröffentlichung im Index folgt im nächsten Build-/Publish-Zyklus.
+
 ## Vorbereitung (nicht in dieser Version enthalten)
 - Design für das Nachladen von WordPress-Kommentar-Historien liegt als Dokument bei:
   `docs/specs/2026-11-04-wordpress-kommentar-historie-design.md`. **Noch nicht implementiert.**

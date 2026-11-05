@@ -37,7 +37,7 @@ Die App `de.lolo.rssreader` ist im **offiziellen F-Droid-Katalog** und wird dort
 ## Referenz-Metadaten
 
 - F-Droid-Metadaten des offiziellen Projekts (maßgeblich): `https://gitlab.com/fdroid/fdroiddata/-/raw/master/metadata/de.lolo.rssreader.yml`
-- Lokale Referenzkopie davon: `docs/fdroid/de.lolo.rssreader.yml` — byte-identisch mit der offiziellen Datei (Stand 03.11.2026: 1.87.40 / 169, 3108 Bytes, SHA-256 `F8268E9C79BE4836957974C44AC14199D75F8D601219A85A6825EB1165F6A823`)
+- Lokale Referenzkopie davon: `docs/fdroid/de.lolo.rssreader.yml` — byte-identisch mit der offiziellen Datei (Stand 05.11.2026: 1.87.41 / 170, 3248 Bytes, SHA-256 `651045E234C0EECA506B56D36D5FAB75B388533DEB662523903EAFBE80A7A028`)
 - Eigener fdroiddata-Fork (nur fuer Notnagel-MRs): `https://gitlab.com/immerzu46/fdroiddata`
   (der frueher lokale Klon `fdroiddata_fork` wurde am 30.08.2026 geloescht)
 - Build-Status beobachten: https://monitor.f-droid.org/ (Startseite; die App-Uebersicht
