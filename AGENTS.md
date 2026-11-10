@@ -100,4 +100,8 @@
 - Immer den kleinstmöglichen Eingriff wählen, der das Problem löst
 - Keine Dateien anfassen, die nicht direkt mit der Aufgabe zu tun haben
 - Bestehenden Code-Stil und Patterns beibehalten, auch wenn sie nicht den persönlichen Vorlieben entsprechen
+- **Änderungen werden durch gezielte Regressionstests abgesichert** (Dauerregel, 10.11.2026): Zu jeder
+  Verhaltensänderung gehört ein Test unter `app/src/test/`, der genau diesen Fall abdeckt und den
+  verhinderten Fehler reproduziert (ohne Fix rot, mit Fix grün). Eine Änderung gilt erst als fertig,
+  wenn die Suite grün ist (`gradlew.bat testDebugUnitTest`); ein Gerätetest allein ersetzt keinen Unit-Test.
 
