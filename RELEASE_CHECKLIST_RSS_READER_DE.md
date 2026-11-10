@@ -100,14 +100,16 @@ Erst wenn alle vier Nachweise vorliegen, darf getaggt und veroeffentlicht werden
 2. **DEX-Kontrolle gegen die Referenzwerte** — aus der fertigen APK `classes2.dex` entpacken und
    `dexdump -d` auswerten:
 
-   | Methode | JDK 21 (richtig) | JDK 17 (falsch) |
+   | Methode | JDK 21 (Referenzstand 1.87.42) | JDK 17 (falsch) |
    |---|---|---|
    | `FeedConfigScreenKt; FeedConfigScreen` | **790** insns | 880 |
-   | `HomeScreenKt; HomeScreen` | codeabhaengig (vor 1.87.42: 3298; ab 1.87.42: **3437**) | 3576 vor 1.87.42 |
+   | `HomeScreenKt; HomeScreen` | **3437** (1.87.42; vor 1.87.42: 3298) | 3576 (alter Code) |
 
-   **`FeedConfigScreen` ist der stabile Anker** (790 = JDK 21, 880 = JDK 17). Der `HomeScreen`-Wert
-   aendert sich mit jeder Aenderung an `HomeScreen.kt` und taugt nur als Zusatzindiz gegen den
-   damaligen Stand — nie als fester Sollwert fuer neue Releases.
+   **Beide Werte sind codeabhaengig** — sie gelten nur fuer den jeweiligen Quellstand. Aendert sich die
+   Datei, aendert sich die Zahl; dann taugt der alte Wert nicht mehr als Sollwert, sondern nur als
+   Groessenordnung. **Primaerer Nachweis bleibt** `gradlew.bat -q javaToolchains --no-daemon`
+   („Language Version: 21") **plus** Build mit `--rerun-tasks`; die DEX-Werte sind eine Stichprobe.
+   Ein deutlich hoeherer Wert (z. B. `FeedConfigScreen` 880) spricht fuer JDK 17.
 
    JDK-17-Werte (880 bei `FeedConfigScreen`) ⇒ **nicht veroeffentlichen**, Toolchain/Aufruffolge pruefen und mit
    `exportReleaseApk --rerun-tasks` neu bauen.
