@@ -1,0 +1,5 @@
+Version 1.87.42: favorites in one place.
+- New "Favorites" entry at the top of the start screen
+- Shows all starred articles, newest first
+- Only visible while at least one favorite exists
+- Uses the normal article list with all functions

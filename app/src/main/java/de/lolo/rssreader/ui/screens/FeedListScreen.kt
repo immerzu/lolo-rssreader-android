@@ -12,7 +12,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDownward
@@ -44,6 +46,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import de.lolo.rssreader.R
 import de.lolo.rssreader.data.db.FeedSummary
+import de.lolo.rssreader.data.repository.FAVORITES_FEED_ID
 import de.lolo.rssreader.debug.DebugLogger
 import de.lolo.rssreader.ui.formatFeedUpdatedAt
 import coil.compose.SubcomposeAsyncImage
@@ -64,7 +67,8 @@ fun FeedListScreen(
     onOpenFeedMenu: (Long) -> Unit,
     onMoveFeedUp: (Long) -> Unit,
     onMoveFeedDown: (Long) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    listState: LazyListState = rememberLazyListState()
 ) {
     LaunchedEffect(feedsLoaded, feeds.size, isRefreshing, isMoveMode) {
         DebugLogger.d(
@@ -134,7 +138,7 @@ fun FeedListScreen(
         return
     }
 
-    LazyColumn(modifier = modifier.fillMaxSize()) {
+    LazyColumn(state = listState, modifier = modifier.fillMaxSize()) {
         if (isMoveMode) {
             item(key = "move-mode-hint") {
                 Text(
@@ -226,9 +230,12 @@ fun FeedListScreen(
                     )
                     Text(
                         text = buildString {
-                            append(updatedLabel)
-                            append(formatFeedUpdatedAt(feed.lastFetchedAt))
-                            append(", ")
+                            // Der virtuelle Favoriten-Feed hat keinen Abrufzeitpunkt.
+                            if (feed.id != FAVORITES_FEED_ID) {
+                                append(updatedLabel)
+                                append(formatFeedUpdatedAt(feed.lastFetchedAt))
+                                append(", ")
+                            }
                             append(feed.unreadArticles)
                             append("/")
                             append(feed.totalArticles)

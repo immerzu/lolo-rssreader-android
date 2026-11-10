@@ -46,6 +46,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -71,6 +72,7 @@ import de.lolo.rssreader.data.db.FeedSummary
 import de.lolo.rssreader.data.errors.RssReaderException
 import de.lolo.rssreader.data.errors.toUserMessage
 import de.lolo.rssreader.data.network.hasWifiConnection
+import de.lolo.rssreader.data.repository.FAVORITES_FEED_ID
 import de.lolo.rssreader.data.repository.FeedRepository
 import de.lolo.rssreader.data.repository.RefreshRunStats
 import de.lolo.rssreader.data.repository.RepositoryDiagnosticsSnapshot
@@ -118,6 +120,7 @@ fun HomeScreen(
     val lifecycleOwner = LocalLifecycleOwner.current
     val activity = findHostActivity(context)
     val feeds by repository.observeFeedSummaries().collectAsState(initial = null)
+    val favoriteSummary by repository.observeFavoriteSummary().collectAsState(initial = null)
     var lastVisibleFeeds by remember { mutableStateOf(HomeScreenFeedCache.lastFeeds) }
     LaunchedEffect(feeds) {
         feeds?.let { currentFeeds ->
@@ -126,7 +129,15 @@ fun HomeScreen(
         }
     }
     val feedsObserved = feeds != null
-    val loadedFeeds = feeds ?: lastVisibleFeeds
+    val loadedFeedsRaw = feeds ?: lastVisibleFeeds
+    // Virtueller Favoriten-Feed: erscheint nur, solange mindestens ein Favorit existiert.
+    val favoritesTitle = context.getString(R.string.favorites_title)
+    val loadedFeeds = remember(loadedFeedsRaw, favoriteSummary, favoritesTitle) {
+        val favorites = favoriteSummary?.let { summary ->
+            summary.copy(title = favoritesTitle.ifBlank { summary.title })
+        }
+        if (favorites == null) loadedFeedsRaw else listOf(favorites) + loadedFeedsRaw
+    }
     val feedsLoadedForUi = feeds != null || lastVisibleFeeds.isNotEmpty()
     val scope = rememberCoroutineScope()
     var isRefreshing by remember { mutableStateOf(false) }
@@ -525,41 +536,53 @@ fun HomeScreen(
                     .padding(padding)
                     .pullRefresh(pullRefreshState)
             ) {
-                FeedListScreen(
-                    feeds = loadedFeeds,
-                    feedsLoaded = feedsLoadedForUi,
-                    isRefreshing = isRefreshing || showRefreshIndicator,
-                    isMoveMode = isMoveMode,
-                    onOpenFeed = onOpenFeed,
-                    onOpenFeedMenu = { feedId ->
-                        selectedFeedMenuId = feedId
-                    },
-                    onMoveFeedUp = { feedId ->
-                        scope.launch {
-                            runCatching { repository.moveFeedUp(feedId) }
-                                .onFailure {
-                                    if (it !is CancellationException) {
-                                        errorMessage = it.toUserMessage(
-                                            context.getString(R.string.home_move_failed)
-                                        )
-                                    }
+                // Der LazyListState der Liste ist ueber den key an den Favoriten-Zustand gebunden:
+                // Erscheint der Favoriten-Eintrag oben, wird die Liste im selben Frame neu aufgebaut
+                // und startet bei Position 0 - ohne sichtbares Nachscrollen.
+                key(favoriteSummary?.id) {
+                    FeedListScreen(
+                        feeds = loadedFeeds,
+                        feedsLoaded = feedsLoadedForUi,
+                        isRefreshing = isRefreshing || showRefreshIndicator,
+                        isMoveMode = isMoveMode,
+                        onOpenFeed = onOpenFeed,
+                        onOpenFeedMenu = { feedId ->
+                            // Der Favoriten-Eintrag ist kein echter Feed: kein Feed-Menue (Bearbeiten/Loeschen).
+                            if (feedId != FAVORITES_FEED_ID) {
+                                selectedFeedMenuId = feedId
+                            }
+                        },
+                        onMoveFeedUp = { feedId ->
+                            if (feedId != FAVORITES_FEED_ID) {
+                                scope.launch {
+                                    runCatching { repository.moveFeedUp(feedId) }
+                                        .onFailure {
+                                            if (it !is CancellationException) {
+                                                errorMessage = it.toUserMessage(
+                                                    context.getString(R.string.home_move_failed)
+                                                )
+                                            }
+                                        }
                                 }
-                        }
-                    },
-                    onMoveFeedDown = { feedId ->
-                        scope.launch {
-                            runCatching { repository.moveFeedDown(feedId) }
-                                .onFailure {
-                                    if (it !is CancellationException) {
-                                        errorMessage = it.toUserMessage(
-                                            context.getString(R.string.home_move_failed)
-                                        )
-                                    }
+                            }
+                        },
+                        onMoveFeedDown = { feedId ->
+                            if (feedId != FAVORITES_FEED_ID) {
+                                scope.launch {
+                                    runCatching { repository.moveFeedDown(feedId) }
+                                        .onFailure {
+                                            if (it !is CancellationException) {
+                                                errorMessage = it.toUserMessage(
+                                                    context.getString(R.string.home_move_failed)
+                                                )
+                                            }
+                                        }
                                 }
-                        }
-                    },
-                    modifier = Modifier.fillMaxSize()
-                )
+                            }
+                        },
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
                 PullRefreshIndicator(
                     refreshing = showRefreshIndicator,
                     state = pullRefreshState,

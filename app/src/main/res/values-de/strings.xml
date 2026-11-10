@@ -8,6 +8,8 @@
     <string name="common_save">Speichern</string>
     <string name="common_never">nie</string>
     <string name="article_default_title">Artikel</string>
+    <string name="favorites_title">Favoriten</string>
+    <string name="favorites_empty">Keine Favoriten</string>
 
     <string name="search_title">Suchen</string>
     <string name="search_keyword_label">Stichwort eingeben</string>

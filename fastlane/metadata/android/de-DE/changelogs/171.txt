@@ -1,0 +1,5 @@
+Version 1.87.42: Favoriten an einer Stelle.
+- Neuer Eintrag Favoriten ganz oben auf der Startseite
+- Zeigt alle gesternten Artikel, neueste zuerst
+- Erscheint nur, solange mindestens ein Favorit existiert
+- Normale Artikelliste mit allen Funktionen

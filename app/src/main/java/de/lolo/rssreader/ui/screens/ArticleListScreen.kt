@@ -64,6 +64,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import de.lolo.rssreader.R
 import de.lolo.rssreader.data.db.ArticleEntity
 import de.lolo.rssreader.data.errors.toUserMessage
+import de.lolo.rssreader.data.repository.FAVORITES_FEED_ID
 import de.lolo.rssreader.data.repository.FeedRepository
 import de.lolo.rssreader.data.settings.AppPreferences
 import de.lolo.rssreader.data.settings.EntrySortOrder
@@ -104,6 +105,8 @@ fun ArticleListScreen(
     val logTag = "ArticleListScreen"
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
+    // Virtueller Feed "Favoriten": keine Netz-Aktualisierung, Titel lokalisiert.
+    val isFavorites = feedId == FAVORITES_FEED_ID
     val feed by repository.observeFeed(feedId).collectAsState(initial = null)
     val observedArticles by repository.observeArticles(feedId).collectAsState(initial = null)
     var lastVisibleArticles by remember(feedId) {
@@ -321,9 +324,13 @@ fun ArticleListScreen(
             TopAppBar(
                 title = {
                     Text(
-                        text = feed?.customTitle?.ifBlank { null }
-                            ?: feed?.title
-                            ?: stringResource(R.string.article_default_title),
+                        text = if (isFavorites) {
+                            stringResource(R.string.favorites_title)
+                        } else {
+                            feed?.customTitle?.ifBlank { null }
+                                ?: feed?.title
+                                ?: stringResource(R.string.article_default_title)
+                        },
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -383,14 +390,16 @@ fun ArticleListScreen(
                             contentDescription = stringResource(R.string.article_list_mark_all_read_cd)
                         )
                     }
-                    IconButton(
-                        onClick = refreshFeed,
-                        enabled = !isRefreshing
-                    ) {
-                        RefreshActionIcon(
-                            isRefreshing = showRefreshIndicator,
-                            contentDescription = stringResource(R.string.article_list_refresh_feed_cd)
-                        )
+                    if (!isFavorites) {
+                        IconButton(
+                            onClick = refreshFeed,
+                            enabled = !isRefreshing
+                        ) {
+                            RefreshActionIcon(
+                                isRefreshing = showRefreshIndicator,
+                                contentDescription = stringResource(R.string.article_list_refresh_feed_cd)
+                            )
+                        }
                     }
                 }
             )
@@ -401,7 +410,22 @@ fun ArticleListScreen(
                 .fillMaxSize()
                 .padding(padding)
         ) {
-            if (showUnreadOnly && visibleArticles.isEmpty() && articles.isNotEmpty()) {
+            if (isFavorites && articles.isEmpty()) {
+                // Leerzustand des virtuellen Favoriten-Feeds: Die Ansicht bleibt offen,
+                // der Startseiten-Eintrag verschwindet erst beim Zurueckgehen.
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(24.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        stringResource(R.string.favorites_empty),
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            } else if (showUnreadOnly && visibleArticles.isEmpty() && articles.isNotEmpty()) {
                 Box(
                     modifier = Modifier
                         .fillMaxSize()

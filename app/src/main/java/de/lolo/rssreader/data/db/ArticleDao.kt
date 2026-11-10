@@ -25,6 +25,12 @@ data class ArticleNavigationEntry(
     val publishedAt: Long?
 )
 
+// Zaehler fuer den virtuellen Favoriten-Feed auf der Startseite.
+data class FavoriteCounts(
+    val totalArticles: Long,
+    val unreadArticles: Long
+)
+
 @Dao
 interface ArticleDao {
     @Query(
@@ -35,6 +41,39 @@ interface ArticleDao {
         """
     )
     fun observeByFeed(feedId: Long): Flow<List<ArticleEntity>>
+
+    // Alle als Favorit markierten Artikel (virtueller Feed "Favoriten").
+    @Query(
+        """
+        SELECT * FROM articles
+        WHERE isFavorite = 1
+        ORDER BY isRead ASC, COALESCE(publishedAt, 0) DESC, id DESC
+        """
+    )
+    fun observeFavorites(): Flow<List<ArticleEntity>>
+
+    @Query(
+        """
+        SELECT COUNT(*) AS totalArticles,
+               COALESCE(SUM(CASE WHEN isRead = 0 THEN 1 ELSE 0 END), 0) AS unreadArticles
+        FROM articles
+        WHERE isFavorite = 1
+        """
+    )
+    fun observeFavoriteCounts(): Flow<FavoriteCounts>
+
+    @Query("UPDATE articles SET isRead = 1 WHERE isFavorite = 1")
+    suspend fun markAllFavoritesRead(): Int
+
+    @Query(
+        """
+        SELECT id, publishedAt
+        FROM articles
+        WHERE isFavorite = 1
+        ORDER BY COALESCE(publishedAt, 0) DESC, id DESC
+        """
+    )
+    fun observeFavoritesNavigation(): Flow<List<ArticleNavigationEntry>>
 
     @Query(
         """

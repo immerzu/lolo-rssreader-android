@@ -28,7 +28,13 @@ import java.net.URI
 import java.nio.charset.StandardCharsets
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
+
+// Kennung des virtuellen Feeds "Favoriten". Sie ist keine Zeile in der Tabelle `feeds`,
+// sondern ein Sentinel: Alle Repository-Aufrufe mit dieser ID arbeiten auf `isFavorite = 1`.
+const val FAVORITES_FEED_ID: Long = -1L
+
 private const val REFRESH_PARALLELISM = 2
 
 data class RefreshRunStats(
@@ -108,9 +114,53 @@ class FeedRepository(
 
     fun observeFeedSummaries(): Flow<List<FeedSummary>> = feedDao.observeSummaries()
     fun observeFeeds(): Flow<List<FeedEntity>> = feedDao.observeFeeds()
-    fun observeFeed(feedId: Long) = feedDao.observeById(feedId)
-    fun observeArticles(feedId: Long) = articleDao.observeByFeed(feedId)
-    fun observeArticleNavigation(feedId: Long) = articleDao.observeNavigationByFeed(feedId)
+
+    // Virtueller Feed "Favoriten": sammelt alle gesternten Artikel, hat keine Quelle im Netz.
+    // Er erscheint auf der Startseite nur, solange mindestens ein Favorit existiert.
+    fun observeFavoriteSummary(): Flow<FeedSummary?> =
+        articleDao.observeFavoriteCounts().map { counts ->
+            if (counts.totalArticles <= 0) {
+                null
+            } else {
+                FeedSummary(
+                    id = FAVORITES_FEED_ID,
+                    // Der sichtbare Titel kommt lokalisiert aus der UI (R.string.favorites_title);
+                    // dieser Wert ist nur der Fallback, falls die UI ihn nicht setzt.
+                    title = "Favoriten",
+                    customTitle = null,
+                    url = "",
+                    siteUrl = null,
+                    iconUrl = null,
+                    displayOrder = Int.MIN_VALUE,
+                    lastFetchedAt = null,
+                    wifiOnly = false,
+                    lastOpenedAt = null,
+                    totalArticles = counts.totalArticles,
+                    unreadArticles = counts.unreadArticles
+                )
+            }
+        }
+
+    fun observeFeed(feedId: Long): Flow<FeedEntity?> =
+        if (feedId == FAVORITES_FEED_ID) {
+            kotlinx.coroutines.flow.flowOf(null)
+        } else {
+            feedDao.observeById(feedId)
+        }
+
+    fun observeArticles(feedId: Long) =
+        if (feedId == FAVORITES_FEED_ID) {
+            articleDao.observeFavorites()
+        } else {
+            articleDao.observeByFeed(feedId)
+        }
+
+    fun observeArticleNavigation(feedId: Long) =
+        if (feedId == FAVORITES_FEED_ID) {
+            articleDao.observeFavoritesNavigation()
+        } else {
+            articleDao.observeNavigationByFeed(feedId)
+        }
     fun searchArticles(query: String): Flow<List<ArticleSearchResult>> =
         if (query.isBlank()) {
             kotlinx.coroutines.flow.flowOf(emptyList())
@@ -210,6 +260,10 @@ class FeedRepository(
     }
 
     suspend fun refreshFeed(feedId: Long): Int {
+        // Der virtuelle Favoriten-Feed hat keine Quelle im Netz.
+        if (feedId == FAVORITES_FEED_ID) {
+            return 0
+        }
         return runOnIo {
             val feed = feedDao.getById(feedId) ?: return@runOnIo 0
             DebugLogger.i(TAG, "refreshFeed gestartet: feedId=$feedId, url=${feed.url}")
@@ -390,6 +444,9 @@ class FeedRepository(
     }
 
     suspend fun markAllRead(feedId: Long): Int {
+        if (feedId == FAVORITES_FEED_ID) {
+            return runOnIo { articleDao.markAllFavoritesRead() }
+        }
         return runOnIo { articleDao.markAllRead(feedId) }
     }
 
@@ -456,6 +513,9 @@ class FeedRepository(
     }
 
     suspend fun markFeedOpened(feedId: Long) {
+        if (feedId == FAVORITES_FEED_ID) {
+            return
+        }
         runOnIo { feedDao.markOpened(feedId, System.currentTimeMillis()) }
     }
 
