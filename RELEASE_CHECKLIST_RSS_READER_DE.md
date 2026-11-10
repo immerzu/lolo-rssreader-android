@@ -102,10 +102,14 @@ Erst wenn alle vier Nachweise vorliegen, darf getaggt und veroeffentlicht werden
 
    | Methode | JDK 21 (richtig) | JDK 17 (falsch) |
    |---|---|---|
-   | `HomeScreenKt; HomeScreen` | **3298** insns | 3576 |
    | `FeedConfigScreenKt; FeedConfigScreen` | **790** insns | 880 |
+   | `HomeScreenKt; HomeScreen` | codeabhaengig (vor 1.87.42: 3298; ab 1.87.42: **3437**) | 3576 vor 1.87.42 |
 
-   JDK-17-Werte ⇒ **nicht veroeffentlichen**, Toolchain/Aufruffolge pruefen und mit
+   **`FeedConfigScreen` ist der stabile Anker** (790 = JDK 21, 880 = JDK 17). Der `HomeScreen`-Wert
+   aendert sich mit jeder Aenderung an `HomeScreen.kt` und taugt nur als Zusatzindiz gegen den
+   damaligen Stand — nie als fester Sollwert fuer neue Releases.
+
+   JDK-17-Werte (880 bei `FeedConfigScreen`) ⇒ **nicht veroeffentlichen**, Toolchain/Aufruffolge pruefen und mit
    `exportReleaseApk --rerun-tasks` neu bauen.
 3. **SHA-256 und Signatur** — `Get-FileHash -Algorithm SHA256` gegen den dokumentierten Wert;
    `apksigner verify --print-certs` muss das Zertifikat
