@@ -186,12 +186,19 @@ fun FeedListScreen(
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                 verticalAlignment = Alignment.Top
             ) {
-                FeedIcon(
-                    title = feed.displayTitle,
-                    iconUrl = resolveFeedIconUrl(feed),
-                    alpha = if (feed.isUnreadFeed) 1f else 0.58f,
-                    modifier = Modifier.padding(top = 1.dp)
-                )
+                if (feed.id == FAVORITES_FEED_ID) {
+                    FavoriteFeedIcon(
+                        modifier = Modifier.padding(top = 1.dp),
+                        alpha = if (feed.isUnreadFeed) 1f else 0.58f
+                    )
+                } else {
+                    FeedIcon(
+                        title = feed.displayTitle,
+                        iconUrl = resolveFeedIconUrl(feed),
+                        alpha = if (feed.isUnreadFeed) 1f else 0.58f,
+                        modifier = Modifier.padding(top = 1.dp)
+                    )
+                }
                 if (feed.lastRefreshFailed) {
                     Icon(
                         imageVector = Icons.Default.Warning,
