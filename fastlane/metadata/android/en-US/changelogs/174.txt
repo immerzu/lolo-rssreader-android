@@ -1,0 +1,1 @@
+Version 1.87.45: security and stability release with 34 fixed audit findings; favorites icon is now a star.

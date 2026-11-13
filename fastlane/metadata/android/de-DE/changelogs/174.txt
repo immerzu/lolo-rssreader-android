@@ -1,0 +1,1 @@
+Version 1.87.45: Sicherheits- und Stabilitaetsrelease mit 34 behobenen Audit-Befunden; Favoriten-Icon als Stern.
