@@ -29,6 +29,7 @@
   `assembleRelease` allein laesst die APK in `app/build/outputs/apk/release/` liegen)
   (Signierung: Passwörter aus dem Windows-Credential-Manager via `tools/get-signing-secret.ps1`; `keystore.properties` enthält nur `storeFile`/`keyAlias`)
 - Tests: `gradlew.bat testDebugUnitTest`
+- **SDK/Build-Tools im Workspace:** `android_sdk\build-tools\36.0.0\` (`aapt2.exe`, `apksigner.bat`, `dexdump.exe`) und `android_sdk\platform-tools\adb.exe`; **nicht** `%LOCALAPPDATA%\Android\Sdk` (dort kein build-tools, adb nicht im PATH).
 - CI: `.github/workflows/ci.yml` — bei Push/PR auf `main` Unit-Tests + Android Lint; der Emulator-Job
   fuer die instrumentierten UI-Tests laeuft **nur manuell** (`workflow_dispatch`, kein Zeitplan)
 - Android Studio starten: `start-android-studio.ps1`
@@ -104,4 +105,5 @@
   Verhaltensänderung gehört ein Test unter `app/src/test/`, der genau diesen Fall abdeckt und den
   verhinderten Fehler reproduziert (ohne Fix rot, mit Fix grün). Eine Änderung gilt erst als fertig,
   wenn die Suite grün ist (`gradlew.bat testDebugUnitTest`); ein Gerätetest allein ersetzt keinen Unit-Test.
+
 
