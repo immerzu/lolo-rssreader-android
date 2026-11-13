@@ -1,9 +1,23 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  Kein automatischer Datentransfer: Der Ausschluss von "root" allein deckt die
+  Daten- und Einstellungsverzeichnisse nicht ab, und manche OEM-Varianten werten
+  allowBackup anders aus (Audit RSS-A31). Alle relevanten Domaenen sind daher
+  zusaetzlich explizit ausgeschlossen.
+-->
 <data-extraction-rules>
     <cloud-backup>
         <exclude domain="root" />
+        <exclude domain="database" />
+        <exclude domain="sharedpref" />
+        <exclude domain="file" />
+        <exclude domain="external" />
     </cloud-backup>
     <device-transfer>
         <exclude domain="root" />
+        <exclude domain="database" />
+        <exclude domain="sharedpref" />
+        <exclude domain="file" />
+        <exclude domain="external" />
     </device-transfer>
 </data-extraction-rules>

@@ -1,2 +1,17 @@
 https://github.com/immerzu/lolo-rssreader-privacy/blob/main/privacy.html
 
+STATUS (2026-11-13, Audit RSS-A29):
+Der obige Link ist NICHT erreichbar. Geprueft am 2026-11-13:
+- GitHub-API /repos/immerzu/lolo-rssreader-privacy -> HTTP 404 (Repository existiert nicht)
+- der dokumentierte Raw-/Blob-Pfad liefert ebenfalls 404.
+
+Benoetigt wird ein oeffentlich abrufbarer HTTPS-Link auf eine Datenschutzerklaerung.
+Optionen:
+1. Repository lolo-rssreader-privacy oeffentlich anlegen und privacy.html per
+   GitHub Pages veroeffentlichen (danach diese Datei aktualisieren).
+2. Die Datenschutzerklaerung auf einer anderen oeffentlichen HTTPS-Seite ablegen
+   und hier eintragen.
+
+Zusaetzlich muss der tatsaechlich in der Store-Konsole (Google Play/F-Droid)
+hinterlegte Wert geprueft und angepasst werden - das ist ohne Zugriff auf die
+Konsole nicht moeglich und bleibt offen.

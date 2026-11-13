@@ -2,8 +2,10 @@
 <!--
   Explizite Network-Security-Policy: Klartext-HTTP ist fuer alle Verbindungen
   verboten (entspricht usesCleartextTraffic="false", aber explizit dokumentiert).
-  trust-anchors bleiben bewusst Standard (System-CAs + User-CAs), damit Nutzer
-  mit eigenen Zertifikaten (z.B. private Feeds) nicht ausgesperrt werden.
+  Ohne eigene trust-anchors gelten ab targetSdk 24 ausschliesslich die System-CAs;
+  im Benutzerspeicher installierte CAs werden NICHT anerkannt (Audit RSS-A28).
+  Wer private CAs unterstuetzen will, muss hier explizit
+  <certificates src="user" /> ergaenzen.
 -->
 <network-security-config>
     <base-config cleartextTrafficPermitted="false" />

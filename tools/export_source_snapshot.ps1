@@ -29,6 +29,7 @@ $rootIncludeFiles = @(
     'build.gradle.kts',
     'settings.gradle.kts',
     'gradle.properties',
+    'gradle\libs.versions.toml',
     'version.properties',
     'README.md',
     'LICENSE'
@@ -69,10 +70,9 @@ function Test-IsIncludedFile($file) {
     return $false
 }
 
-if (Test-Path $output) {
-    Remove-Item $output -Force
-}
-
+# Die vorhandene Ausgabe wird NICHT vorab geloescht: bricht die Secret-Pruefung ab,
+# bleibt der letzte gueltige Stand erhalten (Audit RSS-A25). Geschrieben wird erst
+# nach vollstaendig erfolgreicher Pruefung.
 $builder = [System.Text.StringBuilder]::new()
 
 Get-ChildItem $project -Recurse -File -ErrorAction SilentlyContinue |
@@ -113,7 +113,20 @@ Get-ChildItem $project -Recurse -File -ErrorAction SilentlyContinue |
                                      ($fileContent -match 'keyPassword\s*=\s*CHANGE_ME') -or
                                      ($fileContent -match 'keyAlias\s*=\s*CHANGE_ME')
                 $isPropertyLookup = $fileContent -match $propertyLookupPattern
-                if (($isExampleFile -and $isPlaceholderOnly) -or $isPropertyLookup) {
+                # Ein Property-Lookup an einer Stelle befreit die Datei NICHT von der
+                # Pruefung: hart codierte Passwoerter bleiben ein Abbruchgrund
+                # (Audit RSS-A25).
+                $hasHardcodedPassword =
+                    $fileContent -match '(storePassword|keyPassword)\s*=\s*["''][^"'']+["'']'
+                if ($hasHardcodedPassword -and -not $isPlaceholderOnly) {
+                    Write-Error "SICHERHEITSABBRUCH: '$($_.FullName)' enthaelt ein hart codiertes Passwort. Export abgebrochen."
+                    exit 1
+                }
+                $isPropertyLookupFile =
+                    $isPropertyLookup -and
+                    ($_.Extension -in @('.kts', '.gradle', '.properties', '.toml') -or
+                        $_.Name.EndsWith('.example', [StringComparison]::OrdinalIgnoreCase))
+                if (($isExampleFile -and $isPlaceholderOnly) -or $isPropertyLookupFile) {
                     Write-Host "HINWEIS: '$($_.Name)' enthaelt Signing-Begriffe, aber nur als Property-Lookup oder Platzhalter - wird exportiert."
                 } else {
                     Write-Error "SICHERHEITSABBRUCH: '$($_.FullName)' enthaelt echte Secrets (Muster: $sensitiveHit). Export abgebrochen."
