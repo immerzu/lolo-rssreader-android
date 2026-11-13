@@ -4,6 +4,7 @@ import java.io.File
 import org.junit.Assume.assumeTrue
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -249,7 +250,7 @@ class FeedParserTest {
     }
 
     @Test
-    fun rssFallbackUniqueKeyDoesNotDependOnTitleAlone() {
+    fun rssFallbackUniqueKeyIncludesTitle() {
         val first = parser.parse(
             xml = """
                 <?xml version="1.0" encoding="UTF-8"?>
@@ -286,11 +287,11 @@ class FeedParserTest {
             sourceUrl = "https://example.com/rss.xml"
         ).items.single()
 
-        assertEquals(first.uniqueKey, second.uniqueKey)
+        assertNotEquals(first.uniqueKey, second.uniqueKey)
     }
 
     @Test
-    fun atomFallbackUniqueKeyDoesNotDependOnTitleAlone() {
+    fun atomFallbackUniqueKeyIncludesTitle() {
         val first = parser.parse(
             xml = """
                 <?xml version="1.0" encoding="UTF-8"?>
@@ -323,7 +324,7 @@ class FeedParserTest {
             sourceUrl = "https://example.com/feed.atom"
         ).items.single()
 
-        assertEquals(first.uniqueKey, second.uniqueKey)
+        assertNotEquals(first.uniqueKey, second.uniqueKey)
     }
 
     @Test
@@ -557,5 +558,6 @@ class FeedParserTest {
     }
 
 }
+
 
 

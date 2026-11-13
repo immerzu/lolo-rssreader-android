@@ -21,6 +21,30 @@ import okio.Buffer
 class FeedFetcherTest {
 
     @Test
+    fun fetchRejectsNotModifiedWithoutValidator() {
+        // Regression RSS-A13: 304 ohne gesendeten Validator ist keine gueltige
+        // "unveraendert"-Antwort und darf nicht als Erfolg durchgehen.
+        val client = OkHttpClient.Builder()
+            .addInterceptor { chain ->
+                Response.Builder()
+                    .request(chain.request())
+                    .protocol(Protocol.HTTP_1_1)
+                    .code(304)
+                    .message("Not Modified")
+                    .body("".toResponseBody(null))
+                    .build()
+            }
+            .build()
+
+        val failure = runCatching {
+            runBlocking { FeedFetcher(client).fetch("https://example.com/feed.xml") }
+        }.exceptionOrNull()
+
+        assertTrue(failure is RssReaderException.HttpError)
+        assertEquals(304, (failure as RssReaderException.HttpError).code)
+    }
+
+    @Test
     fun fetchRejectsInvalidUrlBeforeAnyNetworkCall() {
         var callCount = 0
         val client = OkHttpClient.Builder()
@@ -881,3 +905,4 @@ class FeedFetcherTest {
         assertTrue(failure.openReader().use { it.readText() }.contains("Straße"))
     }
 }
+

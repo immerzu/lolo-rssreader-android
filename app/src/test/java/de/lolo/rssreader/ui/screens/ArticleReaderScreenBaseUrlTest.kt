@@ -220,11 +220,13 @@ class ArticleReaderScreenBaseUrlTest {
         assertFalse(sanitized.contains("integrity=", ignoreCase = true))
         assertFalse(sanitized.contains("attributionsrc=", ignoreCase = true))
         assertFalse(sanitized.contains("importance=", ignoreCase = true))
-        assertFalse(sanitized.contains("role=", ignoreCase = true))
-        assertFalse(sanitized.contains("aria-label=", ignoreCase = true))
-        assertFalse(sanitized.contains("aria-labelledby=", ignoreCase = true))
-        assertFalse(sanitized.contains("aria-describedby=", ignoreCase = true))
-        assertFalse(sanitized.contains("aria-hidden=", ignoreCase = true))
+        // ARIA-Attribute sind nicht ausfuehrbar und tragen die Bedienbarkeit fuer
+        // Screenreader; sie bleiben deshalb erhalten (Audit RSS-A22).
+        assertTrue(sanitized.contains("role=", ignoreCase = true))
+        assertTrue(sanitized.contains("aria-label=", ignoreCase = true))
+        assertTrue(sanitized.contains("aria-labelledby=", ignoreCase = true))
+        assertTrue(sanitized.contains("aria-describedby=", ignoreCase = true))
+        assertTrue(sanitized.contains("aria-hidden=", ignoreCase = true))
         assertFalse(sanitized.contains("dynsrc=", ignoreCase = true))
         assertFalse(sanitized.contains("lowsrc=", ignoreCase = true))
         assertFalse(sanitized.contains("usemap=", ignoreCase = true))

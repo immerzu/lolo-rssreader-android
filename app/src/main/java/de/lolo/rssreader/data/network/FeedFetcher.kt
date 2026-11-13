@@ -18,9 +18,14 @@ import java.nio.charset.Charset
 import java.nio.charset.CharacterCodingException
 import java.nio.charset.CodingErrorAction
 import okhttp3.OkHttpClient
+import okhttp3.Call
 import okhttp3.Request
+import okhttp3.Response
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
 
 class FeedFetcher(
     private val client: OkHttpClient = defaultClient
@@ -56,8 +61,15 @@ class FeedFetcher(
 
         repeat(MAX_FETCH_ATTEMPTS) { attempt ->
             try {
-                client.newCall(request).execute().use { response ->
+                client.newCall(request).executeCancellable().use { response ->
                     if (response.code == 304) {
+                        // 304 ist nur im bedingten Abruf eine gueltige Antwort. Ohne
+                        // Validator hat der Server den Inhalt nicht geprueft; das darf
+                        // nicht als "unveraendert" durchgehen (Audit RSS-A13).
+                        if (!ifNoneMatchPresent && !ifModifiedSincePresent) {
+                            DebugLogger.w(TAG, "feed_fetch_304 ohne Validator: url=${url.maskUrlCredentialsForLog()}")
+                            throw RssReaderException.HttpError(response.code)
+                        }
                         DebugLogger.i(TAG, "feed_fetch_304 url=${url.maskUrlCredentialsForLog()} etagSent=$ifNoneMatchPresent lastModSent=$ifModifiedSincePresent")
                         return FeedFetchResult.NotModified
                     }
@@ -82,7 +94,7 @@ class FeedFetcher(
                         )
                     }
 
-                    val charset = resolveResponseCharset(
+                    val charset = FeedEncoding.resolveCharset(
                         responseBytes = responseBytes,
                         contentTypeHeader = response.header("Content-Type")
                     )
@@ -109,7 +121,8 @@ class FeedFetcher(
                         payload = FetchedFeedPayload.fromBytes(
                             responseBytes = responseBytes,
                             charset = charset,
-                            defensiveMode = defensiveMode
+                            defensiveMode = defensiveMode,
+                            finalUrl = response.request.url.toString()
                         ),
                         etag = responseEtagRaw,
                         lastModified = responseLastModified
@@ -167,6 +180,28 @@ class FeedFetcher(
         throw RssReaderException.ConnectionFailed()
     }
 
+
+    /**
+     * Fuehrt den blockierenden OkHttp-Aufruf so aus, dass ein Coroutine-Abbruch den
+     * HTTP-Aufruf tatsaechlich beendet (Audit RSS-A15): `execute()` belegt sonst bis
+     * zum Timeout einen IO-Platz weiter.
+     */
+    private suspend fun Call.executeCancellable(): Response =
+        suspendCancellableCoroutine { continuation ->
+            continuation.invokeOnCancellation { cancel() }
+            try {
+                val response = execute()
+                if (continuation.isActive) {
+                    continuation.resume(response)
+                } else {
+                    response.close()
+                }
+            } catch (throwable: Throwable) {
+                if (continuation.isActive) {
+                    continuation.resumeWithException(throwable)
+                }
+            }
+        }
     private fun isSupportedFeedUrl(url: String): Boolean {
         val uri = runCatching { URI(url.trim()) }.getOrNull() ?: return false
         val scheme = uri.scheme?.lowercase() ?: return false
@@ -180,16 +215,11 @@ class FeedFetcher(
     }
 
     /**
-     * Maskiert user:pass@-Bestandteile einer Feed-URL fuer Log-Ausgaben, damit
-     * eventuelle Zugangsdaten nicht im Debug-Log erscheinen. Nur fuer Logging;
-     * die tatsaechlich verwendete URL bleibt unveraendert.
+     * Maskiert Zugangsdaten und sensible Query-Parameter einer Feed-URL fuer
+     * Log-Ausgaben (Audit RSS-A24). Nur fuer Logging; die tatsaechlich
+     * verwendete URL bleibt unveraendert.
      */
-    private fun String.maskUrlCredentialsForLog(): String {
-        val uri = runCatching { URI(this) }.getOrNull() ?: return this
-        val userInfo = uri.rawUserInfo ?: return this
-        val masked = if (userInfo.contains(':')) "***:***" else "***"
-        return replace("$userInfo@", "$masked@")
-    }
+    private fun String.maskUrlCredentialsForLog(): String = UrlRedaction.redactForLog(this)
 
     private fun readResponseBodyBounded(
         inputStream: InputStream,
@@ -269,61 +299,6 @@ class FeedFetcher(
         }
     }
 
-    private fun resolveResponseCharset(
-        responseBytes: ByteArray,
-        contentTypeHeader: String?
-    ): Charset {
-        val charsetCandidates = buildList {
-            extractCharset(contentTypeHeader)?.let(::add)
-            extractXmlPrologCharset(responseBytes)?.let(::add)
-            add(Charsets.UTF_8)
-            add(Charsets.ISO_8859_1)
-        }.distinctBy { it.name() }
-
-        charsetCandidates.forEach { charset ->
-            try {
-                decodeStrict(responseBytes, charset)
-                return charset
-            } catch (_: CharacterCodingException) {
-                // Try the next candidate charset before surfacing an encoding error.
-            }
-        }
-
-        throw RssReaderException.EncodingError()
-    }
-
-    private fun extractCharset(contentTypeHeader: String?): Charset? {
-        val charsetName = contentTypeHeader
-            ?.substringAfter("charset=", missingDelimiterValue = "")
-            ?.substringBefore(';')
-            ?.trim()
-            ?.trim('"', '\'')
-            .orEmpty()
-        if (charsetName.isBlank()) {
-            return null
-        }
-        return runCatching { Charset.forName(charsetName) }.getOrNull()
-    }
-
-    private fun extractXmlPrologCharset(responseBytes: ByteArray): Charset? {
-        val previewLength = minOf(responseBytes.size, 512)
-        val preview = String(responseBytes, 0, previewLength, Charsets.ISO_8859_1)
-        val charsetName = xmlEncodingRegex.find(preview)?.groupValues?.getOrNull(1).orEmpty()
-        if (charsetName.isBlank()) {
-            return null
-        }
-        return runCatching { Charset.forName(charsetName) }.getOrNull()
-    }
-
-    private fun decodeStrict(responseBytes: ByteArray, charset: Charset): String {
-        return charset
-            .newDecoder()
-            .onMalformedInput(CodingErrorAction.REPORT)
-            .onUnmappableCharacter(CodingErrorAction.REPORT)
-            .decode(ByteBuffer.wrap(responseBytes))
-            .toString()
-    }
-
     companion object {
         private const val TAG = "FeedFetcher"
         private const val FEED_ACCEPT_HEADER =
@@ -334,10 +309,6 @@ class FeedFetcher(
         private const val LARGE_FEED_SOFT_LIMIT_BYTES = 5L * 1024L * 1024L
         private const val LARGE_FEED_HARD_LIMIT_BYTES = 12L * 1024L * 1024L
         private const val FEED_STREAM_BUFFER_SIZE = 16 * 1024
-        private val xmlEncodingRegex = Regex(
-            """<\?xml[^>]*encoding=["']([A-Za-z0-9._\-]+)["']""",
-            RegexOption.IGNORE_CASE
-        )
 
         private val defaultClient: OkHttpClient = OkHttpClient.Builder()
             .connectTimeout(15, TimeUnit.SECONDS)
@@ -402,19 +373,24 @@ data class FetchedFeedPayload(
     val responseBytes: ByteArray,
     val charset: Charset,
     val byteSize: Int,
-    val defensiveMode: Boolean
+    val defensiveMode: Boolean,
+    // Finale URL nach Weiterleitungen: relative Links im Feed beziehen sich auf diese
+    // Adresse, nicht auf die urspruenglich eingetragene (Audit RSS-A09).
+    val finalUrl: String? = null
 ) {
     companion object {
         fun fromBytes(
             responseBytes: ByteArray,
             charset: Charset,
-            defensiveMode: Boolean
+            defensiveMode: Boolean,
+            finalUrl: String? = null
         ): FetchedFeedPayload =
             FetchedFeedPayload(
                 responseBytes = responseBytes,
                 charset = charset,
                 byteSize = responseBytes.size,
-                defensiveMode = defensiveMode
+                defensiveMode = defensiveMode,
+                finalUrl = finalUrl
             )
     }
 
@@ -436,3 +412,10 @@ sealed class FeedFetchResult {
     ) : FeedFetchResult()
     data object NotModified : FeedFetchResult()
 }
+
+
+
+
+
+
+

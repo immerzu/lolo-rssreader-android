@@ -25,6 +25,11 @@ class FeedParser {
         private const val TAG = "FeedParser"
         private const val LARGE_FEED_DEFENSIVE_MAX_ITEMS = 120
         private const val LARGE_FEED_DEFENSIVE_MAX_ITEM_CONTENT_CHARS = 180_000
+
+// Absolute Obergrenze pro Artikel, unabhaengig vom Defensivmodus: Ein einzelner
+// Beitrag darf keine mehrstelligen Megabyte HTML in einer Datenbankzeile erzeugen
+// (Audit RSS-A32).
+private const val LARGE_FEED_ABSOLUTE_MAX_ITEM_CONTENT_CHARS = 1_000_000
         private const val LARGE_FEED_DEFENSIVE_MAX_DERIVED_CONTENT_CHARS = 60_000
         private const val LARGE_FEED_DEFENSIVE_SKIP_IMAGE_SCAN_CHARS = 90_000
         private const val LARGE_FEED_DEFENSIVE_FORCE_SKIP_IMAGE_SCAN_CHARS = 140_000
@@ -380,6 +385,9 @@ class FeedParser {
 
     private fun parseAtom(parser: XmlPullParser, runtime: FeedParseRuntime): ParsedFeed {
         val feedDepth = parser.depth
+        runtime.atomBaseUrl = parser
+            .getAttributeValue("http://www.w3.org/XML/1998/namespace", "base")
+            ?.takeIf { it.isNotBlank() }
         var feedTitle = "Unbekannter Feed"
         var siteUrl: String? = null
         var iconUrl: String? = null
@@ -459,8 +467,13 @@ class FeedParser {
         var author: String? = null
         var summaryHtml: String? = null
         var contentHtml: String? = null
-        var publishedAt: Long? = null
-        var rawPublishedAt: String? = null
+        // published und updated getrennt lesen: Die Elementreihenfolge darf das
+        // Ergebnis nicht bestimmen, und ein ungueltiger Wert darf einen gueltigen
+        // nicht ueberschreiben (Audit RSS-A11).
+        var publishedDate: Long? = null
+        var updatedDate: Long? = null
+        var rawPublishedDate: String? = null
+        var rawUpdatedDate: String? = null
 
         while (!(parser.eventType == XmlPullParser.END_TAG &&
             parser.depth == entryDepth &&
@@ -486,14 +499,29 @@ class FeedParser {
                             limit = limit
                         )
                     }
-                    "published", "updated" -> {
-                        rawPublishedAt = parser.readPlainTextContent()
-                        publishedAt = parseDate(rawPublishedAt.orEmpty())
+                    "published" -> {
+                        rawPublishedDate = parser.readPlainTextContent()
+                        publishedDate = parseDate(rawPublishedDate.orEmpty())
+                    }
+
+                    "updated" -> {
+                        rawUpdatedDate = parser.readPlainTextContent()
+                        updatedDate = parseDate(rawUpdatedDate.orEmpty())
                     }
 
                     "author" -> author = parseAtomAuthor(parser)
                     "link" -> {
-                        val href = parser.getAttributeValue(null, "href")?.trim().orEmpty()
+                        // Relative hrefs werden gegen das geerbte xml:base (sonst die
+                        // Feed-URL) aufgeloest; vorher wurde "item" roh gespeichert
+                        // (Audit RSS-A09).
+                        val rawHref = parser.getAttributeValue(null, "href")?.trim().orEmpty()
+                        val xmlBase = parser
+                            .getAttributeValue("http://www.w3.org/XML/1998/namespace", "base")
+                            ?.takeIf { it.isNotBlank() }
+                        val href = resolveUrl(
+                            xmlBase ?: runtime.atomBaseUrl ?: runtime.sourceUrl,
+                            rawHref
+                        ).orEmpty()
                         val rel = parser.getAttributeValue(null, "rel")?.trim().orEmpty()
                         if (href.isNotBlank()) {
                             when {
@@ -514,6 +542,9 @@ class FeedParser {
             parser.next()
         }
 
+        // Feste Prioritaet: published, ersatzweise updated (Audit RSS-A11).
+        val publishedAt = publishedDate ?: updatedDate
+        val rawPublishedAt = rawPublishedDate ?: rawUpdatedDate
         val contentSource = when {
             !contentHtml.isNullOrBlank() -> ParsedContentSource.CONTENT
             !summaryHtml.isNullOrBlank() -> ParsedContentSource.SUMMARY
@@ -667,19 +698,18 @@ class FeedParser {
         )
         val normalizedAuthor = normalizeUniqueKeyComponent(author.orEmpty())
         val normalizedTitle = normalizeUniqueKeyComponent(title)
-        val fallbackBasis = listOfNotNull(
-            sourceUrl?.trim()?.takeIf { it.isNotBlank() },
-            publishedAt?.toString(),
-            normalizedAuthor.takeIf { it.isNotBlank() },
-            normalizedPlainText.takeIf { it.isNotBlank() },
-            normalizedRawContent.takeIf { it.isNotBlank() && it != normalizedPlainText },
-            normalizedTitle.takeIf {
-                it.isNotBlank() &&
-                    normalizedAuthor.isBlank() &&
-                    normalizedPlainText.isBlank() &&
-                    normalizedRawContent.isBlank()
-            }
-        ).joinToString("|")
+        // Feldgrenzen sind explizit (Trennzeichen + Feldname), und der Titel ist immer
+        // Teil des Schluessels: Ohne GUID und Link reichte sonst eine gemeinsame
+        // Textpassage, um verschiedene Artikel auf denselben Schluessel abzubilden
+        // (Audit RSS-A04).
+        val fallbackBasis = listOf(
+            "src=${sourceUrl?.trim().orEmpty()}",
+            "pub=${publishedAt?.toString().orEmpty()}",
+            "author=$normalizedAuthor",
+            "plain=$normalizedPlainText",
+            "raw=$normalizedRawContent",
+            "title=$normalizedTitle"
+        ).joinToString(separator = "\u001F")
 
         val digest = MessageDigest.getInstance("SHA-256")
             .digest(fallbackBasis.toByteArray(Charsets.UTF_8))
@@ -796,7 +826,7 @@ class FeedParser {
                 append(", resolvedTitle=")
                 append(quoted(preview(article.title)))
                 append(", link=")
-                append(quoted(preview(article.link)))
+                append(quoted(preview(UrlRedaction.redactForLog(article.link))))
                 append(", pubDate=")
                 append(quoted(preview(rawPublishedAt)))
                 append(", contentSource=")
@@ -1002,7 +1032,11 @@ class FeedParser {
     ) {
         private val itemCap: Int? = if (defensiveMode) LARGE_FEED_DEFENSIVE_MAX_ITEMS else null
         private val perItemContentCharLimit: Int? =
-            if (defensiveMode) LARGE_FEED_DEFENSIVE_MAX_ITEM_CONTENT_CHARS else null
+            if (defensiveMode) {
+                LARGE_FEED_DEFENSIVE_MAX_ITEM_CONTENT_CHARS
+            } else {
+                LARGE_FEED_ABSOLUTE_MAX_ITEM_CONTENT_CHARS
+            }
 
         var itemCapApplied: Boolean = false
             private set
@@ -1010,6 +1044,10 @@ class FeedParser {
             private set
         var imageScanSkipped: Boolean = false
             private set
+
+        // xml:base des <feed>-Elements; gilt fuer alle relativen Links im Feed
+        // (Audit RSS-A09).
+        var atomBaseUrl: String? = null
 
         fun canParseMoreItems(currentCount: Int): Boolean = itemCap == null || currentCount < itemCap
 
@@ -1114,5 +1152,6 @@ class FeedParser {
         }
     }
 }
+
 
 

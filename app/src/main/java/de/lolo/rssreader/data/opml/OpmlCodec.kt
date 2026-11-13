@@ -4,8 +4,10 @@ import de.lolo.rssreader.data.errors.RssReaderException
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.InputStream
+import java.io.StringReader
 import javax.xml.XMLConstants
 import javax.xml.parsers.DocumentBuilderFactory
+import org.xml.sax.InputSource
 
 data class OpmlFeedEntry(
     val url: String,
@@ -78,7 +80,12 @@ object OpmlCodec {
             runCatching { setFeature("http://xml.org/sax/features/external-parameter-entities", false) }
             runCatching { setFeature("http://apache.org/xml/features/nonvalidating/load-external-dtd", false) }
         }
-        hardenedFactory.newDocumentBuilder().parse(ByteArrayInputStream(inputBytes))
+        hardenedFactory.newDocumentBuilder().apply {
+            // Externe Entities und DTDs werden nicht aufgeloest: Der Resolver liefert
+            // eine leere Quelle, unabhaengig davon, ob die Feature-Schalter auf dem
+            // jeweiligen Android-Parser greifen (Audit RSS-A30).
+            setEntityResolver { _, _ -> InputSource(StringReader("")) }
+        }.parse(ByteArrayInputStream(inputBytes))
     }.getOrElse { throwable ->
         throw RssReaderException.InvalidXml(throwable)
     }

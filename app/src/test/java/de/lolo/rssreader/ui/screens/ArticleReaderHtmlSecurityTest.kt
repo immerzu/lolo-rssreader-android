@@ -227,4 +227,100 @@ class ArticleReaderHtmlSecurityTest {
         assertFalse(Regex("""<figure[^>]*\sstyle\s*=""", RegexOption.IGNORE_CASE).containsMatchIn(sanitized))
         assertTrue(sanitized.contains("Text darf nicht rechts neben der figure-Box"))
     }
+
+    // Regression RSS-A01: Ein exakt erwartetes "</script>" liess sich mit gueltigem
+    // HTML umgehen; in Chromium wurde das Skript dadurch ausgefuehrt.
+    @Test
+    fun sanitizeRemovesScriptTagWithWhitespaceBeforeEndTag() {
+        val sanitized = sanitizeReaderBodyHtmlForTest(
+            "<p>Text</p><script>document.body.dataset.audit=456</script ><p>Danach</p>"
+        )
+
+        assertFalse(sanitized.contains("<script", ignoreCase = true))
+        assertFalse(sanitized.contains("dataset.audit=456"))
+        assertTrue(sanitized.contains("<p>Text</p>"))
+        assertTrue(sanitized.contains("<p>Danach</p>"))
+    }
+
+    @Test
+    fun sanitizeRemovesScriptTagWithAttributesInEndTag() {
+        val sanitized = sanitizeReaderBodyHtmlForTest(
+            "<p>Text</p><script type=\"text/javascript\">alert(1)</script foo=\"bar\"><p>Danach</p>"
+        )
+
+        assertFalse(sanitized.contains("<script", ignoreCase = true))
+        assertFalse(sanitized.contains("alert(1)"))
+        assertTrue(sanitized.contains("<p>Danach</p>"))
+    }
+
+    @Test
+    fun sanitizeRemovesSelfClosingScriptTag() {
+        val sanitized = sanitizeReaderBodyHtmlForTest(
+            "<p>Text</p><script src=\"https://evil.example/x.js\"/><p>Danach</p>"
+        )
+
+        assertFalse(sanitized.contains("<script", ignoreCase = true))
+        assertFalse(sanitized.contains("evil.example"))
+        assertTrue(sanitized.contains("<p>Danach</p>"))
+    }
+
+    // Regression RSS-A01: <iframe srcdoc> fuehrt im Eltern-Dokument Skripte aus.
+    @Test
+    fun sanitizeRemovesIframeSrcdocPayload() {
+        val sanitized = sanitizeReaderBodyHtmlForTest(
+            "<p>Video</p><iframe srcdoc=\"&lt;script&gt;parent.document.body.dataset.audit=123&lt;/script&gt;\"></iframe><p>Danach</p>"
+        )
+
+        assertFalse(sanitized.contains("srcdoc", ignoreCase = true))
+        assertFalse(sanitized.contains("dataset.audit"))
+        assertTrue(sanitized.contains("<p>Danach</p>"))
+    }
+
+    // Regression RSS-A01: javascript:-URLs sind ausfuehrbar, sobald JavaScript aktiv ist.
+    @Test
+    fun sanitizeRemovesExecutableUrlAttributes() {
+        val sanitized = sanitizeReaderBodyHtmlForTest(
+            """
+                <p>Text</p>
+                <a href="javascript:alert(1)">Klick</a>
+                <img src="vbscript:msgbox(1)">
+            """.trimIndent()
+        )
+
+        assertFalse(sanitized.contains("javascript:", ignoreCase = true))
+        assertFalse(sanitized.contains("vbscript:", ignoreCase = true))
+        assertTrue(sanitized.contains("<p>Text</p>"))
+    }
+
+    // Regression RSS-A08: "display: none" verhindert keinen Bildabruf.
+    @Test
+    fun sanitizeRemovesImagesWhenImageDisplayIsDisabled() {
+        val sanitized = sanitizeReaderBodyHtmlForTest(
+            """
+                <p>Text</p>
+                <img src="https://example.com/tracker.jpg">
+                <picture>
+                    <source srcset="https://example.com/photo.webp" type="image/webp">
+                    <img src="https://example.com/photo.jpg" alt="">
+                </picture>
+            """.trimIndent(),
+            showImages = false
+        )
+
+        assertFalse(sanitized.contains("tracker.jpg"))
+        assertFalse(sanitized.contains("photo.jpg"))
+        assertFalse(sanitized.contains("photo.webp"))
+        assertFalse(sanitized.contains("<img", ignoreCase = true))
+        assertTrue(sanitized.contains("<p>Text</p>"))
+    }
+
+    @Test
+    fun sanitizeKeepsImagesWhenImageDisplayIsEnabled() {
+        val sanitized = sanitizeReaderBodyHtmlForTest(
+            "<p>Text</p><img src=\"https://example.com/photo.jpg\">",
+            showImages = true
+        )
+
+        assertTrue(sanitized.contains("photo.jpg"))
+    }
 }

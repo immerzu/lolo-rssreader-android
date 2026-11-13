@@ -59,6 +59,32 @@ class OpmlCodecTest {
     }
 
     @Test
+    fun externeEntityImElementinhaltWirdNichtAufgeloest() {
+        // Regression RSS-A30: Der fruehere Test nutzte die Entity in einem Attribut,
+        // wo XML sie ohnehin verbietet. Hier steht sie im Elementinhalt - der
+        // EntityResolver muss die Aufloesung verhindern, ohne den Import zu brechen.
+        val opml = """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <!DOCTYPE opml [
+              <!ENTITY ext SYSTEM "https://example.com/external.ent">
+            ]>
+            <opml version="1.0">
+              <head>
+                <title>&ext;</title>
+              </head>
+              <body>
+                <outline text="Feed" xmlUrl="https://example.com/feed.xml" />
+              </body>
+            </opml>
+        """.trimIndent()
+
+        val entries = OpmlCodec.parse(ByteArrayInputStream(opml.toByteArray(Charsets.UTF_8)))
+
+        assertEquals(1, entries.size)
+        assertEquals("https://example.com/feed.xml", entries.single().url)
+    }
+
+    @Test
     fun parseDeduplicatesTrimmedDuplicateUrlsWhileKeepingFirstTitle() {
         val opml = """
             <?xml version="1.0" encoding="UTF-8"?>

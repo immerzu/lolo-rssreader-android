@@ -78,6 +78,9 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
@@ -89,6 +92,7 @@ import de.lolo.rssreader.R
 import de.lolo.rssreader.data.db.ArticleNavigationEntry
 import de.lolo.rssreader.data.db.ArticleEntity
 import de.lolo.rssreader.data.network.ExtractedArticleContent
+import de.lolo.rssreader.data.repository.FAVORITES_FEED_ID
 import de.lolo.rssreader.data.repository.FeedRepository
 import de.lolo.rssreader.debug.DebugLogger
 import de.lolo.rssreader.ui.shareArticle
@@ -111,6 +115,7 @@ fun ArticleReaderScreen(
     repository: FeedRepository,
     showImages: Boolean,
     articleBodyTextSizeOffset: Int,
+    favoritesContext: Boolean = false,
     onBack: () -> Unit
 ) {
     val context = LocalContext.current
@@ -127,8 +132,11 @@ fun ArticleReaderScreen(
     var isFeedHeavy by remember { mutableStateOf(false) }
     val webSwipeTracker = remember { WebSwipeTracker() }
     val defaultBodyTextStyle = MaterialTheme.typography.bodyLarge
-    val articleNavigationFlow = remember(repository, article?.feedId) {
-        article?.feedId?.let(repository::observeArticleNavigation) ?: flowOf(emptyList())
+    // Wurde der Reader aus der Favoritenliste geoeffnet, stammen die Wisch-Nachbarn
+    // aus der Favoritenliste, nicht aus dem Quellfeed (Audit RSS-A20).
+    val navigationFeedId = if (favoritesContext) FAVORITES_FEED_ID else article?.feedId
+    val articleNavigationFlow = remember(repository, navigationFeedId) {
+        navigationFeedId?.let(repository::observeArticleNavigation) ?: flowOf(emptyList())
     }
     val articleNavigation by articleNavigationFlow.collectAsState(initial = emptyList())
     val fallbackBodyTextStyle = remember(defaultBodyTextStyle, effectiveArticleBodyTextSizeOffset) {
@@ -221,15 +229,32 @@ fun ArticleReaderScreen(
         }
     }
 
+    // Nur die erste Komposition uebernimmt die Route-ID. Nach einer Activity-Neuerstellung
+    // steht currentArticleId bereits auf dem zuletzt gelesenen Artikel; ein erneutes
+    // Zuweisen wuerde zum Einstiegsartikel zurueckspringen (Audit RSS-A21).
     LaunchedEffect(articleId) {
-        currentArticleId = articleId
+        if (!hasShownInitialArticle) {
+            currentArticleId = articleId
+        }
     }
+
+    // Bedienweg ohne Wischgeste (TalkBack, Tastatur, Schaltersteuerung): der
+    // Artikelwechsel ist sonst nur ueber Touch-Gesten erreichbar (Audit RSS-A22).
+    val nextArticleLabel = stringResource(R.string.article_reader_next_article)
+    val previousArticleLabel = stringResource(R.string.article_reader_previous_article)
 
     LaunchedEffect(currentArticleId) {
         isLoadingArticle = true
         webViewFailed = false
         DebugLogger.i(TAG, "Artikel wird geladen: articleId=$currentArticleId")
-        val loadedArticle = withContext(Dispatchers.IO) { repository.getArticle(currentArticleId) }
+        // Ein Lesefehler der Datenbank darf die Leseransicht nicht abbrechen
+        // (Audit RSS-A34).
+        val loadedArticle = runCatching {
+            withContext(Dispatchers.IO) { repository.getArticle(currentArticleId) }
+        }.onFailure { throwable ->
+            if (throwable is CancellationException) throw throwable
+            DebugLogger.w(TAG, "Artikel konnte nicht gelesen werden: articleId=$currentArticleId", throwable)
+        }.getOrNull()
         article = loadedArticle
         if (loadedArticle != null) {
             DebugLogger.i(TAG, "Artikel geladen: articleId=${loadedArticle.id}, title=${loadedArticle.title.take(80)}")
@@ -252,7 +277,9 @@ fun ArticleReaderScreen(
                     }
                 )
             }
-            val feed = withContext(Dispatchers.IO) { repository.getFeed(loadedArticle.feedId) }
+            val feed = runCatching {
+                withContext(Dispatchers.IO) { repository.getFeed(loadedArticle.feedId) }
+            }.getOrNull()
             isFeedHeavy = feed?.heavy == true
             if (isFeedHeavy) {
                 DebugLogger.i(TAG, "Heavy-Feed erkannt: feedId=${loadedArticle.feedId}, articleId=${loadedArticle.id}")
@@ -548,6 +575,13 @@ fun ArticleReaderScreen(
                         modifier = Modifier
                             .fillMaxSize()
                             .padding(padding)
+                            .readerArticleSwitchSemantics(
+                                hasNewer = newerArticleId != null,
+                                hasOlder = olderArticleId != null,
+                                nextLabel = nextArticleLabel,
+                                previousLabel = previousArticleLabel,
+                                onSwitch = triggerSwipe
+                            )
                             .then(
                                 if (shouldUseWebView && !webViewFailed) {
                                     Modifier
@@ -797,6 +831,7 @@ fun ArticleReaderScreen(
                         } else {
                             ReaderFallbackContent(
                                 article = currentArticle,
+                                fullTextPlainText = fullTextContent?.plainText,
                                 showImages = showImages,
                                 fallbackImageUrls = fallbackImageUrls,
                                 bodyTextStyle = fallbackBodyTextStyle,
@@ -871,7 +906,7 @@ private fun buildReaderHtml(
             .lineSequence()
             .map(TextUtils::htmlEncode)
             .joinToString(separator = "<br><br>")
-    }.normalizeReaderBodyHtml(loadProfile)
+    }.normalizeReaderBodyHtml(loadProfile, showImages)
     if (rawBody.isBlank()) {
         return null
     }
@@ -942,7 +977,7 @@ private fun buildReaderHtml(
     }
     return """
         <!DOCTYPE html>
-        <html lang="de">
+        <html lang="${java.util.Locale.getDefault().language}">
         <head>
           <meta charset="utf-8" />
           <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -1235,8 +1270,9 @@ private fun ReaderHtmlContent.shouldUseWebView(): Boolean {
 
 internal fun sanitizeReaderBodyHtmlForTest(
     html: String,
-    isHeavy: Boolean = false
-): String = html.normalizeReaderBodyHtml(ReaderLoadProfile(isHeavy = isHeavy))
+    isHeavy: Boolean = false,
+    showImages: Boolean = true
+): String = html.normalizeReaderBodyHtml(ReaderLoadProfile(isHeavy = isHeavy), showImages)
 
 // Erzeugt aus einem (potenziell nicht vertrauenswürdigen) Wert ein korrekt
 // gequotetes JavaScript-String-Literal. JSONObject.quote umschließt den Wert
@@ -1261,11 +1297,16 @@ internal fun buildArticleTapUrl(link: String): String =
 internal fun buildArticleUrlAssignment(articleTapUrl: String): String =
     "var articleUrl = ${toJavaScriptStringLiteral(articleTapUrl)};"
 
-private fun String.normalizeReaderBodyHtml(loadProfile: ReaderLoadProfile): String {
+private fun String.normalizeReaderBodyHtml(
+    loadProfile: ReaderLoadProfile,
+    showImages: Boolean = true
+): String {
     // Reader-HTML bleibt lesbar, aber fremde Inline-Skripte und Feed-eigene Styles
     // sollen die WebView nicht unnötig belasten oder das Layout destabilisieren.
     var normalizedHtml = this
     normalizedHtml = readerScriptTagRegex.replace(normalizedHtml, "")
+    normalizedHtml = readerSrcdocAttributeRegex.replace(normalizedHtml, "")
+    normalizedHtml = readerExecutableUrlAttributeRegex.replace(normalizedHtml, "")
     normalizedHtml = readerBaseTagRegex.replace(normalizedHtml, "")
     normalizedHtml = readerLinkTagRegex.replace(normalizedHtml, "")
     normalizedHtml = readerMetaTagRegex.replace(normalizedHtml, "")
@@ -1292,7 +1333,13 @@ private fun String.normalizeReaderBodyHtml(loadProfile: ReaderLoadProfile): Stri
     normalizedHtml = normalizedHtml.stripVideoSizeAttributes()
     normalizedHtml = readerInteractionAttributeRegex.replace(normalizedHtml, "")
     normalizedHtml = readerMetadataAttributeRegex.replace(normalizedHtml, "")
-    normalizedHtml = readerAccessibilityAttributeRegex.replace(normalizedHtml, "")
+    // Deaktivierte Bilder werden entfernt und nicht nur per CSS ausgeblendet:
+    // "display: none" verhindert keinen Ladevorgang, der Anbieter bekaeme den
+    // Aufruf trotzdem (Audit RSS-A08). <picture>-Quellen fallen mit weg.
+    if (!showImages) {
+        normalizedHtml = readerImgTagRegex.replace(normalizedHtml, "")
+        normalizedHtml = readerPictureTagRegex.replace(normalizedHtml, "")
+    }
     if (!loadProfile.isHeavy) {
         return normalizedHtml
     }
@@ -1404,6 +1451,7 @@ private fun String.looksLikeDirectImageUrl(): Boolean {
 @Composable
 private fun ReaderFallbackContent(
     article: ArticleEntity?,
+    fullTextPlainText: String?,
     showImages: Boolean,
     fallbackImageUrls: List<String>,
     bodyTextStyle: androidx.compose.ui.text.TextStyle,
@@ -1441,6 +1489,7 @@ private fun ReaderFallbackContent(
         Text(
             text = resolveReaderFallbackBodyText(
                 article = article,
+                fullTextPlainText = fullTextPlainText,
                 emptyTextLabel = stringResource(R.string.article_reader_no_text)
             ),
             style = bodyTextStyle
@@ -1449,7 +1498,7 @@ private fun ReaderFallbackContent(
             fallbackImageUrls.forEach { imageUrl ->
                 AsyncImage(
                     model = imageUrl,
-                    contentDescription = null,
+                    contentDescription = stringResource(R.string.article_reader_image_cd),
                     modifier = Modifier
                         .fillMaxWidth()
                         .clickable { onOpenArticle() }
@@ -1654,9 +1703,13 @@ internal fun resolveReaderFallbackBodyText(article: ArticleEntity?): String {
 
 internal fun resolveReaderFallbackBodyText(
     article: ArticleEntity?,
+    fullTextPlainText: String?,
     emptyTextLabel: String
 ): String {
-    return article?.plainText?.ifBlank { emptyTextLabel }.orEmpty()
+    // Der nachgeladene Volltext gehoert auch in die native Ersatzansicht; vorher
+    // zeigte sie weiter den Feed-Text (Audit RSS-A19).
+    return fullTextPlainText?.takeIf { it.isNotBlank() }
+        ?: article?.plainText?.ifBlank { emptyTextLabel }.orEmpty()
 }
 
 private data class ReaderLoadProfile(
@@ -1691,9 +1744,25 @@ private val readerStyleTagRegex = Regex(
     "<style\\b[^>]*>.*?</style>",
     setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL)
 )
+// Entfernt <script>-Bloecke. Der Endtag wird tolerant gematcht ("</script >",
+// "</script type=...>"), selbstschliessende Skript-Tags ("<script src=.../>")
+// werden ebenfalls entfernt: Ein exakt erwartetes "</script>" liess sich mit
+// gueltigem HTML umgehen (Audit RSS-A01).
 private val readerScriptTagRegex = Regex(
-    "<script\\b[^>]*>.*?</script>",
+    "<script\\b[^>]*>.*?</script[^>]*>|<script\\b[^>]*/>",
     setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL)
+)
+// srcdoc traegt HTML im Attribut; Chromium fuehrt darin Skripte im Eltern-Dokument
+// aus (Audit RSS-A01). Das Attribut wird entfernt; legitime iframes mit src bleiben.
+private val readerSrcdocAttributeRegex = Regex(
+    "\\ssrcdoc\\s*=\\s*(?:\"[^\"]*\"|'[^']*'|[^\\s>]+)",
+    RegexOption.IGNORE_CASE
+)
+// javascript:/vbscript:-URLs in Link- und Quellattributen sind ausfuehrbar, sobald
+// JavaScript aktiv ist. Das Attribut wird komplett entfernt (Audit RSS-A01).
+private val readerExecutableUrlAttributeRegex = Regex(
+    "\\s(?:href|src|action|formaction|xlink:href)\\s*=\\s*(?:\"\\s*(?:javascript|vbscript)[^\"]*\"|'\\s*(?:javascript|vbscript)[^']*'|(?:javascript|vbscript)[^\\s>]*)",
+    RegexOption.IGNORE_CASE
 )
 private val readerBaseTagRegex = Regex(
     "<base\\b[^>]*>",
@@ -1780,10 +1849,6 @@ private val readerMetadataAttributeRegex = Regex(
     "\\s(?:itemscope\\b|itemprop\\s*=\\s*(?:\"[^\"]*\"|'[^']*'|[^\\s>]+)|itemid\\s*=\\s*(?:\"[^\"]*\"|'[^']*'|[^\\s>]+)|itemref\\s*=\\s*(?:\"[^\"]*\"|'[^']*'|[^\\s>]+)|itemtype\\s*=\\s*(?:\"[^\"]*\"|'[^']*'|[^\\s>]+)|about\\s*=\\s*(?:\"[^\"]*\"|'[^']*'|[^\\s>]+)|typeof\\s*=\\s*(?:\"[^\"]*\"|'[^']*'|[^\\s>]+)|property\\s*=\\s*(?:\"[^\"]*\"|'[^']*'|[^\\s>]+)|resource\\s*=\\s*(?:\"[^\"]*\"|'[^']*'|[^\\s>]+)|vocab\\s*=\\s*(?:\"[^\"]*\"|'[^']*'|[^\\s>]+)|prefix\\s*=\\s*(?:\"[^\"]*\"|'[^']*'|[^\\s>]+)|slot\\s*=\\s*(?:\"[^\"]*\"|'[^']*'|[^\\s>]+)|part\\s*=\\s*(?:\"[^\"]*\"|'[^']*'|[^\\s>]+)|exportparts\\s*=\\s*(?:\"[^\"]*\"|'[^']*'|[^\\s>]+)|nonce\\s*=\\s*(?:\"[^\"]*\"|'[^']*'|[^\\s>]+)|blocking\\s*=\\s*(?:\"[^\"]*\"|'[^']*'|[^\\s>]+))",
     RegexOption.IGNORE_CASE
 )
-private val readerAccessibilityAttributeRegex = Regex(
-    "\\s(?:role\\s*=\\s*(?:\"[^\"]*\"|'[^']*'|[^\\s>]+)|aria-label\\s*=\\s*(?:\"[^\"]*\"|'[^']*'|[^\\s>]+)|aria-labelledby\\s*=\\s*(?:\"[^\"]*\"|'[^']*'|[^\\s>]+)|aria-describedby\\s*=\\s*(?:\"[^\"]*\"|'[^']*'|[^\\s>]+)|aria-hidden\\s*=\\s*(?:\"[^\"]*\"|'[^']*'|[^\\s>]+))",
-    RegexOption.IGNORE_CASE
-)
 private val READER_EXTERNAL_OPENABLE_SCHEMES = setOf("http", "https", "mailto")
 private val READER_BLOCKED_SUBRESOURCE_SCHEMES =
     setOf("file", "content", "intent", "vbscript", "javascript")
@@ -1798,6 +1863,10 @@ private val readerDangerousStyleAttributeRegex = Regex(
 private val readerImgTagRegex = Regex(
     "<img\\b[^>]*>",
     RegexOption.IGNORE_CASE
+)
+private val readerPictureTagRegex = Regex(
+    "<picture\\b[^>]*>.*?</picture>",
+    setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL)
 )
 private val readerHeavyMediaTagRegex = Regex(
     "<\\s*(?:iframe|video|embed|object)\\b[^>]*>.*?</\\s*(?:iframe|video|embed|object)\\s*>|<\\s*(?:iframe|video|embed|object)\\b[^>]*/?>",
@@ -1823,6 +1892,37 @@ private class WebSwipeTracker {
         deltaY = 0f
         downTimeMs = 0L
     }
+}
+
+private fun Modifier.readerArticleSwitchSemantics(
+    hasNewer: Boolean,
+    hasOlder: Boolean,
+    nextLabel: String,
+    previousLabel: String,
+    onSwitch: (SwipeDirection) -> Unit
+): Modifier {
+    val actions = buildList {
+        if (hasOlder) {
+            add(
+                CustomAccessibilityAction(nextLabel) {
+                    onSwitch(SwipeDirection.ToOlder)
+                    true
+                }
+            )
+        }
+        if (hasNewer) {
+            add(
+                CustomAccessibilityAction(previousLabel) {
+                    onSwitch(SwipeDirection.ToNewer)
+                    true
+                }
+            )
+        }
+    }
+    if (actions.isEmpty()) {
+        return this
+    }
+    return semantics { customActions = actions }
 }
 
 private fun Modifier.fallbackSwipe(
@@ -1992,3 +2092,5 @@ internal sealed interface FullTextState {
     data object Loading : FullTextState
     data class Success(val content: ExtractedArticleContent) : FullTextState
 }
+
+
