@@ -13,6 +13,24 @@ import org.junit.Test
 class FeedRepositoryRefreshSupportTest {
 
     @Test
+    fun uebersprungenerFeedZaehltNichtAlsErfolg() {
+        // Regression RSS-A12: Ein uebersprungener Feed (z. B. heavy-Intervall) ist kein
+        // erfolgreicher Abruf und darf einen Worker-Retry nicht unterdruecken.
+        val stats = buildRefreshRunStats(
+            outcomes = listOf(
+                RefreshFeedOutcome(insertedArticles = null, retryableFailure = false, skipped = true),
+                RefreshFeedOutcome(insertedArticles = null, retryableFailure = true)
+            ),
+            skippedFeeds = 1
+        )
+
+        assertEquals(0, stats.refreshedFeeds)
+        assertEquals(1, stats.failedFeeds)
+        assertEquals(1, stats.retryableFeeds)
+        assertEquals(2, stats.skippedFeeds)
+    }
+
+    @Test
     fun refreshCoordinatorRejectsNonPositiveParallelism() {
         try {
             RefreshCoordinator<Int>(
@@ -136,4 +154,5 @@ class FeedRepositoryRefreshSupportTest {
         }
     }
 }
+
 

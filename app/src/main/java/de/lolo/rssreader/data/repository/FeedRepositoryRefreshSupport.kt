@@ -39,26 +39,35 @@ internal class RefreshCoordinator<T>(
 
 internal data class RefreshFeedOutcome(
     val insertedArticles: Int?,
-    val retryableFailure: Boolean
+    val retryableFailure: Boolean,
+    // Ein uebersprungener Feed (z. B. heavy-Intervall) ist kein erfolgreicher Abruf:
+    // er darf einen Worker-Retry nicht unterdruecken (Audit RSS-A12).
+    val skipped: Boolean = false
 )
 
 internal data class RefreshAccumulator(
     val refreshedFeeds: Int = 0,
     val failedFeeds: Int = 0,
     val retryableFeeds: Int = 0,
-    val newArticles: Int = 0
+    val newArticles: Int = 0,
+    val skippedFeeds: Int = 0
 ) {
     fun add(outcome: RefreshFeedOutcome): RefreshAccumulator {
-        return if (outcome.insertedArticles != null) {
-            copy(
-                refreshedFeeds = refreshedFeeds + 1,
-                newArticles = newArticles + outcome.insertedArticles
-            )
-        } else {
-            copy(
-                failedFeeds = failedFeeds + 1,
-                retryableFeeds = retryableFeeds + if (outcome.retryableFailure) 1 else 0
-            )
+        return when {
+            outcome.skipped -> copy(skippedFeeds = skippedFeeds + 1)
+            outcome.insertedArticles != null -> {
+                copy(
+                    refreshedFeeds = refreshedFeeds + 1,
+                    newArticles = newArticles + outcome.insertedArticles
+                )
+            }
+
+            else -> {
+                copy(
+                    failedFeeds = failedFeeds + 1,
+                    retryableFeeds = retryableFeeds + if (outcome.retryableFailure) 1 else 0
+                )
+            }
         }
     }
 
@@ -66,7 +75,7 @@ internal data class RefreshAccumulator(
         require(skippedFeeds >= 0) { "skippedFeeds must be greater than or equal to 0" }
         return RefreshRunStats(
             refreshedFeeds = refreshedFeeds,
-            skippedFeeds = skippedFeeds,
+            skippedFeeds = this.skippedFeeds + skippedFeeds,
             failedFeeds = failedFeeds,
             retryableFeeds = retryableFeeds,
             newArticles = newArticles

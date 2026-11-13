@@ -13,8 +13,12 @@ sealed class Screen(val route: String) {
         fun create(feedId: Long) = "articles/$feedId"
     }
 
-    data object Reader : Screen("reader/{articleId}") {
-        fun create(articleId: Long) = "reader/$articleId"
+    data object Reader : Screen("reader/{articleId}?favorites={favorites}") {
+        // favoritesContext bindet die Nachbarabfrage an die Favoritenliste; ohne den
+        // Kontext wuerde beim Wischen der Quellfeed des Artikels verwendet
+        // (Audit RSS-A20).
+        fun create(articleId: Long, favoritesContext: Boolean = false) =
+            "reader/$articleId?favorites=$favoritesContext"
     }
 }
 

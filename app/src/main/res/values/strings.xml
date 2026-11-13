@@ -90,6 +90,9 @@
     <string name="article_reader_open_browser_cd">Open in browser</string>
     <string name="article_reader_not_found">Article not found.</string>
     <string name="article_reader_images_disabled">Images are disabled in settings.</string>
+    <string name="article_reader_next_article">Next article</string>
+    <string name="article_reader_previous_article">Previous article</string>
+    <string name="article_reader_image_cd">Article image</string>
     <string name="article_reader_no_text">No text content available.</string>
 
     <string name="shared_no_network_connection">No network connection</string>

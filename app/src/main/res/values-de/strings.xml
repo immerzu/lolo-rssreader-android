@@ -90,6 +90,9 @@
     <string name="article_reader_open_browser_cd">Im Browser öffnen</string>
     <string name="article_reader_not_found">Artikel nicht gefunden.</string>
     <string name="article_reader_images_disabled">Bilder sind in den Einstellungen deaktiviert.</string>
+    <string name="article_reader_next_article">Nächster Artikel</string>
+    <string name="article_reader_previous_article">Vorheriger Artikel</string>
+    <string name="article_reader_image_cd">Artikelbild</string>
     <string name="article_reader_no_text">Kein Textinhalt vorhanden.</string>
 
     <string name="shared_no_network_connection">Keine Netzwerkverbindung</string>

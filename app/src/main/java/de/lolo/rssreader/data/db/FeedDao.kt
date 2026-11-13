@@ -90,6 +90,37 @@ interface FeedDao {
     @Update
     suspend fun update(feed: FeedEntity)
 
+    // Schreibt ausschliesslich Abrufspalten. Nutzerdaten (URL, Name, WLAN-Regel,
+    // Sortierung, Oeffnungszeit) bleiben unangetastet, damit eine verspaetete
+    // Abrufantwort keine juengere Aenderung ueberschreibt (Audit RSS-A02).
+    @Query(
+        """
+        UPDATE feeds SET
+            lastFetchedAt = :fetchedAt,
+            etag = COALESCE(:etag, etag),
+            lastModified = COALESCE(:lastModified, lastModified),
+            heavy = :heavy,
+            siteUrl = COALESCE(:siteUrl, siteUrl),
+            iconUrl = COALESCE(:iconUrl, iconUrl),
+            lastRefreshFailed = 0
+        WHERE id = :feedId
+        """
+    )
+    suspend fun updateFetchResult(
+        feedId: Long,
+        fetchedAt: Long,
+        etag: String?,
+        lastModified: String?,
+        heavy: Boolean,
+        siteUrl: String?,
+        iconUrl: String?
+    )
+
+    // Nur lokale Metadaten aendern (Name, WLAN-Regel) - ohne Netzabruf und ohne
+    // die uebrigen Spalten zu beruehren (Audit RSS-A14).
+    @Query("UPDATE feeds SET customTitle = :customTitle, wifiOnly = :wifiOnly WHERE id = :feedId")
+    suspend fun updateLocalMetadata(feedId: Long, customTitle: String?, wifiOnly: Boolean)
+
     @Query("DELETE FROM feeds WHERE id = :feedId")
     suspend fun deleteById(feedId: Long)
 

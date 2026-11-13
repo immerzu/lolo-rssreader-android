@@ -6,6 +6,8 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.AlertDialog
@@ -23,6 +25,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -51,19 +54,25 @@ fun FeedConfigScreen(
     var url by rememberSaveable { mutableStateOf("") }
     var title by rememberSaveable { mutableStateOf("") }
     var wifiOnly by rememberSaveable { mutableStateOf(false) }
-    var loading by rememberSaveable { mutableStateOf(isEditMode) }
+    // Ein laufender Speichervorgang gehoert zum Scope der alten Komposition und ist
+    // nach einer Neuerstellung beendet - der Ladezustand darf deshalb nicht
+    // wiederhergestellt werden (Audit RSS-A17).
+    var loading by remember { mutableStateOf(false) }
+    // Ein wiederhergestellter Entwurf darf nicht durch das erneute Laden aus der
+    // Datenbank ueberschrieben werden (Audit RSS-A17).
+    var fieldsInitialized by rememberSaveable { mutableStateOf(false) }
     var errorMessage by rememberSaveable { mutableStateOf<String?>(null) }
     var showDeleteDialog by rememberSaveable { mutableStateOf(false) }
 
     LaunchedEffect(feedId) {
-        if (feedId != null) {
-            val feed = repository.getFeed(feedId)
+        if (feedId != null && !fieldsInitialized) {
+            val feed = runCatching { repository.getFeed(feedId) }.getOrNull()
             if (feed != null) {
                 url = feed.url
                 title = feed.customTitle.orEmpty()
                 wifiOnly = feed.wifiOnly
+                fieldsInitialized = true
             }
-            loading = false
         }
     }
 
@@ -135,6 +144,7 @@ fun FeedConfigScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
+                .verticalScroll(rememberScrollState())
                 .padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
@@ -241,3 +251,5 @@ private fun isValidFeedUrl(input: String): Boolean {
     val uri = runCatching { URI(input) }.getOrNull() ?: return false
     return uri.scheme?.lowercase() == "https" && !uri.host.isNullOrBlank()
 }
+
+

@@ -12,8 +12,10 @@ import de.lolo.rssreader.data.db.FeedSummary
 import de.lolo.rssreader.data.errors.RssReaderException
 import de.lolo.rssreader.data.network.ArticleFullTextExtractor
 import de.lolo.rssreader.data.network.ExtractedArticleContent
+import de.lolo.rssreader.data.network.FeedEncoding
 import de.lolo.rssreader.data.network.FeedFetcher
 import de.lolo.rssreader.data.network.FeedParser
+import de.lolo.rssreader.data.network.UrlRedaction
 import de.lolo.rssreader.data.opml.OpmlCodec
 import de.lolo.rssreader.data.opml.OpmlFeedEntry
 import de.lolo.rssreader.debug.DebugLogger
@@ -185,8 +187,8 @@ class FeedRepository(
         runOnIo {
             val validatedUrl = requireSupportedFeedScheme(url)
             val fetchResult = fetchAndParseFeed(validatedUrl)
-            val success = fetchResult as de.lolo.rssreader.data.network.FeedFetchResult.Success
-            val parsed = parser.parse(success.payload, validatedUrl)
+            val success = fetchResult as? de.lolo.rssreader.data.network.FeedFetchResult.Success ?: throw RssReaderException.HttpError(304)
+            val parsed = parser.parse(success.payload, success.payload.finalUrl ?: validatedUrl)
             try {
                 insertParsedFeed(
                     url = validatedUrl,
@@ -266,14 +268,14 @@ class FeedRepository(
         }
         return runOnIo {
             val feed = feedDao.getById(feedId) ?: return@runOnIo 0
-            DebugLogger.i(TAG, "refreshFeed gestartet: feedId=$feedId, url=${feed.url}")
+            DebugLogger.i(TAG, "refreshFeed gestartet: feedId=$feedId, url=${UrlRedaction.redactForLog(feed.url)}")
             try {
-                refreshFeedInternal(feed).also { inserted ->
-                    DebugLogger.i(
-                        TAG,
-                        "refreshFeed beendet: feedId=$feedId, inserted=$inserted"
-                    )
-                }
+                val inserted = refreshFeedInternal(feed)
+                DebugLogger.i(
+                    TAG,
+                    "refreshFeed beendet: feedId=$feedId, inserted=$inserted"
+                )
+                inserted ?: 0
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -287,8 +289,8 @@ class FeedRepository(
         runOnIo {
             val feed = feedDao.getById(feedId) ?: return@runOnIo
             val fetchResult = fetchAndParseFeed(feed.url)
-            val success = fetchResult as de.lolo.rssreader.data.network.FeedFetchResult.Success
-            val parsed = parser.parse(success.payload, feed.url)
+            val success = fetchResult as? de.lolo.rssreader.data.network.FeedFetchResult.Success ?: throw RssReaderException.HttpError(304)
+            val parsed = parser.parse(success.payload, success.payload.finalUrl ?: feed.url)
             feedDao.update(
                 feed.copy(
                     siteUrl = parsed.siteUrl ?: feed.siteUrl,
@@ -336,16 +338,27 @@ class FeedRepository(
     suspend fun updateFeed(feedId: Long, url: String, customTitle: String?, wifiOnly: Boolean) {
         runOnIo {
             val existingFeed = feedDao.getById(feedId) ?: return@runOnIo
-            val fetchResult = fetchAndParseFeed(url)
-            val success = fetchResult as de.lolo.rssreader.data.network.FeedFetchResult.Success
-            val urlChanged = existingFeed.url != url
+            val normalizedUrl = url.trim()
+            if (existingFeed.url == normalizedUrl) {
+                // Nur Name oder WLAN-Regel geaendert: keine Netzabfrage, damit die
+                // Bearbeitung auch offline funktioniert (Audit RSS-A14).
+                feedDao.updateLocalMetadata(
+                    feedId = feedId,
+                    customTitle = customTitle?.takeIf { it.isNotBlank() },
+                    wifiOnly = wifiOnly
+                )
+                DebugLogger.i(TAG, "updateFeed: lokale Metadaten gespeichert (kein Abruf): feedId=$feedId")
+                return@runOnIo
+            }
+            val fetchResult = fetchAndParseFeed(normalizedUrl)
+            val success = fetchResult as? de.lolo.rssreader.data.network.FeedFetchResult.Success ?: throw RssReaderException.HttpError(304)
             val becameHeavy = !existingFeed.heavy && success.payload.defensiveMode
             val effectivePayload = if (existingFeed.heavy && !success.payload.defensiveMode) {
                 success.payload.copy(defensiveMode = true)
             } else {
                 success.payload
             }
-            val parsed = parser.parse(effectivePayload, url)
+            val parsed = parser.parse(effectivePayload, effectivePayload.finalUrl ?: normalizedUrl)
             ensureManualSearchIndexMaintenance()
 
             try {
@@ -354,23 +367,25 @@ class FeedRepository(
                         existingFeed.copy(
                             title = parsed.title,
                             customTitle = customTitle?.takeIf { it.isNotBlank() },
-                            url = url,
+                            url = normalizedUrl,
                             siteUrl = parsed.siteUrl,
                             iconUrl = parsed.iconUrl,
                             lastFetchedAt = System.currentTimeMillis(),
                             wifiOnly = wifiOnly,
-                            etag = if (urlChanged) success.etag else (success.etag ?: existingFeed.etag),
-                            lastModified = if (urlChanged) success.lastModified else (success.lastModified ?: existingFeed.lastModified),
+                            etag = success.etag,
+                            lastModified = success.lastModified,
                             heavy = existingFeed.heavy || becameHeavy
                         )
                     )
-                    if (urlChanged) {
-                        articleDao.deleteByFeedId(feedId)
-                    }
+                    // Favoriten der alten Quelle bleiben erhalten (mit Inhalt und Link),
+                    // bekommen aber einen eindeutigen Schluessel, damit die neue Quelle
+                    // sie nicht ueberschreibt (Audit RSS-A03).
+                    articleDao.rekeyFavoritesForSourceChange(feedId)
+                    articleDao.deleteByFeedId(feedId)
                     insertArticlesInCurrentTransaction(
                         feedId = feedId,
                         parsed = parsed,
-                        searchIndexMayContainStaleRows = urlChanged,
+                        searchIndexMayContainStaleRows = true,
                         heavy = existingFeed.heavy || becameHeavy
                     )
                 }
@@ -578,7 +593,7 @@ class FeedRepository(
     suspend fun importOpml(inputStream: InputStream): OpmlImportResult = runOnIo {
         DebugLogger.i(TAG, "Import gestartet")
         val importBytes = readImportBytes(inputStream)
-        val xml = importBytes.toString(StandardCharsets.UTF_8)
+        val xml = FeedEncoding.decode(importBytes)
         val detectedFeedUrl = OpmlImportSupport.detectImportableFeedUrl(xml)
         val entries = runCatching {
             OpmlImportSupport.parseEntriesOrEmpty(importBytes)
@@ -691,7 +706,7 @@ class FeedRepository(
         }
     }
 
-    private suspend fun refreshFeedInternal(feed: FeedEntity): Int {
+    private suspend fun refreshFeedInternal(feed: FeedEntity): Int? {
         // Ein Feed ohne lokal gespeicherte Artikel muss vollstaendig aufgebaut werden. Nach
         // "Alle gelesenen Eintraege loeschen" fehlen die Artikel, waehrend etag/lastModified
         // unveraendert im Feed-Datensatz stehen. Ohne diese Pruefung wuerde der Skip-Pfad
@@ -714,7 +729,7 @@ class FeedRepository(
                     TAG,
                     "refreshFeedInternal: Heavy-Feed-Refresh uebersprungen (Intervall): feedId=${feed.id} elapsedMin=${elapsed / 60_000}"
                 )
-                return 0
+                return null
             }
         }
         val fetchResult = fetchAndParseFeed(
@@ -723,19 +738,23 @@ class FeedRepository(
             lastModified = feed.lastModified.takeIf { hasLocalArticles }
         )
         if (fetchResult is de.lolo.rssreader.data.network.FeedFetchResult.NotModified) {
+            // Ohne lokalen Bestand beweist ein 304 nichts: der Feed bleibt leer und
+            // darf deshalb nicht als erfolgreich aktualisiert gelten (Audit RSS-A13).
+            if (!hasLocalArticles) {
+                DebugLogger.w(
+                    TAG,
+                    "refreshFeedInternal: 304 ohne lokalen Artikelbestand, kein Erfolg: feedId=${feed.id}"
+                )
+                return null
+            }
             feedDao.markRefreshed(feed.id, System.currentTimeMillis())
             DebugLogger.i(
                 TAG,
-                "refreshFeedInternal: Feed unveraendert (304): feedId=${feed.id}" +
-                    if (hasLocalArticles) {
-                        ""
-                    } else {
-                        " (Hinweis: 304 trotz leerem Artikelbestand, es wurde kein bedingter Abruf gesendet)"
-                    }
+                "refreshFeedInternal: Feed unveraendert (304): feedId=${feed.id}"
             )
             return 0
         }
-        val success = fetchResult as de.lolo.rssreader.data.network.FeedFetchResult.Success
+        val success = fetchResult as? de.lolo.rssreader.data.network.FeedFetchResult.Success ?: throw RssReaderException.HttpError(304)
         // ETag-Fast-Path: Wenn der Server 200 liefert, aber denselben ETag wie beim letzten
         // Abruf, ist der Feed inhaltlich unverändert. Parsing, Artikel-Update und FTS werden
         // übersprungen – nur lastFetchedAt wird aktualisiert. Ohne lokalen Artikelbestand
@@ -755,20 +774,32 @@ class FeedRepository(
         } else {
             success.payload
         }
-        val parsed = parser.parse(payload, feed.url)
+        val parsed = parser.parse(payload, payload.finalUrl ?: feed.url)
         return database.withTransaction {
-            feedDao.update(
-                buildRefreshedFeedEntity(
-                    existingFeed = feed,
-                    parsed = parsed,
-                    fetchedAt = System.currentTimeMillis(),
-                    etag = success.etag,
-                    lastModified = success.lastModified,
-                    heavy = feed.heavy || becameHeavy
+            // Die Antwort gehoert zur Quelle, die beim Start des Abrufs galt. Wurde
+            // inzwischen eine andere URL eingetragen, wird die verspaetete Antwort
+            // samt Artikeln verworfen (Audit RSS-A02).
+            val currentFeed = feedDao.getById(feed.id)
+            if (currentFeed == null || currentFeed.url != feed.url) {
+                DebugLogger.w(
+                    TAG,
+                    "refreshFeedInternal: veraltete Antwort verworfen: feedId=${feed.id}" +
+                        " gestartetMit=${UrlRedaction.redactForLog(feed.url)}" +
+                        " aktuell=${UrlRedaction.redactForLog(currentFeed?.url)}"
                 )
+                return@withTransaction 0
+            }
+            feedDao.updateFetchResult(
+                feedId = feed.id,
+                fetchedAt = System.currentTimeMillis(),
+                etag = success.etag,
+                lastModified = success.lastModified,
+                heavy = feed.heavy || becameHeavy,
+                siteUrl = parsed.siteUrl,
+                iconUrl = parsed.iconUrl
             )
             if (becameHeavy) {
-                DebugLogger.i(TAG, "feed_heavy_marked feedId=${feed.id} url=${feed.url} bytes=${success.payload.byteSize}")
+                DebugLogger.i(TAG, "feed_heavy_marked feedId=${feed.id} url=${UrlRedaction.redactForLog(feed.url)} bytes=${success.payload.byteSize}")
             }
             insertArticlesInCurrentTransaction(
                 feedId = feed.id,
@@ -806,11 +837,13 @@ class FeedRepository(
         var unchangedArticles = 0
         if (conflictingArticles.isNotEmpty()) {
             val latestConflictingArticles = collapseConflictingArticlesByUniqueKey(conflictingArticles)
-            val existingArticlesByUniqueKey = articleDao
-                .getByFeedAndUniqueKeys(
-                    feedId = feedId,
-                    uniqueKeys = latestConflictingArticles.map { it.uniqueKey }
-                )
+            // Konfliktschluessel in Bloecken lesen: SQLite erlaubt nur begrenzt viele
+            // Bind-Variablen (~999); ein grosser Feed haette den Refresh sonst
+            // zurueckgerollt (Audit RSS-A07).
+            val existingArticlesByUniqueKey = latestConflictingArticles
+                .map { it.uniqueKey }
+                .chunked(MAX_UNIQUE_KEY_BIND_BATCH)
+                .flatMap { keys -> articleDao.getByFeedAndUniqueKeys(feedId = feedId, uniqueKeys = keys) }
                 .associateBy { it.uniqueKey }
             val changedArticles = ArrayList<ArticleEntity>(latestConflictingArticles.size)
 
@@ -833,9 +866,10 @@ class FeedRepository(
             }
         }
         val insertedArticles = insertedIds.count { it != -1L }
-        // FTS-Synchronisierung bei heavy Feeds überspringen: der Content ist
-        // bereits getruncated, und die FTS-Indizierung wäre teuer bei geringem Nutzen.
-        val shouldSyncSearchIndex = !heavy && shouldSyncSearchIndexByFeed(
+        // FTS-Synchronisierung laeuft auch fuer heavy Feeds: sonst fehlen deren neue
+        // Artikel in der Volltextsuche, und alte Begriffe bleiben nach dem Wechsel in
+        // den heavy-Modus suchbar (Audit RSS-A06).
+        val shouldSyncSearchIndex = shouldSyncSearchIndexByFeed(
             insertedArticles = insertedArticles,
             updatedArticles = updatedArticles
         )
@@ -868,26 +902,6 @@ class FeedRepository(
                 imageUrls = item.imageUrls.joinToString("\n")
             )
         }
-    }
-
-    private fun buildRefreshedFeedEntity(
-        existingFeed: FeedEntity,
-        parsed: de.lolo.rssreader.data.network.ParsedFeed,
-        fetchedAt: Long,
-        etag: String?,
-        lastModified: String?,
-        heavy: Boolean
-    ): FeedEntity {
-        return existingFeed.copy(
-            title = parsed.title,
-            siteUrl = parsed.siteUrl ?: existingFeed.siteUrl,
-            iconUrl = parsed.iconUrl ?: existingFeed.iconUrl,
-            lastFetchedAt = fetchedAt,
-            etag = etag ?: existingFeed.etag,
-            lastModified = lastModified ?: existingFeed.lastModified,
-            heavy = heavy,
-            lastRefreshFailed = false
-        )
     }
 
     private suspend fun <T> runOnIo(block: suspend () -> T): T = withContext(ioDispatcher) {
@@ -952,8 +966,11 @@ class FeedRepository(
         val coordinator = RefreshCoordinator<FeedEntity>(
             parallelism = REFRESH_PARALLELISM,
             task = { feed: FeedEntity ->
+                val inserted = refreshFeedInternal(feed)
                 RefreshFeedOutcome(
-                    insertedArticles = refreshFeedInternal(feed),
+                    insertedArticles = inserted,
+                    // null = uebersprungen (z. B. heavy-Intervall), nicht "erfolgreich".
+                    skipped = inserted == null,
                     retryableFailure = false
                 )
             },
@@ -1088,6 +1105,8 @@ class FeedRepository(
 
     companion object {
         private const val TAG = "FeedRepository"
+// Konservativ unter dem SQLite-Limit von 999 Bind-Variablen (Audit RSS-A07).
+private const val MAX_UNIQUE_KEY_BIND_BATCH = 500
         private const val HEAVY_FEED_MIN_REFRESH_INTERVAL_MS = 6L * 60 * 60 * 1000 // 6 Stunden
     }
 }
@@ -1193,6 +1212,11 @@ private fun Throwable.isRetryableRefreshFailure(): Boolean = when (this) {
     is RssReaderException.HttpError -> code == 429 || code in 500..599
     else -> false
 }
+
+
+
+
+
 
 
 

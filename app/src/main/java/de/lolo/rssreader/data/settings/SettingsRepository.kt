@@ -8,7 +8,9 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import de.lolo.rssreader.debug.DebugLogger
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 
@@ -28,7 +30,15 @@ class SettingsRepository(
     private val appContext = context.applicationContext
     private val store: DataStore<Preferences> = injectedDataStore ?: appContext.dataStore
 
-    val settings: Flow<AppPreferences> = store.data.map { preferences ->
+    // Ein Lesefehler im DataStore (beschaedigte Datei, fehlgeschlagene Migration) darf
+    // Start und Navigation nicht abbrechen: Es wird mit Standardwerten weitergemacht
+    // und der Fehler protokolliert (Audit RSS-A34).
+    val settings: Flow<AppPreferences> = store.data
+        .catch { throwable ->
+            DebugLogger.w("SettingsRepository", "Einstellungen konnten nicht gelesen werden", throwable)
+            emit(androidx.datastore.preferences.core.emptyPreferences())
+        }
+        .map { preferences ->
         AppPreferences(
             refreshOnStart = preferences[REFRESH_ON_START] ?: false,
             refreshOnlyOnWifi = preferences[REFRESH_ONLY_ON_WIFI] ?: false,
@@ -149,5 +159,7 @@ class SettingsRepository(
             booleanPreferencesKey("$UNREAD_ONLY_FEED_KEY_PREFIX$feedId")
     }
 }
+
+
 
 

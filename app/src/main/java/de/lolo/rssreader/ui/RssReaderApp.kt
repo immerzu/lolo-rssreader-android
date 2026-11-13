@@ -280,22 +280,30 @@ fun RssReaderApp(
                                     }
                             }
                         },
-                        onOpenArticle = { articleId ->
-                            navController.navigate(Screen.Reader.create(articleId))
+                        onOpenArticle = { articleId, favoritesContext ->
+                            navController.navigate(Screen.Reader.create(articleId, favoritesContext))
                         },
                         onBack = { navController.popBackStack() }
                     )
                 }
                 composable(
                     route = Screen.Reader.route,
-                    arguments = listOf(navArgument("articleId") { type = NavType.LongType })
+                    arguments = listOf(
+                        navArgument("articleId") { type = NavType.LongType },
+                        navArgument("favorites") {
+                            type = NavType.BoolType
+                            defaultValue = false
+                        }
+                    )
                 ) { backStackEntry ->
                     val articleId = backStackEntry.arguments?.getLong("articleId") ?: return@composable
+                    val favoritesContext = backStackEntry.arguments?.getBoolean("favorites") ?: false
                     ArticleReaderScreen(
                         articleId = articleId,
                         repository = repository,
                         showImages = settings?.showImages ?: true,
                         articleBodyTextSizeOffset = settings?.articleBodyTextSizeOffset ?: 0,
+                        favoritesContext = favoritesContext,
                         onBack = { navController.popBackStack() }
                     )
                 }
@@ -390,5 +398,6 @@ private fun hasForegroundRefreshTransport(capabilities: NetworkCapabilities): Bo
         capabilities.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET) ||
         capabilities.hasTransport(NetworkCapabilities.TRANSPORT_VPN)
 }
+
 
 

@@ -264,6 +264,12 @@ fun FeedListScreen(
                     )
                 }
                 if (isMoveMode) {
+                    // Der virtuelle Favoriten-Eintrag steht immer oben und ist nicht
+                    // verschiebbar; der erste echte Feed hat keinen Vorgaenger
+                    // (Audit RSS-A23).
+                    val isVirtualFavorites = feed.id == FAVORITES_FEED_ID
+                    val firstMovableIndex =
+                        if (feeds.firstOrNull()?.id == FAVORITES_FEED_ID) 1 else 0
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.spacedBy(2.dp)
@@ -276,7 +282,7 @@ fun FeedListScreen(
                         )
                         IconButton(
                             onClick = { onMoveFeedUp(feed.id) },
-                            enabled = index > 0,
+                            enabled = !isVirtualFavorites && index > firstMovableIndex,
                             modifier = Modifier.size(32.dp)
                         ) {
                             Icon(
@@ -286,7 +292,7 @@ fun FeedListScreen(
                         }
                         IconButton(
                             onClick = { onMoveFeedDown(feed.id) },
-                            enabled = index < feeds.lastIndex,
+                            enabled = !isVirtualFavorites && index < feeds.lastIndex,
                             modifier = Modifier.size(32.dp)
                         ) {
                             Icon(

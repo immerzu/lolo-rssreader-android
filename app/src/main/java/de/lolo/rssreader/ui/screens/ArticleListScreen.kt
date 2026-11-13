@@ -80,8 +80,20 @@ import kotlinx.coroutines.withTimeout
 
 private const val SINGLE_FEED_REFRESH_TIMEOUT_MS = 120_000L // 2 Minuten
 
+// Nur der zuletzt geladene Feed bleibt im Speicher: Die frueher unbegrenzte Map hielt
+// die vollstaendigen Artikelzeilen (inklusive HTML) jedes besuchten Feeds
+// (Audit RSS-A16).
 private object ArticleListScreenArticleCache {
-    val lastArticlesByFeedId = mutableMapOf<Long, List<ArticleEntity>>()
+    private var lastFeedId: Long? = null
+    private var lastArticles: List<ArticleEntity> = emptyList()
+
+    fun get(feedId: Long): List<ArticleEntity> =
+        if (feedId == lastFeedId) lastArticles else emptyList()
+
+    fun put(feedId: Long, articles: List<ArticleEntity>) {
+        lastFeedId = feedId
+        lastArticles = articles
+    }
 }
 
 @OptIn(
@@ -99,7 +111,7 @@ fun ArticleListScreen(
     showUnreadOnlyPreference: Boolean?,
     showUnreadOnlySaveFailed: Boolean,
     onShowUnreadOnlyChange: (Boolean) -> Unit,
-    onOpenArticle: (Long) -> Unit,
+    onOpenArticle: (Long, Boolean) -> Unit,
     onBack: () -> Unit
 ) {
     val logTag = "ArticleListScreen"
@@ -110,12 +122,12 @@ fun ArticleListScreen(
     val feed by repository.observeFeed(feedId).collectAsState(initial = null)
     val observedArticles by repository.observeArticles(feedId).collectAsState(initial = null)
     var lastVisibleArticles by remember(feedId) {
-        mutableStateOf(ArticleListScreenArticleCache.lastArticlesByFeedId[feedId].orEmpty())
+        mutableStateOf(ArticleListScreenArticleCache.get(feedId))
     }
     LaunchedEffect(feedId, observedArticles) {
         observedArticles?.let { loadedArticles ->
             lastVisibleArticles = loadedArticles
-            ArticleListScreenArticleCache.lastArticlesByFeedId[feedId] = loadedArticles
+            ArticleListScreenArticleCache.put(feedId, loadedArticles)
         }
     }
     val articles = observedArticles ?: lastVisibleArticles
@@ -489,7 +501,7 @@ fun ArticleListScreen(
                                         logTag,
                                         "Artikel aus Liste geoeffnet: articleId=${item.id}, feedId=$feedId"
                                     )
-                                    onOpenArticle(item.id)
+                                    onOpenArticle(item.id, isFavorites)
                                 },
                                 onLongClick = { selectedArticleId = item.id }
                             )
@@ -707,4 +719,7 @@ internal fun resolveShowUnreadOnly(
     override: Boolean?,
     preference: Boolean?
 ): Boolean = override ?: preference ?: false
+
+
+
 

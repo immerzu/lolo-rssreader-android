@@ -25,6 +25,8 @@ import de.lolo.rssreader.data.repository.FeedRepository
 import de.lolo.rssreader.data.repository.OpmlImportResult
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.launch
 
 internal fun noNetworkConnectionMessage(context: Context): String {
@@ -40,9 +42,13 @@ internal suspend fun importOpmlFromUri(
     repository: FeedRepository,
     uri: Uri
 ) = runCatching {
-    context.contentResolver.openInputStream(uri)?.use { inputStream ->
-        repository.importOpml(inputStream)
-    } ?: throw RssReaderException.FileReadFailed()
+    // Oeffnen und Schliessen des SAF-Streams koennen bei Cloud-Anbietern dauern und
+    // duerfen nicht auf dem Main-Thread laufen (Audit RSS-A33).
+    withContext(Dispatchers.IO) {
+        context.contentResolver.openInputStream(uri)?.use { inputStream ->
+            repository.importOpml(inputStream)
+        } ?: throw RssReaderException.FileReadFailed()
+    }
 }.getOrElse { throwable ->
     if (throwable is CancellationException) {
         throw throwable
@@ -58,9 +64,11 @@ internal suspend fun exportOpmlToUri(
     repository: FeedRepository,
     uri: Uri
 ) = runCatching {
-    context.contentResolver.openOutputStream(uri)?.use { outputStream ->
-        repository.exportOpml(outputStream)
-    } ?: throw RssReaderException.FileWriteFailed()
+    withContext(Dispatchers.IO) {
+        context.contentResolver.openOutputStream(uri)?.use { outputStream ->
+            repository.exportOpml(outputStream)
+        } ?: throw RssReaderException.FileWriteFailed()
+    }
 }.getOrElse { throwable ->
     if (throwable is CancellationException) {
         throw throwable
@@ -254,3 +262,4 @@ internal fun formatImportResultDialogMessage(result: OpmlImportResult, context: 
         context.getString(R.string.shared_import_result_partial, result.failedFeeds)
     }
 }
+

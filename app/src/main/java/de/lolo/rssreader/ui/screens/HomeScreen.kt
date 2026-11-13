@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
@@ -153,9 +154,12 @@ fun HomeScreen(
     var pendingFeedAction by rememberSaveable { mutableStateOf<FeedConfirmAction?>(null) }
     var pendingFeedActionId by rememberSaveable { mutableStateOf<Long?>(null) }
     var isMoveMode by rememberSaveable { mutableStateOf(false) }
-    var busy by rememberSaveable { mutableStateOf(false) }
-    var importInProgress by rememberSaveable { mutableStateOf(false) }
-    var importStatusText by rememberSaveable { mutableStateOf<String?>(null) }
+    // Arbeitszustand ist an den Scope der aktuellen Komposition gebunden; nach einer
+    // Neuerstellung laeuft kein Vorgang mehr, die UI darf nicht gesperrt bleiben
+    // (Audit RSS-A18).
+    var busy by remember { mutableStateOf(false) }
+    var importInProgress by remember { mutableStateOf(false) }
+    var importStatusText by remember { mutableStateOf<String?>(null) }
     var importDialogToken by rememberSaveable { mutableIntStateOf(0) }
     var importResultMessage by rememberSaveable { mutableStateOf<String?>(null) }
     var refreshStatusText by rememberSaveable { mutableStateOf<String?>(null) }
@@ -366,6 +370,9 @@ fun HomeScreen(
                             }
                         }
                 } finally {
+                    // Token entwerten: ein noch laufender Status-Timer darf nach dem
+                    // Abschluss nicht wieder "Import laeuft" setzen (Audit RSS-A18).
+                    importDialogToken = token + 1
                     importStatusText = null
                     importInProgress = false
                     busy = false
@@ -606,8 +613,12 @@ fun HomeScreen(
             Surface(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
+                    // Statusleiste/Cutout statt fester 56 dp: Das Menue bleibt auch bei
+                    // Edge-to-Edge und Displayausschnitt erreichbar (Audit RSS-A35).
+                    .statusBarsPadding()
                     .padding(top = 56.dp, end = 8.dp)
-                    .widthIn(min = 220.dp, max = 320.dp),
+                    .widthIn(min = 220.dp, max = 320.dp)
+                    .heightIn(max = 320.dp),
                 tonalElevation = 8.dp,
                 shadowElevation = 8.dp
             ) {
@@ -1341,3 +1352,7 @@ private fun currentAppVersionLabel(context: Context): String {
     }
     return "${packageInfo.versionName.orEmpty()} ($versionCode)"
 }
+
+
+
+

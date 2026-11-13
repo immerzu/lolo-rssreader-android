@@ -136,6 +136,12 @@ interface ArticleDao {
     @Query("DELETE FROM articles WHERE feedId = :feedId AND isFavorite = 0")
     suspend fun deleteByFeedId(feedId: Long): Int
 
+    // Beim Quellenwechsel bleiben Favoriten erhalten, duerfen aber nicht mit den
+    // Unique-Keys der neuen Quelle kollidieren. Der neue Schluessel ist pro Zeile
+    // eindeutig; Inhalt und Link bleiben unveraendert (Audit RSS-A03).
+    @Query("UPDATE articles SET uniqueKey = 'legacy-' || id WHERE feedId = :feedId AND isFavorite = 1")
+    suspend fun rekeyFavoritesForSourceChange(feedId: Long): Int
+
     @Query(
         """
         SELECT COUNT(*)
