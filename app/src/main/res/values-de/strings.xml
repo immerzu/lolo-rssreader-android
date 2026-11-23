@@ -48,7 +48,7 @@
     <string name="settings_theme_light">Tagmodus</string>
     <string name="settings_theme_dark">Nachtmodus</string>
     <string name="settings_entry_sort_title">Einträge anzeigen</string>
-    <string name="settings_sort_newest">Neuste zuerst</string>
+    <string name="settings_sort_newest">Neueste zuerst</string>
     <string name="settings_sort_oldest">Älteste zuerst</string>
     <string name="settings_article_text_size_title">Textgröße Artikel</string>
     <string name="settings_show_images_title">Bilder im Reader anzeigen</string>
