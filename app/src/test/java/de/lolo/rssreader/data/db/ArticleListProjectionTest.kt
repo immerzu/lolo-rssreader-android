@@ -164,4 +164,99 @@ class ArticleListProjectionTest {
         assertEquals(3, articleDao.observeUnreadCountByFeed(1L).first())
         assertEquals(5, articleDao.observeArticleCountByFeed(1L).first())
     }
+
+    // --- Randfaelle, die vor RSS-AUDIT-002 in der In-Memory-Filterung lagen ---
+
+    @Test
+    fun emptyFeedYieldsEmptyListForBothFilters() = runBlocking {
+        database.feedDao().insert(FeedEntity(title = "Leer", url = "https://example.com/empty"))
+
+        val all = articleDao.observeArticleListItems(1L, unreadOnly = false, newestFirst = true, limit = 100).first()
+        val unread = articleDao.observeArticleListItems(1L, unreadOnly = true, newestFirst = true, limit = 100).first()
+
+        assertTrue(all.isEmpty())
+        assertTrue(unread.isEmpty())
+    }
+
+    @Test
+    fun unreadFilterWithAllArticlesReadYieldsEmptyList() = runBlocking {
+        database.feedDao().insert(FeedEntity(title = "Testfeed", url = "https://example.com/feed"))
+        articleDao.insertAll(
+            listOf(
+                article(1L, publishedAt = 100L, isRead = true),
+                article(2L, publishedAt = 200L, isRead = true)
+            )
+        )
+
+        val unread = articleDao.observeArticleListItems(1L, unreadOnly = true, newestFirst = true, limit = 100).first()
+        val all = articleDao.observeArticleListItems(1L, unreadOnly = false, newestFirst = true, limit = 100).first()
+
+        assertTrue("Filter an + alles gelesen = leer", unread.isEmpty())
+        assertEquals("Filter aus zeigt weiterhin beide", 2, all.size)
+    }
+
+    @Test
+    fun markingTheLastUnreadArticleReadEmptiesTheFilteredList() = runBlocking {
+        database.feedDao().insert(FeedEntity(title = "Testfeed", url = "https://example.com/feed"))
+        articleDao.insertAll(listOf(article(1L, publishedAt = 100L, isRead = false)))
+
+        assertEquals(
+            1,
+            articleDao.observeArticleListItems(1L, unreadOnly = true, newestFirst = true, limit = 100)
+                .first().size
+        )
+
+        articleDao.markRead(1L)
+
+        assertTrue(
+            articleDao.observeArticleListItems(1L, unreadOnly = true, newestFirst = true, limit = 100)
+                .first().isEmpty()
+        )
+        assertEquals(
+            1,
+            articleDao.observeArticleListItems(1L, unreadOnly = false, newestFirst = true, limit = 100)
+                .first().size
+        )
+    }
+
+    @Test
+    fun pageBoundaryDeliversExactlyTheRequestedWindow() = runBlocking {
+        database.feedDao().insert(FeedEntity(title = "Testfeed", url = "https://example.com/feed"))
+        articleDao.insertAll(
+            (1L..101L).map { id -> article(id, publishedAt = id * 10L) }
+        )
+
+        val firstPage = articleDao.observeArticleListItems(1L, false, newestFirst = true, limit = 100).first()
+        val completeList = articleDao.observeArticleListItems(1L, false, newestFirst = true, limit = 200).first()
+
+        assertEquals(100, firstPage.size)
+        assertEquals(101, completeList.size)
+        assertEquals("Die erste Seite beginnt beim neuesten Artikel", 101L, firstPage.first().id)
+        assertEquals("Seite 1 enthaelt den aeltesten Artikel noch nicht", 2L, firstPage.last().id)
+        assertEquals(1L, completeList.last().id)
+    }
+
+    @Test
+    fun newerArticleDuringRefreshShiftsTheWindowWithoutDuplicates() = runBlocking {
+        database.feedDao().insert(FeedEntity(title = "Testfeed", url = "https://example.com/feed"))
+        articleDao.insertAll((1L..100L).map { id -> article(id, publishedAt = id * 10L) })
+
+        assertEquals(
+            100,
+            articleDao.observeArticleListItems(1L, false, newestFirst = true, limit = 100).first().size
+        )
+
+        // Waehrend eines Refresh kommt ein neuerer Artikel hinzu.
+        articleDao.insertAll(listOf(article(101L, publishedAt = 2_000L)))
+
+        val page = articleDao.observeArticleListItems(1L, false, newestFirst = true, limit = 100).first()
+        assertEquals(100, page.size)
+        assertEquals(101L, page.first().id)
+        assertEquals("Keine Duplikate in der Seite", 100, page.map { it.id }.distinct().size)
+        assertEquals("Der aelteste Artikel faellt aus der geladenen Seite", 2L, page.last().id)
+
+        val nextPage = articleDao.observeArticleListItems(1L, false, newestFirst = true, limit = 200).first()
+        assertEquals("Nachladen bringt den verdraengten Artikel zurueck", 101, nextPage.size)
+        assertEquals(1L, nextPage.last().id)
+    }
 }
