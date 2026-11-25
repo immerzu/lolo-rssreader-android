@@ -30,7 +30,11 @@ import java.net.URI
 import java.nio.charset.StandardCharsets
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.withContext
 
 // Kennung des virtuellen Feeds "Favoriten". Sie ist keine Zeile in der Tabelle `feeds`,
@@ -114,8 +118,30 @@ class FeedRepository(
         DebugLogger.i(TAG, "fts_mode mode=manual droppedTriggers=$droppedTriggers")
     }
 
-    fun observeFeedSummaries(): Flow<List<FeedSummary>> = feedDao.observeSummaries()
-    fun observeFeeds(): Flow<List<FeedEntity>> = feedDao.observeFeeds()
+    fun observeFeedSummaries(): Flow<List<FeedSummary>> =
+        feedDao.observeSummaries().guarded("feed_summaries")
+    fun observeFeeds(): Flow<List<FeedEntity>> =
+        feedDao.observeFeeds().guarded("feeds")
+
+    // Lesefehler der Datenbank (Audit RSS-A34): pro Lesepfad gemeldet, damit die UI
+    // eine sachliche Meldung zeigen kann, statt einen Leerzustand vorzutaeuschen.
+    private val _readFailures = MutableStateFlow<Map<String, DataReadFailure>>(emptyMap())
+    val readFailures: StateFlow<Map<String, DataReadFailure>> = _readFailures.asStateFlow()
+
+    /** Nimmt die aktuelle Lesefehler-Meldung zurueck (Nutzer hat sie bestaetigt). */
+    fun clearReadFailures() {
+        _readFailures.value = emptyMap()
+    }
+
+    private fun <T> Flow<T>.guarded(source: String): Flow<T> = guardDatabaseRead(
+        source = source,
+        onFailure = { failure ->
+            _readFailures.update { failures -> failures + (source to failure) }
+        },
+        onData = {
+            _readFailures.update { failures -> failures - source }
+        }
+    )
 
     // Virtueller Feed "Favoriten": sammelt alle gesternten Artikel, hat keine Quelle im Netz.
     // Er erscheint auf der Startseite nur, solange mindestens ein Favorit existiert.
@@ -141,34 +167,34 @@ class FeedRepository(
                     unreadArticles = counts.unreadArticles
                 )
             }
-        }
+        }.guarded("favorite_summary")
 
     fun observeFeed(feedId: Long): Flow<FeedEntity?> =
         if (feedId == FAVORITES_FEED_ID) {
             kotlinx.coroutines.flow.flowOf(null)
         } else {
-            feedDao.observeById(feedId)
+            feedDao.observeById(feedId).guarded("feed")
         }
 
     fun observeArticles(feedId: Long) =
         if (feedId == FAVORITES_FEED_ID) {
-            articleDao.observeFavorites()
+            articleDao.observeFavorites().guarded("favorite_articles")
         } else {
-            articleDao.observeByFeed(feedId)
+            articleDao.observeByFeed(feedId).guarded("feed_articles")
         }
 
     fun observeArticleNavigation(feedId: Long) =
         if (feedId == FAVORITES_FEED_ID) {
-            articleDao.observeFavoritesNavigation()
+            articleDao.observeFavoritesNavigation().guarded("favorite_navigation")
         } else {
-            articleDao.observeNavigationByFeed(feedId)
+            articleDao.observeNavigationByFeed(feedId).guarded("article_navigation")
         }
     fun searchArticles(query: String): Flow<List<ArticleSearchResult>> =
         if (query.isBlank()) {
             kotlinx.coroutines.flow.flowOf(emptyList())
         } else {
             val searchSpec = buildArticleSearchSpec(query)
-            if (searchSpec.matchQuery == null) {
+            val results = if (searchSpec.matchQuery == null) {
                 articleDao.searchArticlesFallback(searchSpec.query)
             } else {
                 articleDao.searchArticles(
@@ -176,6 +202,7 @@ class FeedRepository(
                     matchQuery = searchSpec.matchQuery
                 )
             }
+            results.guarded("search")
         }
 
     suspend fun addFeed(

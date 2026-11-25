@@ -1,6 +1,7 @@
 <resources xmlns:tools="http://schemas.android.com/tools">
     <string name="common_back">Back</string>
     <string name="common_ok">OK</string>
+    <string name="data_read_failed">Some data could not be read. Please try again.</string>
     <string name="common_cancel">Cancel</string>
     <string name="common_delete">Delete</string>
     <string name="common_close">Close</string>

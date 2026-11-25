@@ -1,6 +1,7 @@
 <resources>
     <string name="common_back">Zurück</string>
     <string name="common_ok">OK</string>
+    <string name="data_read_failed">Daten konnten nicht gelesen werden. Bitte erneut versuchen.</string>
     <string name="common_cancel">Abbrechen</string>
     <string name="common_delete">Löschen</string>
     <string name="common_close">Schließen</string>

@@ -4,7 +4,15 @@ import android.content.Context
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.os.SystemClock
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -16,8 +24,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.navigation.NavType
@@ -26,6 +38,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import de.lolo.rssreader.R
 import de.lolo.rssreader.debug.DebugLogger
 import de.lolo.rssreader.data.network.hasWifiConnection
 import de.lolo.rssreader.data.repository.FeedRepository
@@ -51,6 +64,7 @@ fun RssReaderApp(
 ) {
     val navController = rememberNavController()
     val settings by settingsRepository.settings.collectAsState(initial = null)
+    val readFailures by repository.readFailures.collectAsState()
     val lifecycleOwner = LocalLifecycleOwner.current
     val appContext = LocalContext.current.applicationContext
     val scope = rememberCoroutineScope()
@@ -179,6 +193,7 @@ fun RssReaderApp(
 
     RssReaderTheme(themeMode = settings?.themeMode ?: AppPreferences().themeMode) {
         Surface {
+            Box(modifier = Modifier.fillMaxSize()) {
             NavHost(navController = navController, startDestination = Screen.Home.route) {
                 composable(Screen.Home.route) {
                     val loadedSettings = settings ?: AppPreferences()
@@ -307,6 +322,36 @@ fun RssReaderApp(
                         onBack = { navController.popBackStack() }
                     )
                 }
+            }
+            // Datenbank-Lesefehler sichtbar machen (Audit RSS-A34): Die betroffenen
+            // Screens behalten ihren Ladezustand bzw. letzten Stand, statt einen
+            // Leerzustand vorzutaeuschen.
+            readFailures.values.firstOrNull()?.let {
+                Surface(
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .statusBarsPadding()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    color = MaterialTheme.colorScheme.errorContainer,
+                    shape = MaterialTheme.shapes.medium,
+                    tonalElevation = 6.dp
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(start = 16.dp, end = 4.dp, top = 8.dp, bottom = 8.dp)
+                    ) {
+                        Text(
+                            text = stringResource(R.string.data_read_failed),
+                            color = MaterialTheme.colorScheme.onErrorContainer,
+                            style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier.weight(1f)
+                        )
+                        TextButton(onClick = { repository.clearReadFailures() }) {
+                            Text(stringResource(R.string.common_ok))
+                        }
+                    }
+                }
+            }
             }
         }
     }
