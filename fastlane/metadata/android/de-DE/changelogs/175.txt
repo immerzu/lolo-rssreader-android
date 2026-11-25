@@ -1,0 +1,1 @@
+Version 1.87.46: Das Hauptmenue zeigt alle Eintraege vollstaendig (keine starre Hoehengrenze mehr) und hat leicht abgerundete Ecken.
