@@ -48,6 +48,29 @@ in der Statustabelle; Commits `5418025` (A34), `d8e382e` (A32), `3be3e3f` (A29),
   **11** Commits vor `origin/main`; die früheren Angaben „6" bzw. „7" waren ab einem Zwischenstand
   gezählt und damit falsch. Kein Commit fehlt, keiner liegt hinter `origin/main`.
 
+**Nachtrag 2026-11-25 (RSS-AUDIT-006, A29/A32):**
+- **A29 — Entwurf erstellt, Veröffentlichung offen:** Datenverarbeitung am Code geprüft (HTTPS-only,
+  keine Analytics/Werbung/Crash-SDKs, Übertragung nur an die abonnierten Quellserver, lokale
+  Speicherung in Room/DataStore, Logdatei nur in Debug-Builds, Backup deaktiviert). Sachlicher Entwurf
+  in `docs/privacy/DATENSCHUTZ_RSS_READER_DE.md` und `…_EN.md` (als Entwurf gekennzeichnet, Kontakt
+  und ggf. Postanschrift **[zu bestätigen]**). Bereitstellungsweg und konkrete Freigaben in
+  `docs/PrivacyLink für GooglePlay.txt`. **Offen:** öffentliches Repo + GitHub Pages, Eintrag in der
+  Play-Konsole.
+- **A32 — JVM-Messung durchgeführt:** `FeedParserPerformanceTest` misst 900k, 1.000k und 1.100k Zeichen
+  sowie einen Feed mit 5×900k:
+
+  | Fall | Eingabe | Artikel | max. Inhalt | Dauer | Heap-Delta |
+  |---|---|---|---|---|---|
+  | 900k | 900.000 | 1 | 900.000 | 108 ms | ~11 MB |
+  | 1.000k (Grenze) | 1.000.000 | 1 | 1.000.000 | 59 ms | ~9 MB |
+  | 1.100k | 1.100.000 | 1 | **1.000.000 (gekürzt)** | 48 ms | ~16 MB |
+  | 5×900k | 4.500.000 | 5 | 900.000 | 176 ms | ~52 MB |
+
+  Bewertung: stabil, korrekte Kürzung, Verarbeitung unter 0,2 s (JVM); kein Mangel belegt. Die
+  Messung ist **keine** API-26/36-Messung. **Freigabeanforderung:** Emulator mit System-Image API 26
+  und API 36 (x86_64, google_apis) starten und denselben Test dort ausführen — nur mit ausdrücklicher
+  Freigabe.
+
 ## Status je Befund
 
 | ID | Schwere | Status | Umsetzung |
@@ -80,10 +103,10 @@ in der Statustabelle; Commits `5418025` (A34), `d8e382e` (A32), `3be3e3f` (A29),
 | RSS-A26 | Mittel | behoben | jsoup `1.18.1` → `1.23.2` |
 | RSS-A27 | Mittel | behoben | CI-Actions auf Commit-SHAs gepinnt |
 | RSS-A28 | Niedrig | behoben | Doku an Policy angepasst (nur System-CAs) |
-| RSS-A29 | Niedrig | **offen (Restmaßnahme dokumentiert)** | Link und Pages am 25.11.2026 erneut geprüft (404 / kein Host); keine weitere Verwendungsstelle im Baum; keine Ersatz-URL erfunden. Benötigt: Privacy-Repo/Pages anlegen, Store-Konsole prüfen (`docs/PrivacyLink für GooglePlay.txt`) |
+| RSS-A29 | Niedrig | **offen (Entwurf erstellt, AUDIT-006)** | Datenverarbeitung geprüft; Entwurf DE/EN unter `docs/privacy/` (als Entwurf markiert, Kontakt **[zu bestätigen]**); Bereitstellungsweg + Freigaben in `docs/PrivacyLink für GooglePlay.txt`. **Offen:** öffentliches Repo + GitHub Pages, Play-Konsole |
 | RSS-A30 | Mittel | behoben | OPML-`EntityResolver` liefert leere Quelle |
 | RSS-A31 | Mittel | behoben | `data_extraction_rules`: alle Domänen ausgeschlossen |
-| RSS-A32 | Mittel | **nicht vollständig abgeschlossen (25.11.2026)** | Grenzwerte behoben und getestet (1 Mio. Zeichen, ober-/unterhalb, `FeedParserContentLimitTest`); die geforderte **Leistungsmessung auf API 26/36 fehlt** — kein freigegebenes Gerät, Emulator-Tests unzulässig. Ohne Messung gilt der Befund nicht als abgeschlossen |
+| RSS-A32 | Mittel | **teilweise (25.11.2026, AUDIT-006)** | Grenzwerte behoben und getestet; **JVM-Leistungsmessung** liegt vor (`FeedParserPerformanceTest`, 900k–1,1M Zeichen, 5×900k: 48–176 ms, Heap-Delta 9–52 MB, Kürzung korrekt). **API-26/36-Messung fehlt weiterhin** — kein freigegebenes Gerät, Emulator-Freigabe offen. Befund daher nicht abgeschlossen |
 | RSS-A33 | Mittel | behoben | SAF-Stream öffnen/schließen auf `Dispatchers.IO` |
 | RSS-A34 | Mittel | **behoben (25.11.2026, AUDIT-003)** | Zentrale Hülle `guardDatabaseRead`: Cancellation wird weitergereicht, andere Lesefehler gemeldet, vorübergehende Fehler bis zu zweimal mit 500 ms Wartezeit wiederholt (danach geordnetes Ende). Abgesichert: Feed-Übersicht, Favoriten, Artikelliste, Reader-Navigation, Suche; sichtbare Meldung statt Leerzustand. Tests: Erholung nach transientem Fehler, begrenzte Wiederholung, Cancellation (`DataReadSafetyTest`) |
 | RSS-A35 | Niedrig | behoben | Formular scrollbar; Menü nutzt `statusBarsPadding` und ist in der Höhe begrenzt |

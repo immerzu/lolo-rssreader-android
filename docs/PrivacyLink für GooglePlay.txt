@@ -1,27 +1,37 @@
 https://github.com/immerzu/lolo-rssreader-privacy/blob/main/privacy.html
 
-STATUS (2026-11-25, Audit RSS-A29 — erneut geprueft):
-Der obige Link ist NICHT erreichbar. Geprueft am 2026-11-25:
-- GitHub-API /repos/immerzu/lolo-rssreader-privacy -> HTTP 404 (Repository existiert nicht)
-  (curl, direkt am 25.11.2026 gemessen).
-- GitHub Pages https://immerzu.github.io/lolo-rssreader-privacy/privacy.html -> HTTP 000
-  (kein Host; das Repository existiert nicht).
-- Im Repository gibt es KEINE weitere Verwendungsstelle des Links: Suche ueber den gesamten
-  Baum nach "lolo-rssreader-privacy", "privacy.html", "privacyPolicy" und "Datenschutz"
-  findet nur diese Datei. Der Link wird von der App selbst nicht verwendet.
+STATUS (2026-11-25, Audit RSS-A29 / RSS-AUDIT-006):
+Der obige Link ist weiterhin NICHT erreichbar (GitHub-API /repos/immerzu/lolo-rssreader-privacy
+-> HTTP 404; GitHub Pages -> kein Host). Eine Ersatz-URL wird bewusst nicht eingetragen.
 
-Ergebnis: Es existiert derzeit keine gueltige, inhaltlich passende Datenschutzerklaerung.
-Eine Ersatz-URL wird bewusst NICHT eingetragen (keine Erfindung).
+1. DATENVERARBEITUNG (am Quellcode geprueft, Stand 841b36d / 1.87.46)
+- Netzwerk: ausschliesslich HTTPS (FeedFetcher, ArticleFullTextExtractor, network_security_config
+  mit cleartextTrafficPermitted=false). Kein Zwischendienst, keine Analytics-/Werbe-/Crash-SDKs
+  (Abhaengigkeiten: androidx, OkHttp, jsoup, Coil).
+- Uebertragen werden nur: IP-Adresse und User-Agent "RSS-Reader/1.x (+Android)" an die vom Nutzer
+  abonnierten Feed-/Website-Server; Bilder und Volltext direkt vom Quellserver.
+- Lokal: Room (Feeds/Artikel), DataStore (Einstellungen), Coil-/WebView-Cache.
+- Berechtigungen: INTERNET, ACCESS_NETWORK_STATE, POST_NOTIFICATIONS. Keine weiteren.
+- Protokollierung: Debug-Builds schreiben filesDir/debug/rss-reader-debug.log (max. 256 KB,
+  Zugangsdaten maskiert); Release-Builds schreiben keine Logdatei.
+- Backup: allowBackup=false; data_extraction_rules schliesst alle Domaenen aus.
 
-RESTMASSNAHME (offen, Nutzerentscheidung):
-1. Repository lolo-rssreader-privacy oeffentlich anlegen, privacy.html per GitHub Pages
-   veroeffentlichen und den tatsaechlich erreichbaren HTTPS-Link hier eintragen.
-   Alternativ: Datenschutzerklaerung auf einer anderen oeffentlichen HTTPS-Seite ablegen.
-2. Den in der Store-Konsole (Google Play/F-Droid) hinterlegten Wert pruefen und anpassen -
-   ohne Konsolenzugriff nicht moeglich, bleibt offen.
-3. Nach Vorliegen des neuen Links: diese Datei aktualisieren und A29 in
-   docs/AUDIT_2026-11-13_BEFUNDE.md auf "behoben" setzen.
+2. ENTWURF DER ERKLAERUNG (vorbereitet, NICHT veroeffentlicht)
+- docs/privacy/DATENSCHUTZ_RSS_READER_DE.md
+- docs/privacy/DATENSCHUTZ_RSS_READER_EN.md
+Beide sind als Entwurf gekennzeichnet; die Kontaktadresse (kesselflickerei@gmx.de aus den
+Store-Metadaten) und eine ggf. noetige Postanschrift sind vom Verantwortlichen zu bestaetigen.
 
-Zusaetzlich muss der tatsaechlich in der Store-Konsole (Google Play/F-Droid)
-hinterlegte Wert geprueft und angepasst werden - das ist ohne Zugriff auf die
-Konsole nicht moeglich und bleibt offen.
+3. BEREITSTELLUNGSWEG (empfohlen, noch nicht ausgefuehrt)
+a) Oeffentliches GitHub-Repository "lolo-rssreader-privacy" anlegen und die Erklaerung als
+   privacy.html (bzw. index.html) aufnehmen.
+b) GitHub Pages fuer dieses Repository aktivieren (Branch main, Verzeichnis /).
+c) Den dann tatsaechlich erreichbaren HTTPS-Link hier eintragen und die App-/Store-Verweise
+   anpassen.
+
+4. ERFORDERLICHE FREIGABEN (konkret)
+- Anlegen des oeffentlichen Repos "immerzu/lolo-rssreader-privacy" und Push der Erklaerung.
+- Aktivierung von GitHub Pages.
+- Eintrag/Aenderung der Datenschutz-URL in der Google-Play-Konsole (Zugriff erforderlich;
+  F-Droid hat kein Privacy-Policy-Pflichtfeld).
+Ohne diese Freigaben bleibt A29 offen; es wird keine URL erfunden.
