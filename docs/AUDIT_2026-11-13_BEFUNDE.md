@@ -35,6 +35,19 @@ in der Statustabelle; Commits `5418025` (A34), `d8e382e` (A32), `3be3e3f` (A29),
 - **Ergebnis:** keine Regression reproduziert. Teststand **423 / 0 / 0 / 1** (40 Suiten), Lint 0/24.
   Commit `835e791`. A29/A32 bleiben offen.
 
+**Nachtrag 2026-11-25 (RSS-AUDIT-005, Reader-Rückkehr und Git-Abgleich):**
+- **Reader-Rückkehr getestet:** `ArticleListNavigationUiTest` bildet den echten Navigationspfad nach
+  (Liste → Artikel → zurück). Nach dem Paging bleiben Listenposition, Filter und die nachgeladenen
+  Artikel erhalten. Auf bernd grün; **Rotnachweis**: ohne `rememberSaveable` für `pageLimit` fehlen die
+  Artikel nach der Rückkehr (Timeout). Commit `e22cd8b`.
+- **alice – Prüfblockade belegt:** Instrumentierte Tests laufen dort **generell** nicht. Zwei Versuche
+  (7 min und 150 s) und die Gegenprobe mit dem **bestehenden** `ArticleListUnreadFilterUiTest` (90 s)
+  enden ohne Ergebnis; Logcat zeigt „Crash of app de.lolo.rssreader running instrumentation", der
+  Crash-Buffer ist leer. Kein Bezug zu den AUDIT-004/005-Tests; auf bernd laufen alle 8 Tests.
+- **Git-Abgleich:** `git rev-list --left-right --count origin/main...HEAD` → **`0 11`**. Es sind
+  **11** Commits vor `origin/main`; die früheren Angaben „6" bzw. „7" waren ab einem Zwischenstand
+  gezählt und damit falsch. Kein Commit fehlt, keiner liegt hinter `origin/main`.
+
 ## Status je Befund
 
 | ID | Schwere | Status | Umsetzung |
