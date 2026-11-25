@@ -1,6 +1,9 @@
 # Privacy Policy — RSS Reader (Draft)
 
 **Status: DRAFT — not published.** Last updated: 2026-11-25.
+
+> **NOT FOR PUBLICATION.** Internal documentation; A29 is closed as not applicable (Google Play is
+> not used). Publishing would be a new decision.
 Based on source revision `841b36d` (version 1.87.46 / 175). Items marked **[to confirm]** must be
 verified by the responsible person before publication.
 

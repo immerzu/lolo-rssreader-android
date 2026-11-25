@@ -71,6 +71,31 @@ in der Statustabelle; Commits `5418025` (A34), `d8e382e` (A32), `3be3e3f` (A29),
   und API 36 (x86_64, google_apis) starten und denselben Test dort ausführen — nur mit ausdrücklicher
   Freigabe.
 
+**Nachtrag 2026-11-25 (RSS-AUDIT-007, Abschluss):**
+- **A29 → nicht anwendbar:** Google Play wird nicht genutzt (Vertrieb über F-Droid + GitHub, keine
+  Play-Konfiguration im Repo). Die Play-Pflichtangabe entfällt; kein zusätzliches Repo, keine
+  Pages-Seite. Entwürfe in `docs/privacy/` sind als **nicht zur Veröffentlichung** gekennzeichnet.
+- **A32 → behoben (API 26 + 36 gemessen):** instrumentierter Messtest
+  (`FeedParserPerformanceAndroidTest`), AVDs `rss_api26` (Android 8.0) und `rss_api36` (Android 16),
+  `-no-window -gpu off`, WHPX 10.0.26300. Je Fall 1 Aufwärmlauf + 5 Messungen; Dauer über
+  `System.nanoTime`, Speicher über `Debug.getPss()` vor/nach dem Lauf.
+
+  | API | Fall | Median | Max | PSS max | PSS-Delta |
+  |---|---|---|---|---|---|
+  | 26 | 900k | 178 ms | 207 ms | 65.542 KB | 7.923 KB |
+  | 26 | 1.000k | 175 ms | 201 ms | 87.237 KB | 24.978 KB |
+  | 26 | 1.100k | 280 ms | 302 ms | 70.456 KB | 9.792 KB |
+  | 26 | 5×900k | 664 ms | 1.130 ms | 79.438 KB | 9.975 KB |
+  | 36 | 900k | 333 ms | 9.446 ms¹ | 169.866 KB | 2.617 KB |
+  | 36 | 1.000k | 463 ms | 485 ms | 180.684 KB | 11.488 KB |
+  | 36 | 1.100k | 391 ms | 460 ms | 172.382 KB | 2.071 KB |
+  | 36 | 5×900k | 1.455 ms | 1.755 ms | 188.838 KB | 16.456 KB |
+
+  ¹ Ausreißer im ersten Lauf (JIT/GC nach dem Aufwärmen); Median 333 ms.
+  Ergebnis: Kürzung bei 1.100k korrekt auf 1.000.000 Zeichen, alle Artikel erhalten, **keine
+  Abstürze, ANR oder OutOfMemoryError**, kein Datenverlust. Kein Mangel belegt.
+- **Auditabschluss:** **34 Befunde behoben, 1 Befund nicht anwendbar (A29)** — insgesamt 35.
+
 ## Status je Befund
 
 | ID | Schwere | Status | Umsetzung |
@@ -103,10 +128,10 @@ in der Statustabelle; Commits `5418025` (A34), `d8e382e` (A32), `3be3e3f` (A29),
 | RSS-A26 | Mittel | behoben | jsoup `1.18.1` → `1.23.2` |
 | RSS-A27 | Mittel | behoben | CI-Actions auf Commit-SHAs gepinnt |
 | RSS-A28 | Niedrig | behoben | Doku an Policy angepasst (nur System-CAs) |
-| RSS-A29 | Niedrig | **offen (Entwurf erstellt, AUDIT-006)** | Datenverarbeitung geprüft; Entwurf DE/EN unter `docs/privacy/` (als Entwurf markiert, Kontakt **[zu bestätigen]**); Bereitstellungsweg + Freigaben in `docs/PrivacyLink für GooglePlay.txt`. **Offen:** öffentliches Repo + GitHub Pages, Play-Konsole |
+| RSS-A29 | Niedrig | **nicht anwendbar (25.11.2026)** | Google Play wird nicht genutzt (Vertrieb ausschließlich F-Droid + GitHub, keine Play-Konfiguration im Repo). Die Play-Pflichtangabe „Datenschutz-URL" entfällt. Die Erklärungsentwürfe bleiben als interne Dokumentation erhalten und sind als **nicht zur Veröffentlichung** gekennzeichnet. Kein zusätzliches Repo, keine Pages-Seite |
 | RSS-A30 | Mittel | behoben | OPML-`EntityResolver` liefert leere Quelle |
 | RSS-A31 | Mittel | behoben | `data_extraction_rules`: alle Domänen ausgeschlossen |
-| RSS-A32 | Mittel | **teilweise (25.11.2026, AUDIT-006)** | Grenzwerte behoben und getestet; **JVM-Leistungsmessung** liegt vor (`FeedParserPerformanceTest`, 900k–1,1M Zeichen, 5×900k: 48–176 ms, Heap-Delta 9–52 MB, Kürzung korrekt). **API-26/36-Messung fehlt weiterhin** — kein freigegebenes Gerät, Emulator-Freigabe offen. Befund daher nicht abgeschlossen |
+| RSS-A32 | Mittel | **behoben (25.11.2026, AUDIT-007)** | Grenzwerte implementiert/getestet und auf **API 26 und API 36** gemessen (Emulator, 5 Durchläufe je Fall nach Aufwärmung): stabil, Kürzung oberhalb 1 Mio. korrekt, keine Abstürze/ANR/OOM. Messwerte dokumentiert |
 | RSS-A33 | Mittel | behoben | SAF-Stream öffnen/schließen auf `Dispatchers.IO` |
 | RSS-A34 | Mittel | **behoben (25.11.2026, AUDIT-003)** | Zentrale Hülle `guardDatabaseRead`: Cancellation wird weitergereicht, andere Lesefehler gemeldet, vorübergehende Fehler bis zu zweimal mit 500 ms Wartezeit wiederholt (danach geordnetes Ende). Abgesichert: Feed-Übersicht, Favoriten, Artikelliste, Reader-Navigation, Suche; sichtbare Meldung statt Leerzustand. Tests: Erholung nach transientem Fehler, begrenzte Wiederholung, Cancellation (`DataReadSafetyTest`) |
 | RSS-A35 | Niedrig | behoben | Formular scrollbar; Menü nutzt `statusBarsPadding` und ist in der Höhe begrenzt |

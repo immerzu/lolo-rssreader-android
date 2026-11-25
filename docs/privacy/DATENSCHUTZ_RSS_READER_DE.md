@@ -1,6 +1,9 @@
 # Datenschutzerklärung RSS Reader (Entwurf)
 
 **Status: ENTWURF — nicht veröffentlicht.** Stand: 2026-11-25.
+
+> **NICHT ZUR VERÖFFENTLICHUNG VORGESEHEN.** Interne Dokumentation; A29 ist als nicht anwendbar
+> geschlossen (Google Play wird nicht genutzt). Eine Veröffentlichung wäre eine neue Entscheidung.
 Grundlage: Quellcode-Stand `841b36d` (Version 1.87.46 / 175). Vor einer Veröffentlichung müssen
 die mit **[zu bestätigen]** markierten Angaben vom Verantwortlichen geprüft werden.
 
