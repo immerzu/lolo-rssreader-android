@@ -9,13 +9,19 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -63,6 +69,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
@@ -99,6 +106,9 @@ private enum class FeedConfirmAction {
 
 private const val HOME_REFRESH_INDICATOR_DURATION_MS = 700L
 private const val REFRESH_ALL_TIMEOUT_MS = 600_000L // 10 Minuten
+// Abstand des Hauptmenüs zur Symbolleiste und Luft zur Navigationsleiste (RSS-FIX-001).
+private val HOME_MENU_TOP_OFFSET = 56.dp
+private val HOME_MENU_BOTTOM_MARGIN = 8.dp
 private object HomeScreenFeedCache {
     var lastFeeds: List<FeedSummary> = emptyList()
 }
@@ -470,7 +480,23 @@ fun HomeScreen(
 
     val homeMenuTextStyle = MaterialTheme.typography.titleMedium
 
-    Box(modifier = Modifier.fillMaxSize()) {
+    // Das Hauptmenü behält seine natürliche Inhaltshöhe und wird nur so weit begrenzt,
+    // wie der Bildschirm tatsächlich Platz bietet (RSS-FIX-001). Die frühere starre
+    // 320-dp-Grenze schnitt die unteren Menüeinträge ab.
+    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+        val statusBarInset = maxOf(
+            WindowInsets.statusBars.asPaddingValues().calculateTopPadding(),
+            WindowInsets.displayCutout.asPaddingValues().calculateTopPadding()
+        )
+        val navigationBarInset = maxOf(
+            WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding(),
+            WindowInsets.displayCutout.asPaddingValues().calculateBottomPadding()
+        )
+        val homeMenuMaxHeight = resolveHomeMenuMaxHeight(
+            availableHeight = maxHeight,
+            topInset = statusBarInset,
+            bottomInset = navigationBarInset
+        )
         Scaffold(
             snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
             topBar = {
@@ -616,9 +642,9 @@ fun HomeScreen(
                     // Statusleiste/Cutout statt fester 56 dp: Das Menue bleibt auch bei
                     // Edge-to-Edge und Displayausschnitt erreichbar (Audit RSS-A35).
                     .statusBarsPadding()
-                    .padding(top = 56.dp, end = 8.dp)
+                    .padding(top = HOME_MENU_TOP_OFFSET, end = 8.dp)
                     .widthIn(min = 220.dp, max = 320.dp)
-                    .heightIn(max = 320.dp),
+                    .heightIn(max = homeMenuMaxHeight),
                 tonalElevation = 8.dp,
                 shadowElevation = 8.dp
             ) {
@@ -1148,6 +1174,23 @@ private fun compactMenuItemPadding(): PaddingValues {
 
 private fun Modifier.compactMenuItem(): Modifier {
     return this.heightIn(min = 30.dp)
+}
+
+/**
+ * Maximale Höhe des Hauptmenüs: der verfügbare Bildschirmbereich abzüglich Statusleiste/
+ * Displayausschnitt, Abstand zur Symbolleiste, Navigationsleiste und einem kleinen Rand.
+ *
+ * Es gibt bewusst keine feste Obergrenze (früher 320.dp, RSS-FIX-001): Bei ausreichender
+ * Bildschirmhöhe nutzt das Menü seine natürliche Inhaltshöhe. Reicht der Platz nicht
+ * (kleines Display, Querformat, große Schrift), bleibt die Scrollfläche im Menü wirksam.
+ */
+internal fun resolveHomeMenuMaxHeight(
+    availableHeight: Dp,
+    topInset: Dp,
+    bottomInset: Dp
+): Dp {
+    return (availableHeight - topInset - HOME_MENU_TOP_OFFSET - bottomInset - HOME_MENU_BOTTOM_MARGIN)
+        .coerceAtLeast(0.dp)
 }
 
 internal fun shouldShowCompletionNotificationForRefresh(
