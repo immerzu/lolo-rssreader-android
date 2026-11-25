@@ -1,84 +1,16 @@
 package de.lolo.rssreader.ui.screens
 
-import de.lolo.rssreader.data.db.ArticleEntity
-import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * T6 – Filterlogik der Artikelliste: Bei aktiviertem Filter erscheinen ausschliesslich
- * ungelesene Artikel, bei deaktiviertem Filter alle. Deckt auch den im Auftrag genannten
- * Sonderfall ab, dass nach dem Lesen des letzten ungelesenen Artikels eine leere Liste
- * entsteht (Grundlage der bestehenden Leerzustandsanzeige „Keine ungelesenen Artikel").
+ * T10/T11: Zustandsauflösung des Ungelesen-Filters (Override vs. persistierter Feed-Wert).
+ *
+ * Die eigentliche Filterung liegt seit Audit RSS-A16 in SQL und wird in
+ * `ArticleListProjectionTest` gegen eine echte Room-Datenbank geprueft.
  */
 class ArticleListFilterTest {
-
-    private fun article(id: Long, isRead: Boolean): ArticleEntity {
-        return ArticleEntity(
-            id = id,
-            feedId = 1L,
-            uniqueKey = "key-$id",
-            title = "Titel $id",
-            link = "https://example.com/$id",
-            plainText = "Text $id",
-            contentHtml = "<p>Text $id</p>",
-            imageUrls = ""
-        ).copy(isRead = isRead)
-    }
-
-    @Test
-    fun filterDisabledShowsAllArticles() {
-        val articles = listOf(article(1L, isRead = false), article(2L, isRead = true))
-
-        val visible = filterArticlesByUnreadOnly(articles, showUnreadOnly = false)
-
-        assertEquals(2, visible.size)
-        assertEquals(listOf(1L, 2L), visible.map { it.id })
-    }
-
-    @Test
-    fun filterEnabledShowsOnlyUnreadArticles() {
-        val articles = listOf(
-            article(1L, isRead = false),
-            article(2L, isRead = true),
-            article(3L, isRead = false)
-        )
-
-        val visible = filterArticlesByUnreadOnly(articles, showUnreadOnly = true)
-
-        assertEquals(2, visible.size)
-        assertEquals(listOf(1L, 3L), visible.map { it.id })
-    }
-
-    @Test
-    fun filterEnabledWithAllArticlesReadYieldsEmptyList() {
-        val articles = listOf(article(1L, isRead = true), article(2L, isRead = true))
-
-        val visible = filterArticlesByUnreadOnly(articles, showUnreadOnly = true)
-
-        assertTrue(visible.isEmpty())
-    }
-
-    @Test
-    fun filterWithEmptyInputStaysEmpty() {
-        assertTrue(filterArticlesByUnreadOnly(emptyList(), showUnreadOnly = true).isEmpty())
-        assertTrue(filterArticlesByUnreadOnly(emptyList(), showUnreadOnly = false).isEmpty())
-    }
-
-    @Test
-    fun filterEnabledAfterLastUnreadArticleWasReadShowsEmptyList() {
-        val unread = listOf(article(1L, isRead = false))
-
-        assertEquals(1, filterArticlesByUnreadOnly(unread, showUnreadOnly = true).size)
-
-        val nowRead = listOf(article(1L, isRead = true))
-
-        assertTrue(filterArticlesByUnreadOnly(nowRead, showUnreadOnly = true).isEmpty())
-        assertEquals(1, filterArticlesByUnreadOnly(nowRead, showUnreadOnly = false).size)
-    }
-
-    // --- T10/T11: Zustandsauflösung des Buttons (Override vs. persistierter Feed-Wert) ---
 
     @Test
     fun overrideWinsOverPersistedPreference() {

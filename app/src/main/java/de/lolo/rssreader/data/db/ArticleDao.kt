@@ -88,6 +88,59 @@ interface ArticleDao {
     @Query("SELECT * FROM articles WHERE id = :articleId LIMIT 1")
     suspend fun getById(articleId: Long): ArticleEntity?
 
+    // Schlanke Listenprojektion ohne contentHtml (Audit RSS-A16). Sortierung und
+    // Ungelesen-Filter laufen in SQL; [limit] begrenzt die geladene Seite.
+    @Query(
+        """
+        SELECT id, feedId, title, link, publishedAt, plainText, isRead, isFavorite
+        FROM articles
+        WHERE feedId = :feedId AND (:unreadOnly = 0 OR isRead = 0)
+        ORDER BY
+            CASE WHEN :newestFirst THEN COALESCE(publishedAt, 0) END DESC,
+            CASE WHEN :newestFirst THEN id END DESC,
+            CASE WHEN NOT :newestFirst THEN COALESCE(publishedAt, 0) END ASC,
+            CASE WHEN NOT :newestFirst THEN id END ASC
+        LIMIT :limit
+        """
+    )
+    fun observeArticleListItems(
+        feedId: Long,
+        unreadOnly: Boolean,
+        newestFirst: Boolean,
+        limit: Int
+    ): Flow<List<ArticleListItem>>
+
+    @Query(
+        """
+        SELECT id, feedId, title, link, publishedAt, plainText, isRead, isFavorite
+        FROM articles
+        WHERE isFavorite = 1 AND (:unreadOnly = 0 OR isRead = 0)
+        ORDER BY
+            CASE WHEN :newestFirst THEN COALESCE(publishedAt, 0) END DESC,
+            CASE WHEN :newestFirst THEN id END DESC,
+            CASE WHEN NOT :newestFirst THEN COALESCE(publishedAt, 0) END ASC,
+            CASE WHEN NOT :newestFirst THEN id END ASC
+        LIMIT :limit
+        """
+    )
+    fun observeFavoriteListItems(
+        unreadOnly: Boolean,
+        newestFirst: Boolean,
+        limit: Int
+    ): Flow<List<ArticleListItem>>
+
+    @Query("SELECT COUNT(*) FROM articles WHERE feedId = :feedId AND isRead = 0")
+    fun observeUnreadCountByFeed(feedId: Long): Flow<Int>
+
+    @Query("SELECT COUNT(*) FROM articles WHERE feedId = :feedId")
+    fun observeArticleCountByFeed(feedId: Long): Flow<Int>
+
+    @Query("SELECT COUNT(*) FROM articles WHERE isFavorite = 1 AND isRead = 0")
+    fun observeFavoriteUnreadCount(): Flow<Int>
+
+    @Query("SELECT COUNT(*) FROM articles WHERE isFavorite = 1")
+    fun observeFavoriteArticleCount(): Flow<Int>
+
     @Query("SELECT COUNT(*) FROM articles")
     suspend fun countArticles(): Int
 

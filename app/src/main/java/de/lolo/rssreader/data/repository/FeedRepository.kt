@@ -4,6 +4,7 @@ import android.database.sqlite.SQLiteConstraintException
 import androidx.room.withTransaction
 import de.lolo.rssreader.data.db.ArticleDao
 import de.lolo.rssreader.data.db.ArticleEntity
+import de.lolo.rssreader.data.db.ArticleListItem
 import de.lolo.rssreader.data.db.ArticleSearchResult
 import de.lolo.rssreader.data.db.AppDatabase
 import de.lolo.rssreader.data.db.FeedDao
@@ -181,6 +182,38 @@ class FeedRepository(
             articleDao.observeFavorites().guarded("favorite_articles")
         } else {
             articleDao.observeByFeed(feedId).guarded("feed_articles")
+        }
+
+    /**
+     * Schlanke Artikelliste fuer die Listenansicht (Audit RSS-A16): Projektion ohne
+     * HTML-Inhalt, Sortierung/Filter in SQL, [limit] als Seitengroesse.
+     */
+    fun observeArticleListItems(
+        feedId: Long,
+        unreadOnly: Boolean,
+        newestFirst: Boolean,
+        limit: Int
+    ): Flow<List<ArticleListItem>> =
+        if (feedId == FAVORITES_FEED_ID) {
+            articleDao.observeFavoriteListItems(unreadOnly, newestFirst, limit)
+                .guarded("favorite_list")
+        } else {
+            articleDao.observeArticleListItems(feedId, unreadOnly, newestFirst, limit)
+                .guarded("article_list")
+        }
+
+    fun observeUnreadCount(feedId: Long): Flow<Int> =
+        if (feedId == FAVORITES_FEED_ID) {
+            articleDao.observeFavoriteUnreadCount().guarded("favorite_unread_count")
+        } else {
+            articleDao.observeUnreadCountByFeed(feedId).guarded("unread_count")
+        }
+
+    fun observeArticleCount(feedId: Long): Flow<Int> =
+        if (feedId == FAVORITES_FEED_ID) {
+            articleDao.observeFavoriteArticleCount().guarded("favorite_article_count")
+        } else {
+            articleDao.observeArticleCountByFeed(feedId).guarded("article_count")
         }
 
     fun observeArticleNavigation(feedId: Long) =

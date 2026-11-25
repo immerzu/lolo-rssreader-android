@@ -62,7 +62,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import de.lolo.rssreader.R
-import de.lolo.rssreader.data.db.ArticleEntity
+import de.lolo.rssreader.data.db.ArticleListItem
 import de.lolo.rssreader.data.errors.toUserMessage
 import de.lolo.rssreader.data.repository.FAVORITES_FEED_ID
 import de.lolo.rssreader.data.repository.FeedRepository
@@ -74,23 +74,26 @@ import de.lolo.rssreader.ui.shareArticle
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeout
 
 private const val SINGLE_FEED_REFRESH_TIMEOUT_MS = 120_000L // 2 Minuten
+// Seitengroesse der Artikelliste (Audit RSS-A16); weitere Seiten werden am Listenende geladen.
+private const val ARTICLE_LIST_PAGE_SIZE = 100
 
 // Nur der zuletzt geladene Feed bleibt im Speicher: Die frueher unbegrenzte Map hielt
 // die vollstaendigen Artikelzeilen (inklusive HTML) jedes besuchten Feeds
-// (Audit RSS-A16).
+// (Audit RSS-A16). Gespeichert wird nur noch die schlanke Listenprojektion.
 private object ArticleListScreenArticleCache {
     private var lastFeedId: Long? = null
-    private var lastArticles: List<ArticleEntity> = emptyList()
+    private var lastArticles: List<ArticleListItem> = emptyList()
 
-    fun get(feedId: Long): List<ArticleEntity> =
+    fun get(feedId: Long): List<ArticleListItem> =
         if (feedId == lastFeedId) lastArticles else emptyList()
 
-    fun put(feedId: Long, articles: List<ArticleEntity>) {
+    fun put(feedId: Long, articles: List<ArticleListItem>) {
         lastFeedId = feedId
         lastArticles = articles
     }
@@ -120,7 +123,26 @@ fun ArticleListScreen(
     // Virtueller Feed "Favoriten": keine Netz-Aktualisierung, Titel lokalisiert.
     val isFavorites = feedId == FAVORITES_FEED_ID
     val feed by repository.observeFeed(feedId).collectAsState(initial = null)
-    val observedArticles by repository.observeArticles(feedId).collectAsState(initial = null)
+    // Der persistierte, feedbezogene Wert (DataStore) ist die Quelle der Wahrheit;
+    // [unreadOnlyFilterOverride] haelt nur die unmittelbare Reaktion auf einen Toggle,
+    // bis der neue Wert zurueckfliesst. Der Override ist an die feedId gebunden, damit
+    // ein Feed-Wechsel keinen fremden Zustand uebernimmt.
+    var unreadOnlyFilterOverride by rememberSaveable(feedId) { mutableStateOf<Boolean?>(null) }
+    val showUnreadOnly = resolveShowUnreadOnly(unreadOnlyFilterOverride, showUnreadOnlyPreference)
+    // Seitengroesse der Liste (Audit RSS-A16): Bei Filter- oder Sortierwechsel beginnt
+    // die Liste wieder mit einer Seite, am Listenende wird nachgeladen.
+    var pageLimit by rememberSaveable(feedId, showUnreadOnly, entrySortOrder) {
+        mutableIntStateOf(ARTICLE_LIST_PAGE_SIZE)
+    }
+    val newestFirst = entrySortOrder == EntrySortOrder.NEWEST_FIRST
+    val observedArticles by remember(repository, feedId, showUnreadOnly, newestFirst, pageLimit) {
+        repository.observeArticleListItems(
+            feedId = feedId,
+            unreadOnly = showUnreadOnly,
+            newestFirst = newestFirst,
+            limit = pageLimit
+        )
+    }.collectAsState(initial = null)
     var lastVisibleArticles by remember(feedId) {
         mutableStateOf(ArticleListScreenArticleCache.get(feedId))
     }
@@ -130,33 +152,14 @@ fun ArticleListScreen(
             ArticleListScreenArticleCache.put(feedId, loadedArticles)
         }
     }
-    val articles = observedArticles ?: lastVisibleArticles
-    val sortedArticles = remember(articles, entrySortOrder) {
-        when (entrySortOrder) {
-            EntrySortOrder.NEWEST_FIRST -> {
-                articles.sortedWith(
-                    compareByDescending<ArticleEntity> { it.publishedAt ?: 0L }
-                        .thenByDescending { it.id }
-                )
-            }
-            EntrySortOrder.OLDEST_FIRST -> {
-                articles.sortedWith(
-                    compareBy<ArticleEntity> { it.publishedAt ?: 0L }
-                        .thenBy { it.id }
-                )
-            }
-        }
-    }
-    val unreadCount = remember(articles) { articles.count { !it.isRead } }
-    // Der persistierte, feedbezogene Wert (DataStore) ist die Quelle der Wahrheit;
-    // [unreadOnlyFilterOverride] haelt nur die unmittelbare Reaktion auf einen Toggle,
-    // bis der neue Wert zurueckfliesst. Der Override ist an die feedId gebunden, damit
-    // ein Feed-Wechsel keinen fremden Zustand uebernimmt.
-    var unreadOnlyFilterOverride by rememberSaveable(feedId) { mutableStateOf<Boolean?>(null) }
-    val showUnreadOnly = resolveShowUnreadOnly(unreadOnlyFilterOverride, showUnreadOnlyPreference)
-    val visibleArticles = remember(sortedArticles, showUnreadOnly) {
-        filterArticlesByUnreadOnly(sortedArticles, showUnreadOnly)
-    }
+    val visibleArticles = observedArticles ?: lastVisibleArticles
+    // Zaehler kommen aus eigenen COUNT-Abfragen; sie sind unabhaengig von der Seitengroesse.
+    val unreadCount by remember(repository, feedId) {
+        repository.observeUnreadCount(feedId)
+    }.collectAsState(initial = 0)
+    val totalArticleCount by remember(repository, feedId) {
+        repository.observeArticleCount(feedId)
+    }.collectAsState(initial = 0)
     val scope = rememberCoroutineScope()
     var isRefreshing by remember { mutableStateOf(false) }
     var showRefreshIndicator by remember { mutableStateOf(false) }
@@ -188,6 +191,18 @@ fun ArticleListScreen(
         initialFirstVisibleItemIndex = savedFirstVisibleItemIndex,
         initialFirstVisibleItemScrollOffset = savedFirstVisibleItemScrollOffset
     )
+    // Naechste Seite laden, sobald das Listenende fast erreicht ist (Audit RSS-A16).
+    LaunchedEffect(listState, visibleArticles.size, pageLimit) {
+        if (visibleArticles.size < pageLimit) {
+            return@LaunchedEffect
+        }
+        snapshotFlow { listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0 }
+            .collect { lastVisibleIndex ->
+                if (lastVisibleIndex >= visibleArticles.size - 4) {
+                    pageLimit += ARTICLE_LIST_PAGE_SIZE
+                }
+            }
+    }
     fun showRefreshIndicatorBriefly() {
         val token = refreshIndicatorToken + 1
         refreshIndicatorToken = token
@@ -272,7 +287,7 @@ fun ArticleListScreen(
             }
     }
 
-    LaunchedEffect(feedId, visibleArticles.size, showUnreadOnly, articles.size) {
+    LaunchedEffect(feedId, visibleArticles.size, showUnreadOnly, totalArticleCount) {
         if (!restoreApplied && visibleArticles.isNotEmpty()) {
             val itemCount = visibleArticles.size + 1
             if (itemCount > 0) {
@@ -422,7 +437,7 @@ fun ArticleListScreen(
                 .fillMaxSize()
                 .padding(padding)
         ) {
-            if (isFavorites && articles.isEmpty()) {
+            if (isFavorites && totalArticleCount == 0) {
                 // Leerzustand des virtuellen Favoriten-Feeds: Die Ansicht bleibt offen,
                 // der Startseiten-Eintrag verschwindet erst beim Zurueckgehen.
                 Box(
@@ -437,7 +452,7 @@ fun ArticleListScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-            } else if (showUnreadOnly && visibleArticles.isEmpty() && articles.isNotEmpty()) {
+            } else if (showUnreadOnly && visibleArticles.isEmpty() && totalArticleCount > 0) {
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
@@ -627,7 +642,7 @@ fun ArticleListScreen(
     }
 
     selectedArticleId?.let { articleId ->
-        val selectedArticle = sortedArticles.firstOrNull { it.id == articleId }
+        val selectedArticle = visibleArticles.firstOrNull { it.id == articleId }
         if (selectedArticle != null) {
             AlertDialog(
                 onDismissRequest = { selectedArticleId = null },
@@ -703,17 +718,10 @@ private const val ARTICLE_LIST_REFRESH_INDICATOR_DURATION_MS = 700L
  * Wendet den Filter „Nur ungelesene Artikel" an. Reine Funktion, damit die Filterlogik
  * ohne Compose-UI testbar bleibt; Verhalten unveraendert zur bisherigen Inline-Logik.
  */
-internal fun filterArticlesByUnreadOnly(
-    articles: List<ArticleEntity>,
-    showUnreadOnly: Boolean
-): List<ArticleEntity> {
-    return if (showUnreadOnly) articles.filter { !it.isRead } else articles
-}
-
 /**
  * Ermittelt den anzuzeigenden Filterzustand: Der unmittelbare Toggle-Override gewinnt,
  * danach der persistierte feedbezogene Wert; ist beides unbekannt (DataStore noch nicht
- * geladen), gilt `false` (alle Artikel) — ohne dabei etwas zu speichern.
+ * geladen), gilt `false` (alle Artikel) - ohne dabei etwas zu speichern.
  */
 internal fun resolveShowUnreadOnly(
     override: Boolean?,
