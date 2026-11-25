@@ -1,16 +1,26 @@
 https://github.com/immerzu/lolo-rssreader-privacy/blob/main/privacy.html
 
-STATUS (2026-11-13, Audit RSS-A29):
-Der obige Link ist NICHT erreichbar. Geprueft am 2026-11-13:
+STATUS (2026-11-25, Audit RSS-A29 — erneut geprueft):
+Der obige Link ist NICHT erreichbar. Geprueft am 2026-11-25:
 - GitHub-API /repos/immerzu/lolo-rssreader-privacy -> HTTP 404 (Repository existiert nicht)
-- der dokumentierte Raw-/Blob-Pfad liefert ebenfalls 404.
+  (curl, direkt am 25.11.2026 gemessen).
+- GitHub Pages https://immerzu.github.io/lolo-rssreader-privacy/privacy.html -> HTTP 000
+  (kein Host; das Repository existiert nicht).
+- Im Repository gibt es KEINE weitere Verwendungsstelle des Links: Suche ueber den gesamten
+  Baum nach "lolo-rssreader-privacy", "privacy.html", "privacyPolicy" und "Datenschutz"
+  findet nur diese Datei. Der Link wird von der App selbst nicht verwendet.
 
-Benoetigt wird ein oeffentlich abrufbarer HTTPS-Link auf eine Datenschutzerklaerung.
-Optionen:
-1. Repository lolo-rssreader-privacy oeffentlich anlegen und privacy.html per
-   GitHub Pages veroeffentlichen (danach diese Datei aktualisieren).
-2. Die Datenschutzerklaerung auf einer anderen oeffentlichen HTTPS-Seite ablegen
-   und hier eintragen.
+Ergebnis: Es existiert derzeit keine gueltige, inhaltlich passende Datenschutzerklaerung.
+Eine Ersatz-URL wird bewusst NICHT eingetragen (keine Erfindung).
+
+RESTMASSNAHME (offen, Nutzerentscheidung):
+1. Repository lolo-rssreader-privacy oeffentlich anlegen, privacy.html per GitHub Pages
+   veroeffentlichen und den tatsaechlich erreichbaren HTTPS-Link hier eintragen.
+   Alternativ: Datenschutzerklaerung auf einer anderen oeffentlichen HTTPS-Seite ablegen.
+2. Den in der Store-Konsole (Google Play/F-Droid) hinterlegten Wert pruefen und anpassen -
+   ohne Konsolenzugriff nicht moeglich, bleibt offen.
+3. Nach Vorliegen des neuen Links: diese Datei aktualisieren und A29 in
+   docs/AUDIT_2026-11-13_BEFUNDE.md auf "behoben" setzen.
 
 Zusaetzlich muss der tatsaechlich in der Store-Konsole (Google Play/F-Droid)
 hinterlegte Wert geprueft und angepasst werden - das ist ohne Zugriff auf die
