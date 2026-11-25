@@ -66,4 +66,44 @@ class DataReadSafetyTest {
         assertTrue(cancellationRethrown)
         assertEquals("Abbruch ist kein Lesefehler und darf nicht gemeldet werden", null, failure)
     }
+
+    @Test
+    fun transientFailureRecoversAndDeliversData() = runTest {
+        var attempts = 0
+        var dataCallbacks = 0
+
+        val values = flow {
+            attempts += 1
+            if (attempts == 1) {
+                throw IllegalStateException("database temporarily locked")
+            }
+            emit(42)
+        }.guardDatabaseRead(
+            source = "feed_articles",
+            onFailure = {},
+            onData = { dataCallbacks += 1 }
+        ).toList()
+
+        assertEquals("Nach einem voruebergehenden Fehler muss erneut gelesen werden", listOf(42), values)
+        assertEquals(2, attempts)
+        assertEquals(1, dataCallbacks)
+    }
+
+    @Test
+    fun permanentFailureStopsAfterBoundedRetries() = runTest {
+        var attempts = 0
+        var failures = 0
+
+        val values = flow<Int> {
+            attempts += 1
+            throw IllegalStateException("database closed")
+        }.guardDatabaseRead(
+            source = "search",
+            onFailure = { failures += 1 }
+        ).toList()
+
+        assertTrue("Ein dauerhafter Fehler darf nicht endlos wiederholt werden", values.isEmpty())
+        assertEquals("Erstversuch plus zwei Wiederholungen", 3, attempts)
+        assertEquals(3, failures)
+    }
 }
