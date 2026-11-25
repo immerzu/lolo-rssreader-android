@@ -27,6 +27,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.ExperimentalMaterialApi
 import androidx.compose.material.icons.Icons
@@ -109,6 +110,10 @@ private const val REFRESH_ALL_TIMEOUT_MS = 600_000L // 10 Minuten
 // Abstand des Hauptmenüs zur Symbolleiste und Luft zur Navigationsleiste (RSS-FIX-001).
 private val HOME_MENU_TOP_OFFSET = 56.dp
 private val HOME_MENU_BOTTOM_MARGIN = 8.dp
+// Dezente Eckenrundung des Menüfensters (RSS-FIX-002); 6 dp liegt zwischen den
+// Material-Standardradien extraSmall (4 dp) und small (8 dp).
+internal val HOME_MENU_CORNER_RADIUS = 6.dp
+internal val HOME_MENU_SHAPE = RoundedCornerShape(HOME_MENU_CORNER_RADIUS)
 private object HomeScreenFeedCache {
     var lastFeeds: List<FeedSummary> = emptyList()
 }
@@ -645,6 +650,7 @@ fun HomeScreen(
                     .padding(top = HOME_MENU_TOP_OFFSET, end = 8.dp)
                     .widthIn(min = 220.dp, max = 320.dp)
                     .heightIn(max = homeMenuMaxHeight),
+                shape = HOME_MENU_SHAPE,
                 tonalElevation = 8.dp,
                 shadowElevation = 8.dp
             ) {
