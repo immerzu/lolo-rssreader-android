@@ -6,6 +6,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -258,5 +259,58 @@ class ArticleListProjectionTest {
         val nextPage = articleDao.observeArticleListItems(1L, false, newestFirst = true, limit = 200).first()
         assertEquals("Nachladen bringt den verdraengten Artikel zurueck", 101, nextPage.size)
         assertEquals(1L, nextPage.last().id)
+    }
+
+    // --- Wisch-Navigation und Statusaenderungen jenseits der geladenen Seite (AUDIT-004) ---
+
+    @Test
+    fun swipeNavigationCoversArticlesBeyondTheLoadedPage() = runBlocking {
+        database.feedDao().insert(FeedEntity(title = "Testfeed", url = "https://example.com/feed"))
+        articleDao.insertAll((1L..150L).map { id -> article(id, publishedAt = id * 10L) })
+
+        val page = articleDao.observeArticleListItems(1L, unreadOnly = false, newestFirst = true, limit = 100)
+            .first()
+        val navigation = articleDao.observeNavigationByFeed(1L).first()
+
+        assertEquals("Die Seite bleibt auf 100 Artikel begrenzt", 100, page.size)
+        assertEquals("Die Wisch-Navigation kennt alle 150 Artikel", 150, navigation.size)
+
+        // Der Nachbar hinter dem letzten Artikel der Seite (150..51) ist 50 und liegt
+        // damit ausserhalb der geladenen Seite - er bleibt per Wischen erreichbar.
+        val lastOnPage = page.last()
+        assertEquals(51L, lastOnPage.id)
+        val navPosition = navigation.indexOfFirst { it.id == lastOnPage.id }
+        assertEquals(99, navPosition)
+        assertEquals(50L, navigation[navPosition + 1].id)
+        assertEquals("Der aelteste Artikel bleibt in der Navigation", 1L, navigation.last().id)
+    }
+
+    @Test
+    fun readAndFavoriteChangesAffectArticlesOutsideTheLoadedPage() = runBlocking {
+        database.feedDao().insert(FeedEntity(title = "Testfeed", url = "https://example.com/feed"))
+        articleDao.insertAll((1L..150L).map { id -> article(id, publishedAt = id * 10L) })
+
+        // Artikel 5 liegt nicht in der ersten Seite (150..51).
+        val pageIds = articleDao.observeArticleListItems(1L, false, newestFirst = true, limit = 100)
+            .first().map { it.id }
+        assertFalse("Artikel 5 darf nicht in der ersten Seite liegen", pageIds.contains(5L))
+
+        articleDao.setFavorite(5L, true)
+        articleDao.markRead(4L)
+
+        val favorites = articleDao.observeFavoriteListItems(false, newestFirst = true, limit = 100).first()
+        assertEquals(listOf(5L), favorites.map { it.id })
+        assertTrue("Der nachgeladene Favorit traegt seinen Status", favorites.single().isFavorite)
+        assertEquals(1, articleDao.observeFavoriteUnreadCount().first())
+        assertEquals(149, articleDao.observeUnreadCountByFeed(1L).first())
+
+        val readArticle = articleDao.getById(4L)
+        assertEquals(true, readArticle?.isRead)
+        assertEquals(false, readArticle?.isFavorite)
+
+        // Mit "nur ungelesen" verschwindet der gelesene Artikel 4 auch jenseits der Seite.
+        val unreadPage = articleDao.observeArticleListItems(1L, unreadOnly = true, newestFirst = true, limit = 100)
+            .first()
+        assertFalse(unreadPage.any { it.id == 4L })
     }
 }
