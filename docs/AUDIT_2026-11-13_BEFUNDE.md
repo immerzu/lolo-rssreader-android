@@ -6,6 +6,11 @@ Commit `5e6ca96`. Abarbeitung am 2026-11-13, Branch `main`, **nicht committet**.
 Teststand nach der Abarbeitung: `:app:testDebugUnitTest` **400 Tests, 0 Failures,
 0 Errors, 1 übersprungen (34 Suiten)**.
 
+**Nachtrag 2026-11-25 (RSS-AUDIT-002):** A16, A32 und A34 sind abgeschlossen, A29 bleibt mit
+dokumentierter Restmaßnahme offen. Neuer Teststand: **414 Tests, 0 Failures, 0 Errors,
+1 übersprungen (40 Suiten)**, Lint **0 Fehler / 24 Warnungen**. Nachweise je Befund unten
+in der Statustabelle; Commits `5418025` (A34), `d8e382e` (A32), `3be3e3f` (A29), `919495f` (A16).
+
 ## Status je Befund
 
 | ID | Schwere | Status | Umsetzung |
@@ -25,7 +30,7 @@ Teststand nach der Abarbeitung: `:app:testDebugUnitTest` **400 Tests, 0 Failures
 | RSS-A13 | Mittel | behoben | 304 ohne Validator = Fehler; Refresh ohne Artikelbestand = kein Erfolg; Casts abgesichert |
 | RSS-A14 | Mittel | behoben | `updateFeed` ruft nur bei URL-Wechsel das Netz; lokale Metadaten via `updateLocalMetadata` |
 | RSS-A15 | Mittel | behoben | `Call.executeCancellable()` — Coroutine-Abbruch beendet den HTTP-Aufruf |
-| RSS-A16 | Mittel | teilweise | Listen-Cache hält nur noch einen Feed; **offen:** Listenprojektion ohne Body, SQL-Sortierung, Paging |
+| RSS-A16 | Mittel | **behoben (25.11.2026)** | `ArticleListItem`-Projektion ohne `contentHtml`; Sortierung und Ungelesen-Filter in SQL; Seiten über `LIMIT` + Nachladen am Listenende; Zähler über eigene COUNT-Abfragen. Bewusst kein Fenster-Paging, damit Live-Aktualisierungen erhalten bleiben |
 | RSS-A17 | Mittel | behoben | `loading` nicht mehr gespeichert; wiederhergestellter Entwurf wird nicht überschrieben |
 | RSS-A18 | Mittel | behoben | `busy`/Import-Status nicht mehr gespeichert; Status-Timer wird beim Abschluss entwertet |
 | RSS-A19 | Mittel | behoben | Volltext geht auch in die native Ersatzansicht |
@@ -38,12 +43,12 @@ Teststand nach der Abarbeitung: `:app:testDebugUnitTest` **400 Tests, 0 Failures
 | RSS-A26 | Mittel | behoben | jsoup `1.18.1` → `1.23.2` |
 | RSS-A27 | Mittel | behoben | CI-Actions auf Commit-SHAs gepinnt |
 | RSS-A28 | Niedrig | behoben | Doku an Policy angepasst (nur System-CAs) |
-| RSS-A29 | Niedrig | **offen** | Link liefert 404 (Repo existiert nicht); Store-Konsole nicht prüfbar |
+| RSS-A29 | Niedrig | **offen (Restmaßnahme dokumentiert)** | Link und Pages am 25.11.2026 erneut geprüft (404 / kein Host); keine weitere Verwendungsstelle im Baum; keine Ersatz-URL erfunden. Benötigt: Privacy-Repo/Pages anlegen, Store-Konsole prüfen (`docs/PrivacyLink für GooglePlay.txt`) |
 | RSS-A30 | Mittel | behoben | OPML-`EntityResolver` liefert leere Quelle |
 | RSS-A31 | Mittel | behoben | `data_extraction_rules`: alle Domänen ausgeschlossen |
-| RSS-A32 | Mittel | behoben (Messung offen) | Absolute Obergrenze 1 Mio. Zeichen pro Artikel, unabhängig vom Defensivmodus; Messung auf API 26/36 steht aus |
+| RSS-A32 | Mittel | **behoben (25.11.2026; Messung offen)** | Absolute Obergrenze 1 Mio. Zeichen pro Artikel, unabhängig vom Defensivmodus; Grenzwerttests ober-/unterhalb der Grenze (`FeedParserContentLimitTest`). **Messung auf API 26/36 weiterhin offen:** kein freigegebenes Testgerät mit diesen API-Ständen (alice 30, bernd 29, ingo neuer), Emulator-Tests ohne Freigabe unzulässig |
 | RSS-A33 | Mittel | behoben | SAF-Stream öffnen/schließen auf `Dispatchers.IO` |
-| RSS-A34 | Mittel | behoben (teilweise) | DataStore-Fehler liefern Standardwerte statt Absturz; Reader-Lesevorgang abgesichert; weitere Room-Lesepfade offen |
+| RSS-A34 | Mittel | **behoben (25.11.2026)** | Zentrale Hülle `guardDatabaseRead`: Cancellation wird weitergereicht, andere Lesefehler werden protokolliert und gemeldet; abgesichert sind Feed-Übersicht, Favoriten, Artikelliste, Reader-Navigation und Suche. `RssReaderApp` zeigt eine sichtbare Meldung statt Leerzustand (`DataReadSafetyTest`) |
 | RSS-A35 | Niedrig | behoben | Formular scrollbar; Menü nutzt `statusBarsPadding` und ist in der Höhe begrenzt |
 
 ## Geänderte Dateien (Auszug)
@@ -68,4 +73,14 @@ Tests: `FeedWriteSafetyTest` (neu), `FeedEncodingTest` (neu), `FeedParserAtomDat
 - **RSS-A22:** `lang` ist die Gerätesprache, keine Artikelsprache (dafür fehlt ein Datenfeld).
 - **RSS-A04:** Alte Fallback-Schlüssel ändern sich; Artikel ohne GUID/Link können beim ersten
   Refresh einmalig neu eingefügt werden (Lesestatus geht dabei verloren).
+- **RSS-A16 (25.11.2026):** Paging über eine wachsende Seitengrenze (`LIMIT`), kein Fenster-Paging.
+  Grund: Die Liste ist ein Live-Flow; ein verschiebbares Fenster würde bei neuen Artikeln oder
+  Lesestatus-Änderungen Einträge springen lassen. Der HTML-Inhalt liegt nicht mehr in der Liste.
+- **RSS-A34 (25.11.2026):** Nach einem Lesefehler endet der betroffene Flow (kein Endlos-Retry bei
+  dauerhaft defekter Datenbank). Die UI behält Ladezustand bzw. letzten Stand und zeigt eine
+  Meldung; der Nutzer bestätigt sie.
+- **RSS-A29 (25.11.2026):** Keine Ersatz-URL eingetragen, solange keine gültige Datenschutzerklärung
+  existiert. Die Restmaßnahme steht in `docs/PrivacyLink für GooglePlay.txt`.
+- **RSS-A32 (25.11.2026):** Grenzwerte automatisiert getestet; die geforderte Messung auf API 26/36
+  ist ohne freigegebenes Gerät/Emulator nicht möglich und bleibt offen.
 
