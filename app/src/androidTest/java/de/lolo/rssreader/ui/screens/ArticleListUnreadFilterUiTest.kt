@@ -237,7 +237,7 @@ class ArticleListUnreadFilterUiTest {
                     showUnreadOnlyPreference = preference,
                     showUnreadOnlySaveFailed = false,
                     onShowUnreadOnlyChange = { value -> writeFilter(feedId, value) },
-                    onOpenArticle = {},
+                    onOpenArticle = { _, _ -> },
                     onBack = {}
                 )
             }
@@ -274,7 +274,7 @@ class ArticleListUnreadFilterUiTest {
                 showUnreadOnlyPreference = preference,
                 showUnreadOnlySaveFailed = false,
                 onShowUnreadOnlyChange = { value -> writeFilter(feedId, value) },
-                onOpenArticle = {},
+                onOpenArticle = { _, _ -> },
                 onBack = {}
             )
         }
