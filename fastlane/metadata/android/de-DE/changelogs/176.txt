@@ -1,0 +1,1 @@
+Version 1.87.47: Artikellisten laden seitenweise und brauchen weniger Speicher; Lesefehler zeigen eine Meldung statt eines leeren Bildschirms und werden automatisch wiederholt.

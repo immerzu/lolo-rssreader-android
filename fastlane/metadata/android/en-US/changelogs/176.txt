@@ -1,0 +1,1 @@
+Version 1.87.47: article lists load in pages and use less memory; read errors now show a message instead of a blank screen and are retried automatically.
