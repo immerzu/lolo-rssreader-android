@@ -24,6 +24,17 @@ in der Statustabelle; Commits `5418025` (A34), `d8e382e` (A32), `3be3e3f` (A29),
   gleichwertige SQL-Fälle ersetzt wurden); durch AUDIT-003 weitere +7 (2 A34, 5 A16).
   Kein Test wurde ohne Ersatz entfernt.
 
+**Nachtrag 2026-11-25 (RSS-AUDIT-004, UI-Regressionsrisiken):**
+- **Unit:** Wisch-Navigation kennt Artikel jenseits der geladenen Seite (150/100, Nachbar von
+  Artikel 51 ist 50); Lesestatus und Favorit wirken auf nicht geladene Artikel.
+- **Instrumentiert (`ArticleListPagingUiTest`):** Nachladen beim Scrollen ans Ende, State-Restoration
+  (Rotation) erhält die Listenposition, Feedwechsel zeigt keine fremden Artikel. Der Paging-Test
+  wurde per Mutation (Nachlade-Trigger deaktiviert) **rot** belegt.
+- **Prüfblockade:** Auf alice lässt MIUI die Installation der Test-APK nicht zu
+  (`INSTALL_FAILED_USER_RESTRICTED`); instrumentierte Tests laufen deshalb nur auf bernd (7/7 grün).
+- **Ergebnis:** keine Regression reproduziert. Teststand **423 / 0 / 0 / 1** (40 Suiten), Lint 0/24.
+  Commit `835e791`. A29/A32 bleiben offen.
+
 ## Status je Befund
 
 | ID | Schwere | Status | Umsetzung |
