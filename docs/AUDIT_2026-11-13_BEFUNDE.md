@@ -11,6 +11,19 @@ dokumentierter Restmaßnahme offen. Neuer Teststand: **414 Tests, 0 Failures, 0 
 1 übersprungen (40 Suiten)**, Lint **0 Fehler / 24 Warnungen**. Nachweise je Befund unten
 in der Statustabelle; Commits `5418025` (A34), `d8e382e` (A32), `3be3e3f` (A29), `919495f` (A16).
 
+**Nachtrag 2026-11-25 (RSS-AUDIT-003, Regressionsprüfung):**
+- **A34-Wiederherstellung behoben:** Nach einem vorübergehenden Fehler endete der Lesefluss
+  dauerhaft (kein erneuter Leseversuch). Jetzt zwei Wiederholungen mit 500 ms, danach geordnetes
+  Ende; dauerhafter Fehler bleibt begrenzt (3 Versuche). Commit `791833e`.
+- **A16-Randfälle abgesichert:** leere Liste, Filter an + alles gelesen, letzter ungelesener Artikel
+  wird gelesen, Seitengrenze 100/101, neuer Artikel während Refresh (keine Duplikate, verdrängter
+  Artikel kehrt beim Nachladen zurück). Commit `dd04b8a`.
+- **A32 ist jetzt ausdrücklich „nicht vollständig abgeschlossen"**: Grenzwerte sind getestet, die
+  Leistungsmessung auf API 26/36 fehlt. A29 bleibt offen.
+- **Testintegrität:** 408 → 414 (+3 A34, +2 A32, +6 A16, −5 In-Memory-Filtertests, die durch
+  gleichwertige SQL-Fälle ersetzt wurden); durch AUDIT-003 weitere +7 (2 A34, 5 A16).
+  Kein Test wurde ohne Ersatz entfernt.
+
 ## Status je Befund
 
 | ID | Schwere | Status | Umsetzung |
@@ -46,9 +59,9 @@ in der Statustabelle; Commits `5418025` (A34), `d8e382e` (A32), `3be3e3f` (A29),
 | RSS-A29 | Niedrig | **offen (Restmaßnahme dokumentiert)** | Link und Pages am 25.11.2026 erneut geprüft (404 / kein Host); keine weitere Verwendungsstelle im Baum; keine Ersatz-URL erfunden. Benötigt: Privacy-Repo/Pages anlegen, Store-Konsole prüfen (`docs/PrivacyLink für GooglePlay.txt`) |
 | RSS-A30 | Mittel | behoben | OPML-`EntityResolver` liefert leere Quelle |
 | RSS-A31 | Mittel | behoben | `data_extraction_rules`: alle Domänen ausgeschlossen |
-| RSS-A32 | Mittel | **behoben (25.11.2026; Messung offen)** | Absolute Obergrenze 1 Mio. Zeichen pro Artikel, unabhängig vom Defensivmodus; Grenzwerttests ober-/unterhalb der Grenze (`FeedParserContentLimitTest`). **Messung auf API 26/36 weiterhin offen:** kein freigegebenes Testgerät mit diesen API-Ständen (alice 30, bernd 29, ingo neuer), Emulator-Tests ohne Freigabe unzulässig |
+| RSS-A32 | Mittel | **nicht vollständig abgeschlossen (25.11.2026)** | Grenzwerte behoben und getestet (1 Mio. Zeichen, ober-/unterhalb, `FeedParserContentLimitTest`); die geforderte **Leistungsmessung auf API 26/36 fehlt** — kein freigegebenes Gerät, Emulator-Tests unzulässig. Ohne Messung gilt der Befund nicht als abgeschlossen |
 | RSS-A33 | Mittel | behoben | SAF-Stream öffnen/schließen auf `Dispatchers.IO` |
-| RSS-A34 | Mittel | **behoben (25.11.2026)** | Zentrale Hülle `guardDatabaseRead`: Cancellation wird weitergereicht, andere Lesefehler werden protokolliert und gemeldet; abgesichert sind Feed-Übersicht, Favoriten, Artikelliste, Reader-Navigation und Suche. `RssReaderApp` zeigt eine sichtbare Meldung statt Leerzustand (`DataReadSafetyTest`) |
+| RSS-A34 | Mittel | **behoben (25.11.2026, AUDIT-003)** | Zentrale Hülle `guardDatabaseRead`: Cancellation wird weitergereicht, andere Lesefehler gemeldet, vorübergehende Fehler bis zu zweimal mit 500 ms Wartezeit wiederholt (danach geordnetes Ende). Abgesichert: Feed-Übersicht, Favoriten, Artikelliste, Reader-Navigation, Suche; sichtbare Meldung statt Leerzustand. Tests: Erholung nach transientem Fehler, begrenzte Wiederholung, Cancellation (`DataReadSafetyTest`) |
 | RSS-A35 | Niedrig | behoben | Formular scrollbar; Menü nutzt `statusBarsPadding` und ist in der Höhe begrenzt |
 
 ## Geänderte Dateien (Auszug)
