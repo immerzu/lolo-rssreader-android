@@ -27,6 +27,18 @@ class HttpClientsTest {
         assertEquals(30_000, HttpClients.default.callTimeoutMillis)
     }
 
+    /**
+     * Ein echter HTTPS→HTTP-Redirect-Test wuerde einen HTTPS-Testserver mit einem Zertifikat
+     * verlangen, dem der System-Truststore vertraut; das ist ohne neue Abhaengigkeit oder
+     * Trust-Override nicht moeglich. Stattdessen wird die Konfiguration direkt geprueft.
+     */
+    @Test
+    fun sslRedirectsAreDisabledInTheSharedClient() {
+        val field = okhttp3.OkHttpClient::class.java.getDeclaredField("followSslRedirects")
+        field.isAccessible = true
+        assertEquals(false, field.getBoolean(HttpClients.default))
+    }
+
     @Test
     fun sharedClientHandlesParallelRequests() = runBlocking {
         val serverSocket = ServerSocket(0, 50, InetAddress.getLoopbackAddress())
