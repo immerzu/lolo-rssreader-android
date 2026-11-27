@@ -23,7 +23,7 @@ internal object FeedEncoding {
     fun resolveCharset(responseBytes: ByteArray, contentTypeHeader: String?): Charset {
         val candidates = buildList {
             bomCharset(responseBytes)?.let(::add)
-            extractCharset(contentTypeHeader)?.let(::add)
+            parseCharsetFromContentType(contentTypeHeader)?.let(::add)
             extractXmlPrologCharset(responseBytes)?.let(::add)
             add(Charsets.UTF_8)
             add(Charsets.ISO_8859_1)
@@ -72,7 +72,8 @@ internal object FeedEncoding {
         return null
     }
 
-    private fun extractCharset(contentTypeHeader: String?): Charset? {
+    /** Gemeinsame Charset-Auswertung des Content-Type-Headers (Feed und Volltext). */
+    internal fun parseCharsetFromContentType(contentTypeHeader: String?): Charset? {
         val header = contentTypeHeader ?: return null
         val markerIndex = header.lowercase().indexOf("charset=")
         if (markerIndex < 0) {

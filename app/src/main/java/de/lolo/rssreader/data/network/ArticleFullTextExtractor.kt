@@ -73,7 +73,7 @@ open class ArticleFullTextExtractor(
                     throw RssReaderException.EmptyResponse()
                 }
 
-                val charset = extractCharset(response.header("Content-Type"))
+                val charset = FeedEncoding.parseCharsetFromContentType(response.header("Content-Type"))
                 val document = if (charset != null) {
                     Jsoup.parse(String(bytes, charset), normalizedUrl)
                 } else {
@@ -139,18 +139,6 @@ open class ArticleFullTextExtractor(
         return output.toByteArray()
     }
 
-    private fun extractCharset(contentTypeHeader: String?): Charset? {
-        val charsetName = contentTypeHeader
-            ?.substringAfter("charset=", missingDelimiterValue = "")
-            ?.substringBefore(';')
-            ?.trim()
-            ?.trim('"', '\'')
-            .orEmpty()
-        if (charsetName.isBlank()) {
-            return null
-        }
-        return runCatching { Charset.forName(charsetName) }.getOrNull()
-    }
 
 
     companion object {
