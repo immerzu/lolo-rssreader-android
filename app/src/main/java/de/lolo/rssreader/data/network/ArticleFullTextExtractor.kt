@@ -44,7 +44,7 @@ open class ArticleFullTextExtractor(
 ) {
     open suspend fun fetch(url: String): ExtractedArticleContent {
         val normalizedUrl = validateUrl(url)
-        DebugLogger.i(TAG, "fulltext_fetch url=${normalizedUrl.maskUrlCredentialsForLog()}")
+        DebugLogger.i(TAG, "fulltext_fetch url=${UrlRedaction.redactForLog(normalizedUrl)}")
 
         val request = try {
             Request.Builder()
@@ -61,7 +61,7 @@ open class ArticleFullTextExtractor(
         try {
             client.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) {
-                    DebugLogger.w(TAG, "fulltext_http_error code=${response.code} url=${normalizedUrl.maskUrlCredentialsForLog()}", null)
+                    DebugLogger.w(TAG, "fulltext_http_error code=${response.code} url=${UrlRedaction.redactForLog(normalizedUrl)}", null)
                     throw RssReaderException.HttpError(response.code)
                 }
                 val body = response.body ?: throw RssReaderException.EmptyResponse()
@@ -85,7 +85,7 @@ open class ArticleFullTextExtractor(
                     ?: throw RssReaderException.FullTextUnavailable()
                 DebugLogger.i(
                     TAG,
-                    "fulltext_extracted url=${normalizedUrl.maskUrlCredentialsForLog()} " +
+                    "fulltext_extracted url=${UrlRedaction.redactForLog(normalizedUrl)} " +
                         "bytes=${bytes.size} plainChars=${extracted.plainText.length} images=${extracted.imageUrls.size}"
                 )
                 return extracted
@@ -152,12 +152,6 @@ open class ArticleFullTextExtractor(
         return runCatching { Charset.forName(charsetName) }.getOrNull()
     }
 
-    private fun String.maskUrlCredentialsForLog(): String {
-        val uri = runCatching { URI(this) }.getOrNull() ?: return this
-        val userInfo = uri.rawUserInfo ?: return this
-        val masked = if (userInfo.contains(':')) "***:***" else "***"
-        return replace("$userInfo@", "$masked@")
-    }
 
     companion object {
         private const val TAG = "ArticleFullText"
