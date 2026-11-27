@@ -23,8 +23,7 @@ internal fun hasWifiConnection(
 ): Boolean {
     val connectivityManager = context.getSystemService(ConnectivityManager::class.java)
         ?: return false
-    val activeNetwork = connectivityManager.activeNetwork ?: return false
-    val capabilities = connectivityManager.getNetworkCapabilities(activeNetwork) ?: return false
+    val capabilities = activeNetworkCapabilities(context) ?: return false
     if (requireInternetCapability && !capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)) {
         return false
     }
@@ -35,6 +34,17 @@ internal fun hasWifiConnection(
         hasVpn = capabilities.hasTransport(NetworkCapabilities.TRANSPORT_VPN),
         isActiveNetworkMetered = connectivityManager.isActiveNetworkMetered
     )
+}
+
+/**
+ * Capabilities des aktiven Netzwerks oder `null`, wenn kein Netzwerk/kein Dienst verfuegbar ist.
+ * Wird von der WLAN- und der Offline-Erkennung gemeinsam genutzt.
+ */
+internal fun activeNetworkCapabilities(context: Context): NetworkCapabilities? {
+    val connectivityManager = context.getSystemService(ConnectivityManager::class.java)
+        ?: return null
+    val activeNetwork = connectivityManager.activeNetwork ?: return null
+    return connectivityManager.getNetworkCapabilities(activeNetwork)
 }
 
 /**
@@ -57,11 +67,7 @@ internal fun hasWifiTransport(
  * frueheren Implementierung in DocumentImportExportSupport/RssReaderApp.
  */
 internal fun isDefinitelyOffline(context: Context): Boolean {
-    val connectivityManager = context.getSystemService(ConnectivityManager::class.java)
-        ?: return true
-    val activeNetwork = connectivityManager.activeNetwork ?: return true
-    val capabilities = connectivityManager.getNetworkCapabilities(activeNetwork) ?: return true
-
+    val capabilities = activeNetworkCapabilities(context) ?: return true
     return !hasRefreshTransport(capabilities)
 }
 
