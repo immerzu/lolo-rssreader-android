@@ -372,25 +372,6 @@ internal const val READER_INACTIVITY_RESET_TIMEOUT_MS = 15L * 60L * 1000L
 internal const val FOREGROUND_REFRESH_AFTER_INACTIVITY_TIMEOUT_MS = 5L * 60L * 60L * 1000L
 internal const val FOREGROUND_REFRESH_ON_START_TIMEOUT_MS = 5L * 60L * 1000L
 
-internal fun shouldRefreshOnForegroundAfterInactivity(
-    settings: AppPreferences,
-    lastBackgroundedAtElapsedMs: Long,
-    nowElapsedMs: Long,
-    defaultTimeoutMs: Long = FOREGROUND_REFRESH_AFTER_INACTIVITY_TIMEOUT_MS
-): Boolean {
-    if (!isForegroundRefreshEnabled(settings)) {
-        return false
-    }
-    if (lastBackgroundedAtElapsedMs <= 0L || nowElapsedMs <= lastBackgroundedAtElapsedMs) {
-        return false
-    }
-
-    return nowElapsedMs - lastBackgroundedAtElapsedMs >= foregroundRefreshInactivityTimeoutMs(
-        settings = settings,
-        defaultTimeoutMs = defaultTimeoutMs
-    )
-}
-
 internal fun isForegroundRefreshEnabled(settings: AppPreferences): Boolean {
     return settings.refreshOnStart || settings.refreshIntervalMinutes > 0
 }

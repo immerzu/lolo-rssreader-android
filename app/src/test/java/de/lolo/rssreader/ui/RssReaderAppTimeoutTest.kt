@@ -40,9 +40,9 @@ class RssReaderAppTimeoutTest {
     }
 
     @Test
-    fun shouldRefreshOnForegroundAfterInactivityReturnsFalseWhenAutomaticRefreshIsDisabled() {
+    fun shouldRefreshOnForegroundReturnsFalseWhenAutomaticRefreshIsDisabled() {
         assertFalse(
-            shouldRefreshOnForegroundAfterInactivity(
+            shouldRefreshOnForeground(
                 settings = AppPreferences(
                     refreshOnStart = false,
                     refreshIntervalMinutes = 0
@@ -54,16 +54,16 @@ class RssReaderAppTimeoutTest {
     }
 
     @Test
-    fun shouldRefreshOnForegroundAfterInactivityUses5MinTimeoutForRefreshOnStartOnly() {
+    fun shouldRefreshOnForegroundUses5MinTimeoutForRefreshOnStartOnly() {
         assertFalse(
-            shouldRefreshOnForegroundAfterInactivity(
+            shouldRefreshOnForeground(
                 settings = AppPreferences(refreshOnStart = true),
                 lastBackgroundedAtElapsedMs = 1_000L,
                 nowElapsedMs = 1_000L + FOREGROUND_REFRESH_ON_START_TIMEOUT_MS - 1L
             )
         )
         assertTrue(
-            shouldRefreshOnForegroundAfterInactivity(
+            shouldRefreshOnForeground(
                 settings = AppPreferences(refreshOnStart = true),
                 lastBackgroundedAtElapsedMs = 1_000L,
                 nowElapsedMs = 1_000L + FOREGROUND_REFRESH_ON_START_TIMEOUT_MS
@@ -72,7 +72,7 @@ class RssReaderAppTimeoutTest {
     }
 
     @Test
-    fun shouldRefreshOnForegroundAfterInactivityUsesConfiguredBackgroundIntervalWhenPresent() {
+    fun shouldRefreshOnForegroundUsesConfiguredBackgroundIntervalWhenPresent() {
         val settings = AppPreferences(refreshIntervalMinutes = 360)
 
         assertEquals(
@@ -80,14 +80,14 @@ class RssReaderAppTimeoutTest {
             foregroundRefreshInactivityTimeoutMs(settings)
         )
         assertFalse(
-            shouldRefreshOnForegroundAfterInactivity(
+            shouldRefreshOnForeground(
                 settings = settings,
                 lastBackgroundedAtElapsedMs = 1_000L,
                 nowElapsedMs = 1_000L + TimeUnit.HOURS.toMillis(6) - 1L
             )
         )
         assertTrue(
-            shouldRefreshOnForegroundAfterInactivity(
+            shouldRefreshOnForeground(
                 settings = settings,
                 lastBackgroundedAtElapsedMs = 1_000L,
                 nowElapsedMs = 1_000L + TimeUnit.HOURS.toMillis(6)
