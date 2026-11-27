@@ -15,7 +15,6 @@ import java.net.SocketTimeoutException
 import java.net.URI
 import java.net.UnknownHostException
 import java.nio.charset.Charset
-import java.util.concurrent.TimeUnit
 
 /**
  * Volltext, der aus der Originalseite eines Artikels gewonnen wurde.
@@ -40,7 +39,7 @@ data class ExtractedArticleContent(
  * Credential-Maskierung in Logs, keine Ausfuehrung von Skripten.
  */
 open class ArticleFullTextExtractor(
-    private val client: OkHttpClient = defaultClient
+    private val client: OkHttpClient = HttpClients.default
 ) {
     open suspend fun fetch(url: String): ExtractedArticleContent {
         val normalizedUrl = validateUrl(url)
@@ -148,14 +147,6 @@ open class ArticleFullTextExtractor(
         private const val ARTICLE_ACCEPT_CHARSET_HEADER = "utf-8, iso-8859-1;q=0.8"
         internal const val MAX_ARTICLE_HTML_BYTES = 3L * 1024L * 1024L
         private const val STREAM_BUFFER_SIZE = 16 * 1024
-
-        private val defaultClient: OkHttpClient = OkHttpClient.Builder()
-            .connectTimeout(15, TimeUnit.SECONDS)
-            .readTimeout(20, TimeUnit.SECONDS)
-            .callTimeout(30, TimeUnit.SECONDS)
-            // Kein HTTPS->HTTP-Downgrade (analog FeedFetcher).
-            .followSslRedirects(false)
-            .build()
     }
 }
 

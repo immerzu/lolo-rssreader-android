@@ -21,14 +21,13 @@ import okhttp3.OkHttpClient
 import okhttp3.Call
 import okhttp3.Request
 import okhttp3.Response
-import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
 class FeedFetcher(
-    private val client: OkHttpClient = defaultClient
+    private val client: OkHttpClient = HttpClients.default
 ) {
     suspend fun fetch(url: String, etag: String? = null, lastModified: String? = null): FeedFetchResult {
         val ifNoneMatchPresent = !etag.isNullOrBlank()
@@ -309,17 +308,6 @@ class FeedFetcher(
         private const val LARGE_FEED_SOFT_LIMIT_BYTES = 5L * 1024L * 1024L
         private const val LARGE_FEED_HARD_LIMIT_BYTES = 12L * 1024L * 1024L
         private const val FEED_STREAM_BUFFER_SIZE = 16 * 1024
-
-        private val defaultClient: OkHttpClient = OkHttpClient.Builder()
-            .connectTimeout(15, TimeUnit.SECONDS)
-            .readTimeout(20, TimeUnit.SECONDS)
-            .callTimeout(30, TimeUnit.SECONDS)
-            // HTTPS-only-Haertung: OkHttp folgt Redirects von HTTPS auf HTTP
-            // standardmaessig (followSslRedirects=true). Ein Feed-Server darf
-            // nicht auf Klartext-HTTP herunterstufen duerfen, sonst wuerde die
-            // bewusste http-Ablehnung in isSupportedFeedUrl unterlaufen.
-            .followSslRedirects(false)
-            .build()
 
         /**
          * Kürzt einen ETag-/Header-Wert auf ersten 12 + letzten 8 Zeichen,
