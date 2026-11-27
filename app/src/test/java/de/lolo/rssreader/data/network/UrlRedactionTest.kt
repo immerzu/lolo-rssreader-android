@@ -40,4 +40,41 @@ class UrlRedactionTest {
     fun unlesbareUrlWirdNichtRohAusgegeben() {
         assertEquals("<url>", UrlRedaction.redactForLog("nicht mal eine url"))
     }
+
+    @Test
+    fun kodierteParameternamenWerdenEbenfallsMaskiert() {
+        val entry = UrlRedaction.redactForLog(
+            "https://example.com/feed?to%6Ben=leak1&%61pi_key=leak2&lang=de"
+        )
+
+        assertFalse("kodierter token-Wert darf nicht im Log stehen", entry.contains("leak1"))
+        assertFalse("kodierter api_key-Wert darf nicht im Log stehen", entry.contains("leak2"))
+        assertTrue(entry.contains("lang=de"))
+    }
+
+    @Test
+    fun grossschreibungSensiblerNamenWirdErkannt() {
+        val entry = UrlRedaction.redactForLog(
+            "https://example.com/feed?TOKEN=leak1&Access_Token=leak2&Password=leak3"
+        )
+
+        assertFalse(entry.contains("leak1"))
+        assertFalse(entry.contains("leak2"))
+        assertFalse(entry.contains("leak3"))
+    }
+
+    @Test
+    fun ungueltigeProzentfolgeWirdNichtRohAusgegeben() {
+        val entry = UrlRedaction.redactForLog("https://example.com/feed?to%ZZken=leak&lang=de")
+
+        // URI lehnt die ungueltige Prozentfolge ab; die Roh-URL darf nicht ins Log.
+        assertEquals("<url>", entry)
+    }
+
+    @Test
+    fun parameterOhneWertWirdMaskiert() {
+        val entry = UrlRedaction.redactForLog("https://example.com/feed?token&lang=de")
+
+        assertEquals("https://example.com/feed?token=***&lang=de", entry)
+    }
 }

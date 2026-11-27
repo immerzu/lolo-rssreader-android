@@ -1,6 +1,8 @@
 package de.lolo.rssreader.data.network
 
 import java.net.URI
+import java.net.URLDecoder
+import java.nio.charset.StandardCharsets
 
 /**
  * Bereinigt Feed-URLs fuer Log-Ausgaben.
@@ -58,11 +60,22 @@ internal object UrlRedaction {
         }
         return rawQuery.split('&').joinToString("&") { pair ->
             val name = pair.substringBefore('=')
-            if (name.lowercase() in SENSITIVE_QUERY_NAMES) {
+            if (normalizedQueryName(name) in SENSITIVE_QUERY_NAMES) {
                 "$name=***"
             } else {
                 pair
             }
         }
     }
+
+    /**
+     * Prozentkodierte Namen (z. B. `to%6Ben`) muessen wie ihr Klartext verglichen werden,
+     * sonst gelangt der Wert eines sensiblen Parameters unmaskiert ins Log.
+     * Eine ungueltige Prozentfolge wird unveraendert verglichen (kein Absturz, kein Leck
+     * fuer gueltige Schreibweisen).
+     */
+    private fun normalizedQueryName(rawName: String): String =
+        runCatching { URLDecoder.decode(rawName, StandardCharsets.UTF_8.name()) }
+            .getOrDefault(rawName)
+            .lowercase()
 }
