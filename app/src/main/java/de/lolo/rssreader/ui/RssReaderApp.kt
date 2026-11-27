@@ -1,8 +1,6 @@
 package de.lolo.rssreader.ui
 
 import android.content.Context
-import android.net.ConnectivityManager
-import android.net.NetworkCapabilities
 import android.os.SystemClock
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -50,6 +48,7 @@ import de.lolo.rssreader.ui.screens.ArticleListScreen
 import de.lolo.rssreader.ui.screens.ArticleReaderScreen
 import de.lolo.rssreader.ui.screens.FeedConfigScreen
 import de.lolo.rssreader.ui.screens.HomeScreen
+import de.lolo.rssreader.ui.screens.isDefinitelyOffline
 import de.lolo.rssreader.ui.screens.SearchScreen
 import de.lolo.rssreader.ui.screens.SettingsRouteScreen
 import de.lolo.rssreader.ui.theme.RssReaderTheme
@@ -95,7 +94,7 @@ fun RssReaderApp(
             try {
                 val hasWifiConnection = hasWifiConnection(appContext, requireInternetCapability = false)
                 if (
-                    isForegroundRefreshDefinitelyOffline(appContext) ||
+                    isDefinitelyOffline(appContext) ||
                     shouldSkipForegroundRefreshForWifiOnlySetting(
                         settings = loadedSettings,
                         hasWifiConnection = hasWifiConnection
@@ -409,21 +408,6 @@ internal fun shouldSkipForegroundRefreshForWifiOnlySetting(
     return settings.refreshOnlyOnWifi && !hasWifiConnection
 }
 
-private fun isForegroundRefreshDefinitelyOffline(context: Context): Boolean {
-    val connectivityManager = context.getSystemService(ConnectivityManager::class.java)
-        ?: return true
-    val activeNetwork = connectivityManager.activeNetwork ?: return true
-    val capabilities = connectivityManager.getNetworkCapabilities(activeNetwork) ?: return true
-
-    return !hasForegroundRefreshTransport(capabilities)
-}
-
-private fun hasForegroundRefreshTransport(capabilities: NetworkCapabilities): Boolean {
-    return capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) ||
-        capabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) ||
-        capabilities.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET) ||
-        capabilities.hasTransport(NetworkCapabilities.TRANSPORT_VPN)
-}
 
 
 
