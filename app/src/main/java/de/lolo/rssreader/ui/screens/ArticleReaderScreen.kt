@@ -6,7 +6,6 @@ import android.net.Uri
 import android.os.SystemClock
 import android.view.ViewConfiguration
 
-import android.text.format.DateUtils
 import android.text.TextUtils
 import android.util.Log
 import android.view.MotionEvent
@@ -95,6 +94,7 @@ import de.lolo.rssreader.data.network.ExtractedArticleContent
 import de.lolo.rssreader.data.repository.FAVORITES_FEED_ID
 import de.lolo.rssreader.data.repository.FeedRepository
 import de.lolo.rssreader.debug.DebugLogger
+import de.lolo.rssreader.ui.formatRelativeTime
 import de.lolo.rssreader.ui.shareArticle
 import java.io.ByteArrayInputStream
 import java.util.WeakHashMap
@@ -886,7 +886,7 @@ private fun buildReaderHtml(
     val articleBodyFontSizePx = (17 + articleBodyTextSizeOffset.coerceIn(-2, 2)).coerceIn(15, 19)
     val encodedTitle = TextUtils.htmlEncode(article.title)
     val encodedDate = article.publishedAt
-        ?.let { formatReaderRelativeTime(it) }
+        ?.let { formatRelativeTime(it) }
         ?.let(TextUtils::htmlEncode)
     val imageMaxWidthPx = if (loadProfile.isHeavy) 460 else 560
     val imageMaxHeightPx = if (loadProfile.isHeavy) 220 else 300
@@ -1478,7 +1478,7 @@ private fun ReaderFallbackContent(
         )
         if (article?.publishedAt != null) {
             Text(
-                text = formatReaderRelativeTime(
+                text = formatRelativeTime(
                     article.publishedAt,
                     stringResource(R.string.common_never)
                 ),
@@ -1682,19 +1682,6 @@ private fun destroyWebView(webView: WebView?) {
         webView.removeAllViews()
         webView.destroy()
     }
-}
-
-private fun formatReaderRelativeTime(timestamp: Long?, neverLabel: String = "nie"): String {
-    if (timestamp == null) {
-        return neverLabel
-    }
-
-    return DateUtils.getRelativeTimeSpanString(
-        timestamp,
-        System.currentTimeMillis(),
-        DateUtils.MINUTE_IN_MILLIS,
-        DateUtils.FORMAT_ABBREV_RELATIVE
-    ).toString()
 }
 
 internal fun resolveReaderFallbackBodyText(article: ArticleEntity?): String {

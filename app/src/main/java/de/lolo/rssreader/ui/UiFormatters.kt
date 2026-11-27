@@ -5,9 +5,9 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-fun formatRelativeTime(timestamp: Long?): String {
+fun formatRelativeTime(timestamp: Long?, neverLabel: String = "nie"): String {
     if (timestamp == null) {
-        return "nie"
+        return neverLabel
     }
 
     return DateUtils.getRelativeTimeSpanString(
