@@ -1,8 +1,8 @@
 package de.lolo.rssreader.data.opml
 
 import de.lolo.rssreader.data.errors.RssReaderException
+import de.lolo.rssreader.data.repository.readInputStreamBounded
 import java.io.ByteArrayInputStream
-import java.io.ByteArrayOutputStream
 import java.io.InputStream
 import java.io.StringReader
 import javax.xml.XMLConstants
@@ -19,10 +19,9 @@ object OpmlCodec {
     // zukuenftige Aufrufer von OpmlCodec.parse keinen unbegrenzten Stream vollstaendig
     // einlesen koennen. Entspricht dem Importlimit in FeedRepositoryOpmlSupport.
     const val OPML_IMPORT_MAX_BYTES = 2L * 1024L * 1024L
-    private const val OPML_READ_BUFFER_SIZE = 8 * 1024
 
     fun parse(inputStream: InputStream): List<OpmlFeedEntry> {
-        val inputBytes = readBounded(inputStream, OPML_IMPORT_MAX_BYTES)
+        val inputBytes = readInputStreamBounded(inputStream, OPML_IMPORT_MAX_BYTES)
         val document = parseDocumentSafely(inputBytes)
         val outlines = document.getElementsByTagName("outline")
         val entries = mutableListOf<OpmlFeedEntry>()
@@ -44,28 +43,6 @@ object OpmlCodec {
         }
 
         return entries.distinctBy { it.url }
-    }
-
-    private fun readBounded(inputStream: InputStream, maxBytes: Long): ByteArray {
-        val output = ByteArrayOutputStream(minOf(maxBytes, OPML_READ_BUFFER_SIZE.toLong()).toInt())
-        val buffer = ByteArray(OPML_READ_BUFFER_SIZE)
-        var totalRead = 0L
-        inputStream.use { stream ->
-            while (true) {
-                val read = stream.read(buffer)
-                if (read <= 0) {
-                    return output.toByteArray()
-                }
-                totalRead += read
-                if (totalRead > maxBytes) {
-                    throw RssReaderException.ImportFileTooLarge(
-                        actualSizeBytes = totalRead,
-                        limitBytes = maxBytes
-                    )
-                }
-                output.write(buffer, 0, read)
-            }
-        }
     }
 
     private fun parseDocumentSafely(inputBytes: ByteArray) = runCatching {
