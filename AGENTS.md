@@ -105,5 +105,9 @@
   Verhaltensänderung gehört ein Test unter `app/src/test/`, der genau diesen Fall abdeckt und den
   verhinderten Fehler reproduziert (ohne Fix rot, mit Fix grün). Eine Änderung gilt erst als fertig,
   wenn die Suite grün ist (`gradlew.bat testDebugUnitTest`); ein Gerätetest allein ersetzt keinen Unit-Test.
+- **Kein Commit mit bekannten Kompilier- oder Testfehlern** (Dauerregel, 27.11.2026): Vor jedem Commit
+  mindestens `gradlew.bat testDebugUnitTest` erfolgreich ausführen, bei UI-/Build-/Ressourcenänderungen
+  zusätzlich `lintDebug` und `assembleDebug`. Ein fehlgeschlagener Lauf wird vor dem Commit behoben,
+  nicht durch einen späteren Korrektur-Commit ersetzt.
 
 
