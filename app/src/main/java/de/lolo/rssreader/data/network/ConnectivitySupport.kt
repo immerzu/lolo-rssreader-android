@@ -50,3 +50,38 @@ internal fun hasWifiTransport(
 ): Boolean {
     return hasWifi || (hasVpn && !isActiveNetworkMetered && !hasCellular && !hasEthernet)
 }
+
+/**
+ * Offline-Erkennung fuer UI-Pfade (RSS-DUP-001-006): Es gilt als offline, wenn keiner der
+ * vier Transporte (WLAN, Mobilfunk, Ethernet, VPN) aktiv ist. Die Semantik entspricht der
+ * frueheren Implementierung in DocumentImportExportSupport/RssReaderApp.
+ */
+internal fun isDefinitelyOffline(context: Context): Boolean {
+    val connectivityManager = context.getSystemService(ConnectivityManager::class.java)
+        ?: return true
+    val activeNetwork = connectivityManager.activeNetwork ?: return true
+    val capabilities = connectivityManager.getNetworkCapabilities(activeNetwork) ?: return true
+
+    return !hasRefreshTransport(capabilities)
+}
+
+internal fun hasRefreshTransport(capabilities: NetworkCapabilities?): Boolean {
+    if (capabilities == null) {
+        return false
+    }
+    return hasRefreshTransportFlags(
+        hasWifi = capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI),
+        hasCellular = capabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR),
+        hasEthernet = capabilities.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET),
+        hasVpn = capabilities.hasTransport(NetworkCapabilities.TRANSPORT_VPN)
+    )
+}
+
+internal fun hasRefreshTransportFlags(
+    hasWifi: Boolean,
+    hasCellular: Boolean,
+    hasEthernet: Boolean,
+    hasVpn: Boolean = false
+): Boolean {
+    return hasWifi || hasCellular || hasEthernet || hasVpn
+}

@@ -81,6 +81,7 @@ import de.lolo.rssreader.data.db.FeedSummary
 import de.lolo.rssreader.data.errors.RssReaderException
 import de.lolo.rssreader.data.errors.toUserMessage
 import de.lolo.rssreader.data.network.hasWifiConnection
+import de.lolo.rssreader.data.network.isDefinitelyOffline
 import de.lolo.rssreader.data.repository.FAVORITES_FEED_ID
 import de.lolo.rssreader.data.repository.FeedRepository
 import de.lolo.rssreader.data.repository.RefreshRunStats

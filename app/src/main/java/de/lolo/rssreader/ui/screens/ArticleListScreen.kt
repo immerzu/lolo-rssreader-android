@@ -66,6 +66,7 @@ import de.lolo.rssreader.data.db.ArticleListItem
 import de.lolo.rssreader.data.errors.toUserMessage
 import de.lolo.rssreader.data.repository.FAVORITES_FEED_ID
 import de.lolo.rssreader.data.repository.FeedRepository
+import de.lolo.rssreader.data.network.isDefinitelyOffline
 import de.lolo.rssreader.data.settings.AppPreferences
 import de.lolo.rssreader.data.settings.EntrySortOrder
 import de.lolo.rssreader.debug.DebugLogger

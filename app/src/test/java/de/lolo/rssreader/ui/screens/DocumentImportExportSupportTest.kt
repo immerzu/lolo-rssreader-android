@@ -5,6 +5,7 @@ import android.os.Looper
 import androidx.activity.ComponentActivity
 import androidx.test.core.app.ApplicationProvider
 import de.lolo.rssreader.data.repository.OpmlImportResult
+import de.lolo.rssreader.data.network.hasRefreshTransportFlags
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob

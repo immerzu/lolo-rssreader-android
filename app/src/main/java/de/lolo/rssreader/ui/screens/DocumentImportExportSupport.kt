@@ -2,8 +2,6 @@ package de.lolo.rssreader.ui.screens
 
 import android.content.Context
 import android.content.ContextWrapper
-import android.net.ConnectivityManager
-import android.net.NetworkCapabilities
 import android.net.Uri
 import androidx.activity.ComponentActivity
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -116,36 +114,6 @@ internal fun shouldRecoverStaleRefreshUiState(
         return true
     }
     return nowElapsedMs - refreshStartedAtElapsedMs >= timeoutMs
-}
-
-internal fun isDefinitelyOffline(context: Context): Boolean {
-    val connectivityManager = context.getSystemService(ConnectivityManager::class.java)
-        ?: return true
-    val activeNetwork = connectivityManager.activeNetwork ?: return true
-    val capabilities = connectivityManager.getNetworkCapabilities(activeNetwork) ?: return true
-
-    return !hasRefreshTransport(capabilities)
-}
-
-internal fun hasRefreshTransport(capabilities: NetworkCapabilities?): Boolean {
-    if (capabilities == null) {
-        return false
-    }
-    return hasRefreshTransportFlags(
-        hasWifi = capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI),
-        hasCellular = capabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR),
-        hasEthernet = capabilities.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET),
-        hasVpn = capabilities.hasTransport(NetworkCapabilities.TRANSPORT_VPN)
-    )
-}
-
-internal fun hasRefreshTransportFlags(
-    hasWifi: Boolean,
-    hasCellular: Boolean,
-    hasEthernet: Boolean,
-    hasVpn: Boolean = false
-): Boolean {
-    return hasWifi || hasCellular || hasEthernet || hasVpn
 }
 
 internal fun shouldBlockRefreshForWifiOnlySetting(

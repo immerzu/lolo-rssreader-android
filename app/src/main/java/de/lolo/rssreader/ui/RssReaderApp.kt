@@ -48,7 +48,7 @@ import de.lolo.rssreader.ui.screens.ArticleListScreen
 import de.lolo.rssreader.ui.screens.ArticleReaderScreen
 import de.lolo.rssreader.ui.screens.FeedConfigScreen
 import de.lolo.rssreader.ui.screens.HomeScreen
-import de.lolo.rssreader.ui.screens.isDefinitelyOffline
+import de.lolo.rssreader.data.network.isDefinitelyOffline
 import de.lolo.rssreader.ui.screens.SearchScreen
 import de.lolo.rssreader.ui.screens.SettingsRouteScreen
 import de.lolo.rssreader.ui.theme.RssReaderTheme
