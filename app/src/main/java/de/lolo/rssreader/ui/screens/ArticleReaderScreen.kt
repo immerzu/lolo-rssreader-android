@@ -106,6 +106,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.net.URI
 import kotlin.math.abs
+import org.jsoup.Jsoup
+import org.jsoup.nodes.Element
 
 @SuppressLint("SetJavaScriptEnabled", "ClickableViewAccessibility")
 @OptIn(ExperimentalMaterial3Api::class)
@@ -901,12 +903,19 @@ private fun buildReaderHtml(
     } else {
         ""
     }
-    val rawBody = (contentHtmlOverride ?: article.contentHtml).ifBlank {
-        article.plainText
-            .lineSequence()
-            .map(TextUtils::htmlEncode)
-            .joinToString(separator = "<br><br>")
-    }.normalizeReaderBodyHtml(loadProfile, showImages)
+    val htmlBody = (contentHtmlOverride ?: article.contentHtml).let { body ->
+        if (body.isBlank()) {
+            article.plainText
+                .lineSequence()
+                .map(TextUtils::htmlEncode)
+                .joinToString(separator = "<br><br>")
+        } else {
+            // Der Reader rendert den Titel als eigenen Header; die identische Titelzeile
+            // aus dem Artikel-HTML wuerde sonst doppelt erscheinen (RSS-FIX-003).
+            removeDuplicateTitleHeading(body, article.title)
+        }
+    }
+    val rawBody = htmlBody.normalizeReaderBodyHtml(loadProfile, showImages)
     if (rawBody.isBlank()) {
         return null
     }
@@ -1683,6 +1692,36 @@ private fun destroyWebView(webView: WebView?) {
         webView.destroy()
     }
 }
+
+/**
+ * Entfernt die erste `<h1>`-Ueberschrift des Artikel-HTML, wenn sie (normalisiert) exakt dem
+ * angezeigten Artikeltitel entspricht. Der Reader rendert den Titel selbst; eine identische
+ * Wiederholung wuerde doppelt erscheinen (RSS-FIX-003).
+ *
+ * Abweichende Ueberschriften und alle weiteren Gliederungsebenen (`h2`, `h3`, ...) bleiben
+ * unveraendert. Ohne passende erste Ueberschrift wird das HTML unveraendert zurueckgegeben.
+ */
+internal fun removeDuplicateTitleHeading(bodyHtml: String, articleTitle: String): String {
+    if (bodyHtml.isBlank()) {
+        return bodyHtml
+    }
+    val expected = articleTitle.normalizeHeadingText()
+    if (expected.isEmpty()) {
+        return bodyHtml
+    }
+    val document = Jsoup.parseBodyFragment(bodyHtml)
+    val heading = document.selectFirst("h1") ?: return bodyHtml
+    if (heading.normalizeHeadingText() != expected) {
+        return bodyHtml
+    }
+    heading.remove()
+    return document.body().html()
+}
+
+private fun String.normalizeHeadingText(): String =
+    replace(Regex("\\s+"), " ").trim().lowercase()
+
+private fun Element.normalizeHeadingText(): String = text().normalizeHeadingText()
 
 internal fun resolveReaderFallbackBodyText(article: ArticleEntity?): String {
     return article?.plainText?.ifBlank { "Kein Textinhalt vorhanden." }.orEmpty()
