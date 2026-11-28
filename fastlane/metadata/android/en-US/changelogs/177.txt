@@ -1,0 +1,1 @@
+Version 1.87.48: the article title no longer appears twice in the reader; the network and import paths became safer and more robust internally, without new features.

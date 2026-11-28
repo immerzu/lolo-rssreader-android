@@ -1,0 +1,1 @@
+Version 1.87.48: Der Artikeltitel erscheint im Reader nicht mehr doppelt; Netzwerk- und Importpfad wurden intern sicherer und robuster, ohne neue Funktionen.
